@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "UTB Billetterie"
+version = "1.0.0"
+id = "artifacts/utb-ticketing"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24273
+
+[services.development]
+run = "pnpm --filter @workspace/utb-ticketing run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/utb-ticketing", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/utb-ticketing/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24273"
+BASE_PATH = "/"

@@ -3,20 +3,34 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: UTB Bus Ticketing API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: trips
+    description: Trip search and details
+  - name: seats
+    description: Seat reservation
+  - name: payments
+    description: Payment operations
+  - name: tickets
+    description: Ticket management
+  - name: clerk
+    description: Station clerk operations
+  - name: admin
+    description: Admin operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +38,1056 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # Auth
+  /auth/request-otp:
+    post:
+      operationId: requestOtp
+      tags: [auth]
+      summary: Request OTP for phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpResponse"
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify OTP and create session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerify"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  # Trips
+  /trips/search:
+    get:
+      operationId: searchTrips
+      tags: [trips]
+      summary: Search available trips
+      parameters:
+        - name: origin
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: destination
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: List of trips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TripSummary"
+
+  /trips/{tripId}:
+    get:
+      operationId: getTrip
+      tags: [trips]
+      summary: Get trip details
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trip details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+
+  /trips/{tripId}/seats:
+    get:
+      operationId: getTripSeats
+      tags: [trips]
+      summary: Get seat map for a trip
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Seat list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Seat"
+
+  # Seat reservation
+  /seats/{seatId}/reserve:
+    post:
+      operationId: reserveSeat
+      tags: [seats]
+      summary: Temporarily reserve a seat (10 min)
+      parameters:
+        - name: seatId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReserveInput"
+      responses:
+        "200":
+          description: Seat reserved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Seat"
+
+    delete:
+      operationId: releaseSeat
+      tags: [seats]
+      summary: Release a temporary reservation
+      parameters:
+        - name: seatId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Seat released
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Seat"
+
+  # Payments
+  /payments/initiate:
+    post:
+      operationId: initiatePayment
+      tags: [payments]
+      summary: Initiate Orange Money payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentInput"
+      responses:
+        "200":
+          description: Payment initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+
+  /payments/callback:
+    post:
+      operationId: paymentCallback
+      tags: [payments]
+      summary: Orange Money payment callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentCallbackInput"
+      responses:
+        "200":
+          description: Callback processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # Tickets
+  /tickets:
+    get:
+      operationId: getMyTickets
+      tags: [tickets]
+      summary: Get current user's tickets
+      responses:
+        "200":
+          description: Ticket list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+
+  /tickets/{ticketId}:
+    get:
+      operationId: getTicket
+      tags: [tickets]
+      summary: Get ticket by ID
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+  # Clerk
+  /clerk/trips:
+    get:
+      operationId: getClerkTrips
+      tags: [clerk]
+      summary: Get today's trips for clerk selection
+      responses:
+        "200":
+          description: Today's trips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TripSummary"
+
+  /clerk/trips/{tripId}/seats:
+    get:
+      operationId: getClerkTripSeats
+      tags: [clerk]
+      summary: Real-time seat map for clerk
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Seat list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Seat"
+
+  /clerk/seats/{seatId}/sell:
+    post:
+      operationId: clerkSellSeat
+      tags: [clerk]
+      summary: Manually mark a seat as sold (cash payment)
+      parameters:
+        - name: seatId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClerkSellInput"
+      responses:
+        "200":
+          description: Seat sold
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+  /clerk/trips/{tripId}/passengers:
+    get:
+      operationId: getClerkPassengers
+      tags: [clerk]
+      summary: List of passengers for a trip
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Passenger list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Passenger"
+
+  /clerk/tickets/{ticketId}/validate:
+    post:
+      operationId: validateTicket
+      tags: [clerk]
+      summary: Validate a ticket by QR code data
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketValidation"
+
+  # Admin - Companies
+  /admin/companies:
+    get:
+      operationId: getAdminCompanies
+      tags: [admin]
+      summary: List all companies
+      responses:
+        "200":
+          description: Companies list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+    post:
+      operationId: createCompany
+      tags: [admin]
+      summary: Create a company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  /admin/companies/{companyId}:
+    put:
+      operationId: updateCompany
+      tags: [admin]
+      summary: Update a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+    delete:
+      operationId: deleteCompany
+      tags: [admin]
+      summary: Delete a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # Admin - Routes
+  /admin/routes:
+    get:
+      operationId: getAdminRoutes
+      tags: [admin]
+      summary: List all routes
+      responses:
+        "200":
+          description: Routes list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Route"
+    post:
+      operationId: createRoute
+      tags: [admin]
+      summary: Create a route
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RouteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+
+  /admin/routes/{routeId}:
+    put:
+      operationId: updateRoute
+      tags: [admin]
+      summary: Update a route
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RouteInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+    delete:
+      operationId: deleteRoute
+      tags: [admin]
+      summary: Delete a route
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # Admin - Trips
+  /admin/trips:
+    get:
+      operationId: getAdminTrips
+      tags: [admin]
+      summary: List all trips (admin)
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: routeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trips list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TripDetail"
+    post:
+      operationId: createTrip
+      tags: [admin]
+      summary: Create a trip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+
+  /admin/trips/{tripId}:
+    put:
+      operationId: updateTrip
+      tags: [admin]
+      summary: Update a trip (including price)
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+    delete:
+      operationId: deleteTrip
+      tags: [admin]
+      summary: Delete a trip
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # Admin - Dashboard
+  /admin/dashboard/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Sales dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /admin/reports/sales:
+    get:
+      operationId: getSalesReport
+      tags: [admin]
+      summary: Sales report data
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: companyId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sales report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesReport"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    # Auth
+    OtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+        name:
+          type: string
+
+    OtpResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        devOtp:
+          type: ["string", "null"]
+
+    OtpVerify:
+      type: object
+      required: [phone, otp]
+      properties:
+        phone:
+          type: string
+        otp:
+          type: string
+
+    AuthUser:
+      type: object
+      required: [id, phone, role]
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        name:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [passenger, clerk, admin]
+
+    # Company
+    Company:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CompanyInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    # Route
+    Route:
+      type: object
+      required: [id, origin, destination, durationMinutes, companyId, companyName]
+      properties:
+        id:
+          type: integer
+        origin:
+          type: string
+        destination:
+          type: string
+        durationMinutes:
+          type: integer
+        companyId:
+          type: integer
+        companyName:
+          type: string
+
+    RouteInput:
+      type: object
+      required: [origin, destination, durationMinutes, companyId]
+      properties:
+        origin:
+          type: string
+        destination:
+          type: string
+        durationMinutes:
+          type: integer
+        companyId:
+          type: integer
+
+    # Trip
+    TripSummary:
+      type: object
+      required: [id, origin, destination, departureDate, departureTime, price, companyName, availableSeats, durationMinutes]
+      properties:
+        id:
+          type: integer
+        origin:
+          type: string
+        destination:
+          type: string
+        departureDate:
+          type: string
+        departureTime:
+          type: string
+        price:
+          type: number
+        companyName:
+          type: string
+        availableSeats:
+          type: integer
+        durationMinutes:
+          type: integer
+
+    TripDetail:
+      type: object
+      required: [id, origin, destination, departureDate, departureTime, price, companyName, companyId, routeId, durationMinutes, totalSeats, availableSeats, status]
+      properties:
+        id:
+          type: integer
+        origin:
+          type: string
+        destination:
+          type: string
+        departureDate:
+          type: string
+        departureTime:
+          type: string
+        price:
+          type: number
+        companyName:
+          type: string
+        companyId:
+          type: integer
+        routeId:
+          type: integer
+        durationMinutes:
+          type: integer
+        totalSeats:
+          type: integer
+        availableSeats:
+          type: integer
+        status:
+          type: string
+          enum: [active, cancelled]
+
+    TripInput:
+      type: object
+      required: [routeId, departureDate, departureTime, price]
+      properties:
+        routeId:
+          type: integer
+        departureDate:
+          type: string
+          format: date
+        departureTime:
+          type: string
+        price:
+          type: number
+
+    TripUpdate:
+      type: object
+      properties:
+        departureDate:
+          type: string
+          format: date
+        departureTime:
+          type: string
+        price:
+          type: number
+        status:
+          type: string
+          enum: [active, cancelled]
+
+    # Seat
+    Seat:
+      type: object
+      required: [id, tripId, seatNumber, status]
+      properties:
+        id:
+          type: integer
+        tripId:
+          type: integer
+        seatNumber:
+          type: integer
+        status:
+          type: string
+          enum: [available, reserved, sold]
+        reservedAt:
+          type: ["string", "null"]
+        passengerName:
+          type: ["string", "null"]
+
+    ReserveInput:
+      type: object
+      required: [passengerName, passengerPhone]
+      properties:
+        passengerName:
+          type: string
+        passengerPhone:
+          type: string
+
+    # Payment
+    PaymentInput:
+      type: object
+      required: [seatId, passengerName, passengerPhone]
+      properties:
+        seatId:
+          type: integer
+        passengerName:
+          type: string
+        passengerPhone:
+          type: string
+
+    PaymentResponse:
+      type: object
+      required: [paymentId, amount, status]
+      properties:
+        paymentId:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+        redirectUrl:
+          type: ["string", "null"]
+        ticketId:
+          type: ["integer", "null"]
+
+    PaymentCallbackInput:
+      type: object
+      required: [paymentId, status]
+      properties:
+        paymentId:
+          type: string
+        status:
+          type: string
+        ticketId:
+          type: ["integer", "null"]
+
+    # Ticket
+    Ticket:
+      type: object
+      required: [id, tripId, seatNumber, passengerName, passengerPhone, origin, destination, departureDate, departureTime, companyName, price, qrCode, paymentStatus, createdAt]
+      properties:
+        id:
+          type: integer
+        tripId:
+          type: integer
+        seatNumber:
+          type: integer
+        passengerName:
+          type: string
+        passengerPhone:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        departureDate:
+          type: string
+        departureTime:
+          type: string
+        companyName:
+          type: string
+        price:
+          type: number
+        qrCode:
+          type: string
+        paymentStatus:
+          type: string
+          enum: [pending, paid]
+        validated:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    # Clerk
+    Passenger:
+      type: object
+      required: [ticketId, passengerName, passengerPhone, seatNumber, paymentStatus, validated]
+      properties:
+        ticketId:
+          type: integer
+        passengerName:
+          type: string
+        passengerPhone:
+          type: string
+        seatNumber:
+          type: integer
+        paymentStatus:
+          type: string
+        validated:
+          type: boolean
+
+    ClerkSellInput:
+      type: object
+      required: [passengerName, passengerPhone]
+      properties:
+        passengerName:
+          type: string
+        passengerPhone:
+          type: string
+
+    TicketValidation:
+      type: object
+      required: [valid, ticket]
+      properties:
+        valid:
+          type: boolean
+        ticket:
+          $ref: "#/components/schemas/Ticket"
+        message:
+          type: ["string", "null"]
+
+    # Admin Dashboard
+    DashboardStats:
+      type: object
+      required: [totalTicketsSoldToday, totalRevenuToday, totalTicketsSoldMonth, totalRevenueMonth, ticketsByCompany, salesByDay]
+      properties:
+        totalTicketsSoldToday:
+          type: integer
+        totalRevenuToday:
+          type: number
+        totalTicketsSoldMonth:
+          type: integer
+        totalRevenueMonth:
+          type: number
+        ticketsByCompany:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyStat"
+        salesByDay:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyStat"
+
+    CompanyStat:
+      type: object
+      required: [companyName, ticketCount, revenue]
+      properties:
+        companyName:
+          type: string
+        ticketCount:
+          type: integer
+        revenue:
+          type: number
+
+    DailyStat:
+      type: object
+      required: [date, ticketCount, revenue]
+      properties:
+        date:
+          type: string
+        ticketCount:
+          type: integer
+        revenue:
+          type: number
+
+    SalesReport:
+      type: object
+      required: [from, to, totalTickets, totalRevenue, rows]
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        totalTickets:
+          type: integer
+        totalRevenue:
+          type: number
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/SalesReportRow"
+
+    SalesReportRow:
+      type: object
+      required: [date, companyName, origin, destination, ticketCount, revenue]
+      properties:
+        date:
+          type: string
+        companyName:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        ticketCount:
+          type: integer
+        revenue:
+          type: number

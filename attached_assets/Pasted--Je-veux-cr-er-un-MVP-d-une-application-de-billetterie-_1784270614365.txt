@@ -1,0 +1,40 @@
+"Je veux créer un MVP d'une application de billetterie pour les bus interurbains en Côte d'Ivoire (cible : UTB). Le projet doit être développé avec Flutter (pour mobile et web) et Supabase (backend). Je veux que tu génères le code complet pour un prototype fonctionnel. Voici les fonctionnalités exactes à implémenter :"
+
+PARTIE 1 : MODULE CLIENT (Application Mobile - Passagers)
+#	Fonctionnalité	Description technique (pour Genspark)
+1	Inscription / Connexion	Authentification par numéro de téléphone avec OTP (via Supabase Auth).
+2	Page d'accueil (Recherche)	Champs de saisie : Départ, Arrivée, Date. Bouton "Rechercher".
+3	Liste des trajets	Affiche les résultats depuis la table trips (heure, prix, compagnie).
+4	Détails du trajet	Affiche les informations du trajet sélectionné (durée, arrivée).
+5	Plan des sièges	Grille interactive de 40 sièges. Couleurs : Vert (libre), Rouge (vendu), Orange (réservé temporairement).
+6	Sélection d'un siège	Lorsqu'un siège libre est tapé, il devient 'selected'.
+7	Réservation temporaire	Lors de la sélection, le siège passe en 'reserved' pendant 10 minutes (via Supabase).
+8	Page de paiement	Intégration Orange Money (via API Node.js externe). Montant affiché.
+9	Confirmation de paiement	Après paiement, le siège passe en 'sold' et un QR code est généré.
+10	Génération du ticket	Affiche le QR code et les détails (trajet, siège, date).
+11	Historique des tickets	Liste tous les tickets achetés par l'utilisateur (accès hors ligne).
+PARTIE 2 : MODULE CLERK (Tableau de bord Web - Gare)
+#	Fonctionnalité	Description technique (pour Genspark)
+12	Page de connexion Clerk	Login sécurisé pour le personnel de la gare (UTB).
+13	Sélection du trajet	Le clerk choisit le trajet du jour (ex: Abidjan → Bouaké, 8h00).
+14	Plan des sièges (Temps réel)	Grille des 40 sièges synchronisée en temps réel avec la base de données.
+15	Marquer un siège "vendu" manuellement	Pour les clients qui paient en cash à la gare. Le clerk clique sur un siège libre pour le marquer 'sold'.
+16	Scanner le QR code	Intégration d'un scanner de QR code pour valider le ticket du passager à l'embarquement.
+17	Liste des passagers	Affiche la liste des passagers pour le trajet sélectionné (nom, siège, statut).
+PARTIE 3 : MODULE ADMIN (Gestion des données)
+#	Fonctionnalité	Description technique (pour Genspark)
+18	Gestion des compagnies	Ajouter / Modifier des compagnies (UTB, GDF, MBatto).
+19	Gestion des routes	Ajouter / Modifier des routes (Abidjan-Bouaké, Abidjan-Daloa).
+20	Gestion des trajets	Créer des trajets quotidiens (date, heure, prix).
+21	Gestion des prix	Modifier les prix par trajet.
+22	Tableau de bord des ventes	Afficher le nombre de tickets vendus par jour / par compagnie.
+23	Rapports financiers	Export des ventes (CSV ou PDF) pour la comptabilité d'UTB.
+PARTIE 4 : FONCTIONNALITÉS TRANSVERSALES (Backend & Infrastructure)
+#	Fonctionnalité	Description technique (pour Genspark)
+24	Base de données Supabase	Tables : companies, routes, trips, seats, tickets, users.
+25	API REST automatique	Supabase génère les API. Utilisation des Row Level Security (RLS) pour sécuriser les données.
+26	Serveur Node.js (Paiement)	API externe pour Orange Money (endpoint /api/pay et callback /api/payment-callback).
+27	Génération de QR code	Utilisation de la librairie qrcode dans le serveur Node.js.
+28	Notifications	Envoi d'un SMS de confirmation après achat (via API Twilio ou Orange SMS).
+29	Mode hors ligne	Les données de base (trajets, sièges) sont mises en cache localement (Hive ou SharedPreferences).
+30	Responsive Design	L'application doit s'adapter automatiquement au mobile (passagers) et à la tablette (clerk)."Génère tout le code pour les fonctionnalités 1 à 30. Utilise Flutter (version 3.x) pour le frontend, Supabase pour le backend, et un petit serveur Node.js pour Orange Money. Le code doit être modulaire (séparer les écrans, les widgets, les services). Fournis le code complet avec les fichiers main.dart, screens/*.dart, services/*.dart, et le fichier server.js. Exporte tout dans un dossier compressé prêt à être ouvert dans VS Code."
