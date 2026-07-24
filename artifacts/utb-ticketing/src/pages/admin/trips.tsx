@@ -24,13 +24,20 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { ListPagination } from "@/components/list-pagination";
+
+const PAGE_SIZE = 20;
 
 export default function AdminTrips() {
   const [dateFilter, setDateFilter] = useState(format(new Date(), "yyyy-MM-dd"));
-  
-  const { data: trips, isLoading } = useGetAdminTrips({ date: dateFilter });
-  const { data: routes } = useGetAdminRoutes();
-  
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useGetAdminTrips({ date: dateFilter, page, pageSize: PAGE_SIZE });
+  const trips = data?.items;
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
+  const { data: routesData } = useGetAdminRoutes({ page: 1, pageSize: 100 });
+  const routes = routesData?.items;
+
   const createTrip = useCreateTrip();
   const updateTrip = useUpdateTrip();
   const deleteTrip = useDeleteTrip();
@@ -116,10 +123,10 @@ export default function AdminTrips() {
         <div className="flex gap-4 items-center w-full md:w-auto">
           <div className="relative">
             <CalendarIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input 
-              type="date" 
-              value={dateFilter} 
-              onChange={e => setDateFilter(e.target.value)}
+            <Input
+              type="date"
+              value={dateFilter}
+              onChange={e => { setDateFilter(e.target.value); setPage(1); }}
               className="pl-10"
             />
           </div>
@@ -234,6 +241,7 @@ export default function AdminTrips() {
             )}
           </TableBody>
         </Table>
+        <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
     </div>
   );

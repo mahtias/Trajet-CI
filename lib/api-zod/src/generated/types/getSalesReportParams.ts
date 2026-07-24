@@ -10,4 +10,6 @@ export type GetSalesReportParams = {
 from?: Date;
 to?: Date;
 companyId?: number;
+page?: number;
+pageSize?: number;
 };

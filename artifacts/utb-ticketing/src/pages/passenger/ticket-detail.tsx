@@ -1,16 +1,19 @@
 import { useParams } from "wouter";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useGetTicket } from "@workspace/api-client-react";
 import { MapPin, Clock, Calendar as CalendarIcon, ArrowLeft, Download, ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useLanguage } from "@/hooks/use-language";
+import { cn } from "@/lib/utils";
+import { getPaymentMethod } from "@/lib/payment-methods";
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
   const ticketId = parseInt(id, 10);
+  const { t, dateLocale } = useLanguage();
 
   const { data: ticket, isLoading } = useGetTicket(ticketId, {
     query: { enabled: !!ticketId }
@@ -27,16 +30,18 @@ export default function TicketDetail() {
   if (!ticket) {
     return (
       <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-        Billet introuvable.
+        {t("ticketDetail.notFound")}
       </div>
     );
   }
+
+  const method = getPaymentMethod(ticket.paymentMethod);
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-md">
       <Button variant="ghost" asChild className="mb-6 -ml-4 text-muted-foreground">
         <Link href="/tickets">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t("common.back")}
         </Link>
       </Button>
 
@@ -49,7 +54,7 @@ export default function TicketDetail() {
           {/* Header */}
           <div className="bg-secondary text-secondary-foreground p-6 text-center">
             <h2 className="text-xl font-bold tracking-widest">{ticket.companyName}</h2>
-            <p className="text-secondary-foreground/60 text-sm">Billet Électronique</p>
+            <p className="text-secondary-foreground/60 text-sm">{t("ticketDetail.eTicket")}</p>
           </div>
 
           {/* QR Code Section */}
@@ -58,7 +63,7 @@ export default function TicketDetail() {
               <img src={ticket.qrCode} alt="QR Code" className="w-48 h-48" />
             </div>
             <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">N° de Billet</p>
+              <p className="text-sm text-muted-foreground mb-1">{t("ticketDetail.ticketNumber")}</p>
               <p className="font-mono font-bold tracking-widest text-lg">{ticket.id.toString().padStart(6, '0')}</p>
             </div>
           </div>
@@ -85,22 +90,29 @@ export default function TicketDetail() {
 
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-muted/50 p-3 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> Date</p>
-                <p className="font-semibold">{format(new Date(ticket.departureDate), "d MMM yyyy", { locale: fr })}</p>
+                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {t("common.date")}</p>
+                <p className="font-semibold">{format(new Date(ticket.departureDate), "d MMM yyyy", { locale: dateLocale })}</p>
               </div>
               <div className="bg-muted/50 p-3 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Heure</p>
+                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Clock className="w-3 h-3" /> {t("common.time")}</p>
                 <p className="font-semibold">{ticket.departureTime.slice(0, 5)}</p>
               </div>
             </div>
 
+            <div className="flex items-center justify-between mb-6">
+              <span className="text-xs text-muted-foreground uppercase">{t("ticketDetail.paymentMethod")}</span>
+              <span className={cn("text-xs font-bold px-2 py-1 rounded-full", method.badgeClass)}>
+                {method.name}
+              </span>
+            </div>
+
             <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20">
               <div>
-                <p className="text-xs text-muted-foreground uppercase">Passager</p>
+                <p className="text-xs text-muted-foreground uppercase">{t("common.passenger")}</p>
                 <p className="font-bold">{ticket.passengerName}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-muted-foreground uppercase">Place</p>
+                <p className="text-xs text-muted-foreground uppercase">{t("common.seat")}</p>
                 <p className="text-3xl font-black text-primary leading-none">{ticket.seatNumber}</p>
               </div>
             </div>
@@ -108,15 +120,15 @@ export default function TicketDetail() {
             {ticket.validated && (
               <div className="mt-6 flex items-center justify-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg border border-green-200">
                 <ShieldCheck className="w-5 h-5" />
-                <span className="font-semibold text-sm">Billet Validé</span>
+                <span className="font-semibold text-sm">{t("ticketDetail.validated")}</span>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
-      
+
       <Button className="w-full mt-6 h-12" variant="outline" onClick={() => window.print()}>
-        <Download className="w-4 h-4 mr-2" /> Télécharger / Imprimer
+        <Download className="w-4 h-4 mr-2" /> {t("ticketDetail.downloadPrint")}
       </Button>
     </div>
   );

@@ -9,7 +9,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
       <footer className="py-8 border-t border-border mt-auto bg-secondary text-secondary-foreground text-center">
         <div className="container mx-auto px-4 text-sm text-secondary-foreground/60">
-          © {new Date().getFullYear()} UTB Billetterie Côte d'Ivoire.
+          © {new Date().getFullYear()} Trajet CI.
         </div>
       </footer>
     </div>

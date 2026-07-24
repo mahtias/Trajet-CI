@@ -9,8 +9,10 @@ import {
   ValidateTicketParams,
 } from "@workspace/api-zod";
 import { generateQrCode } from "../lib/qr";
+import { requireRole } from "../middlewares/require-role";
 
 const router: IRouter = Router();
+router.use(requireRole("clerk", "admin"));
 
 // Get today's trips for clerk
 router.get("/clerk/trips", async (req, res): Promise<void> => {
@@ -198,7 +200,7 @@ router.post("/clerk/tickets/:ticketId/validate", async (req, res): Promise<void>
     return;
   }
 
-  if (ticket.paymentStatus !== "paid") {
+  if (ticket.paymentStatus !== "paid" || ticket.validated) {
     const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, ticket.seatId)).limit(1);
     const [tripData] = await db
       .select({ trip: tripsTable, route: routesTable, company: companiesTable })
@@ -210,7 +212,7 @@ router.post("/clerk/tickets/:ticketId/validate", async (req, res): Promise<void>
 
     return res.json({
       valid: false,
-      message: "Paiement non confirmé",
+      message: ticket.validated ? "Billet déjà utilisé" : "Paiement non confirmé",
       ticket: {
         id: ticket.id, tripId: ticket.tripId,
         seatNumber: seat?.seatNumber ?? 0,

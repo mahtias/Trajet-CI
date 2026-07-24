@@ -13,4 +13,7 @@ export interface SalesReport {
   totalTickets: number;
   totalRevenue: number;
   rows: SalesReportRow[];
+  total: number;
+  page: number;
+  pageSize: number;
 }

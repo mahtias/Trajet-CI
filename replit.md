@@ -1,6 +1,6 @@
-# UTB Billetterie
+# Trajet CI
 
-Application de billetterie pour les bus interurbains en Côte d'Ivoire (cible : UTB, GDF, MBatto).
+Application de billetterie multi-compagnies pour les bus interurbains en Côte d'Ivoire (20 compagnies : UTB, UTRAKO, UTNA, UTD, UTS, UTY, UTM, UTBG, UTG, UTF, UTT, UTDK, UTSS, SAMA Transport, STM, SOTRACO, Trans Bouaké, Trans Korhogo, West Trans CI, San-Pédro Express).
 
 ## Run & Operate
 

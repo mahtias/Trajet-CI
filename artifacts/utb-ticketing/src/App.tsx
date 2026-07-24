@@ -4,6 +4,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { Layout } from '@/components/layout';
+import { LanguageProvider } from '@/lib/i18n/language-context';
+import { RequireRole } from '@/components/require-role';
 
 // Pages
 import Home from '@/pages/home';
@@ -24,6 +26,7 @@ import AdminCompanies from '@/pages/admin/companies';
 import AdminRoutes from '@/pages/admin/routes';
 import AdminTrips from '@/pages/admin/trips';
 import AdminReports from '@/pages/admin/reports';
+import AdminUsers from '@/pages/admin/users';
 
 const queryClient = new QueryClient();
 
@@ -41,17 +44,38 @@ function Router() {
         <Route path="/tickets/:id" component={TicketDetail} />
 
         {/* Clerk */}
-        <Route path="/clerk" component={ClerkDashboard} />
-        <Route path="/clerk/validate" component={ClerkValidate} />
-        <Route path="/clerk/trips/:id" component={ClerkTripDetail} />
-        <Route path="/clerk/trips/:id/sell" component={ClerkSell} />
+        <Route path="/clerk">
+          <RequireRole roles={['clerk', 'admin']}><ClerkDashboard /></RequireRole>
+        </Route>
+        <Route path="/clerk/validate">
+          <RequireRole roles={['clerk', 'admin']}><ClerkValidate /></RequireRole>
+        </Route>
+        <Route path="/clerk/trips/:id">
+          <RequireRole roles={['clerk', 'admin']}><ClerkTripDetail /></RequireRole>
+        </Route>
+        <Route path="/clerk/trips/:id/sell">
+          <RequireRole roles={['clerk', 'admin']}><ClerkSell /></RequireRole>
+        </Route>
 
         {/* Admin */}
-        <Route path="/admin" component={AdminDashboard} />
-        <Route path="/admin/companies" component={AdminCompanies} />
-        <Route path="/admin/routes" component={AdminRoutes} />
-        <Route path="/admin/trips" component={AdminTrips} />
-        <Route path="/admin/reports" component={AdminReports} />
+        <Route path="/admin">
+          <RequireRole roles={['admin']}><AdminDashboard /></RequireRole>
+        </Route>
+        <Route path="/admin/companies">
+          <RequireRole roles={['admin']}><AdminCompanies /></RequireRole>
+        </Route>
+        <Route path="/admin/routes">
+          <RequireRole roles={['admin']}><AdminRoutes /></RequireRole>
+        </Route>
+        <Route path="/admin/trips">
+          <RequireRole roles={['admin']}><AdminTrips /></RequireRole>
+        </Route>
+        <Route path="/admin/reports">
+          <RequireRole roles={['admin']}><AdminReports /></RequireRole>
+        </Route>
+        <Route path="/admin/users">
+          <RequireRole roles={['admin']}><AdminUsers /></RequireRole>
+        </Route>
 
         <Route component={NotFound} />
       </Switch>
@@ -62,12 +86,14 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <LanguageProvider>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

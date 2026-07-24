@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
-import { 
-  useGetTrip, 
-  useGetTripSeats, 
+import {
+  useGetTrip,
+  useGetTripSeats,
   getGetTripSeatsQueryKey,
   useReserveSeat
 } from "@workspace/api-client-react";
@@ -14,12 +13,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/use-language";
 
 export default function TripDetail() {
   const { id } = useParams<{ id: string }>();
   const tripId = parseInt(id, 10);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t, dateLocale, numberLocale } = useLanguage();
   const queryClient = useQueryClient();
 
   const [selectedSeatId, setSelectedSeatId] = useState<number | null>(null);
@@ -62,7 +63,7 @@ export default function TripDetail() {
   if (!trip || !seats) {
     return (
       <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-        Voyage introuvable.
+        {t("tripDetail.notFound")}
       </div>
     );
   }
@@ -83,14 +84,14 @@ export default function TripDetail() {
               </h1>
               <div className="flex items-center gap-4 mt-2 text-white/80">
                 <div className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" /> 
-                  {format(new Date(trip.departureDate), "d MMM yyyy", { locale: fr })} à {trip.departureTime.slice(0, 5)}
+                  <Clock className="w-4 h-4" />
+                  {format(new Date(trip.departureDate), "d MMM yyyy", { locale: dateLocale })} {t("tripDetail.at")} {trip.departureTime.slice(0, 5)}
                 </div>
               </div>
             </div>
             <div className="bg-white/10 px-6 py-4 rounded-xl text-right">
-              <div className="text-sm text-white/80 uppercase tracking-wider mb-1">Prix par place</div>
-              <div className="text-3xl font-mono font-bold text-accent">{trip.price.toLocaleString("fr-CI")} FCFA</div>
+              <div className="text-sm text-white/80 uppercase tracking-wider mb-1">{t("tripDetail.pricePerSeat")}</div>
+              <div className="text-3xl font-mono font-bold text-accent">{trip.price.toLocaleString(numberLocale)} FCFA</div>
             </div>
           </div>
         </div>
@@ -105,8 +106,8 @@ export default function TripDetail() {
               <CardContent className="p-6">
                 <div className="flex flex-col items-center mb-8 gap-4 border-b border-border pb-6">
                   <div className="w-full flex justify-between px-10 text-muted-foreground text-sm font-medium">
-                    <span>Chauffeur</span>
-                    <span>Porte</span>
+                    <span>{t("tripDetail.driver")}</span>
+                    <span>{t("tripDetail.door")}</span>
                   </div>
                   <div className="w-24 h-8 bg-muted rounded-t-lg rounded-b-sm border-2 border-border border-b-0 flex items-center justify-center">
                     <div className="w-16 h-2 bg-background rounded-full"></div>
@@ -151,19 +152,19 @@ export default function TripDetail() {
                 <div className="flex flex-wrap justify-center gap-6 mt-10 text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded border-2 bg-green-100 border-green-300"></div>
-                    <span>Libre</span>
+                    <span>{t("tripDetail.free")}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded border-2 bg-primary border-primary"></div>
-                    <span>Sélectionnée</span>
+                    <span>{t("tripDetail.selected")}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded border-2 bg-accent/20 border-accent/40 opacity-50"></div>
-                    <span>Réservée</span>
+                    <span>{t("tripDetail.reserved")}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded border-2 bg-destructive/10 border-destructive/30 opacity-50"></div>
-                    <span>Occupée</span>
+                    <span>{t("tripDetail.occupied")}</span>
                   </div>
                 </div>
               </CardContent>
@@ -175,26 +176,26 @@ export default function TripDetail() {
             <div className="sticky top-24 space-y-4">
               <Card className="border-border bg-card shadow-sm overflow-hidden">
                 <div className="bg-muted p-4 border-b border-border flex items-center gap-2 font-bold text-foreground">
-                  <UserRound className="w-5 h-5 text-primary" /> Sélection
+                  <UserRound className="w-5 h-5 text-primary" /> {t("tripDetail.selectionTitle")}
                 </div>
                 <CardContent className="p-6">
                   {selectedSeatId ? (
                     <div className="space-y-4">
                       <div className="flex justify-between items-center pb-4 border-b border-border">
-                        <span className="text-muted-foreground">Place N°</span>
+                        <span className="text-muted-foreground">{t("tripDetail.seatNumber")}</span>
                         <span className="font-bold text-2xl bg-secondary/10 text-secondary w-12 h-12 flex items-center justify-center rounded-xl">{selectedSeat?.seatNumber}</span>
                       </div>
                       <div className="flex justify-between items-center pb-4 border-b border-border">
-                        <span className="text-muted-foreground">Tarif</span>
-                        <span className="font-bold font-mono text-lg">{trip.price.toLocaleString("fr-CI")} FCFA</span>
+                        <span className="text-muted-foreground">{t("tripDetail.fare")}</span>
+                        <span className="font-bold font-mono text-lg">{trip.price.toLocaleString(numberLocale)} FCFA</span>
                       </div>
                       <div className="flex justify-between items-center font-bold text-xl text-primary pt-2">
-                        <span>Total</span>
-                        <span className="font-mono">{trip.price.toLocaleString("fr-CI")} FCFA</span>
+                        <span>{t("common.total")}</span>
+                        <span className="font-mono">{trip.price.toLocaleString(numberLocale)} FCFA</span>
                       </div>
 
                       <Button onClick={handleContinue} className="w-full h-14 text-lg mt-6" size="lg">
-                        Continuer <ArrowRight className="w-5 h-5 ml-2" />
+                        {t("common.continue")} <ArrowRight className="w-5 h-5 ml-2" />
                       </Button>
                     </div>
                   ) : (
@@ -202,7 +203,7 @@ export default function TripDetail() {
                       <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                         <Info className="w-8 h-8 text-muted-foreground/50" />
                       </div>
-                      <p>Veuillez sélectionner une place libre sur le plan pour continuer.</p>
+                      <p>{t("tripDetail.selectSeatPrompt")}</p>
                     </div>
                   )}
                 </CardContent>
@@ -210,7 +211,7 @@ export default function TripDetail() {
 
               <div className="bg-muted/50 rounded-xl p-4 flex gap-3 text-sm text-muted-foreground border border-border">
                 <ShieldCheck className="w-6 h-6 text-primary shrink-0" />
-                <p>Paiement 100% sécurisé via Orange Money. Le billet est généré instantanément après validation.</p>
+                <p>{t("tripDetail.securePaymentNote")}</p>
               </div>
             </div>
           </div>

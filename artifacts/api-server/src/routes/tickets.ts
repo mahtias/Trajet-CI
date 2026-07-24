@@ -35,6 +35,7 @@ async function buildTicket(ticket: any) {
     companyName: tripData?.company.name ?? "",
     price: parseFloat(ticket.price),
     qrCode: ticket.qrCode,
+    paymentMethod: ticket.paymentMethod,
     paymentStatus: ticket.paymentStatus,
     validated: ticket.validated,
     createdAt: ticket.createdAt.toISOString(),

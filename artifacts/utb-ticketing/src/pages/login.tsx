@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,26 +16,33 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/use-language";
 import { BusFront, ArrowLeft } from "lucide-react";
 
-const phoneSchema = z.object({
-  phone: z.string().min(8, "Numéro de téléphone invalide"),
-  name: z.string().optional(),
-});
-
-const otpSchema = z.object({
-  otp: z.string().length(6, "Le code doit contenir 6 chiffres"),
-});
+function buildSchemas(t: (key: string) => string) {
+  return {
+    phoneSchema: z.object({
+      phone: z.string().min(8, t("common.invalidPhone")),
+      name: z.string().optional(),
+    }),
+    otpSchema: z.object({
+      otp: z.string().length(6, t("login.otpLength")),
+    }),
+  };
+}
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
-  
+
   const requestOtp = useRequestOtp();
   const verifyOtp = useVerifyOtp();
   const { refetch: refetchMe } = useGetMe({ query: { enabled: false } });
+
+  const { phoneSchema, otpSchema } = useMemo(() => buildSchemas(t), [t]);
 
   const phoneForm = useForm<z.infer<typeof phoneSchema>>({
     resolver: zodResolver(phoneSchema),
@@ -61,8 +68,8 @@ export default function Login() {
           setStep("otp");
           if (res.devOtp) {
             toast({
-              title: "Code de test",
-              description: `Votre code OTP est ${res.devOtp}`,
+              title: t("login.devCodeTitle"),
+              description: t("login.devCodeDesc", { code: res.devOtp }),
             });
             otpForm.setValue("otp", res.devOtp);
           }
@@ -70,8 +77,8 @@ export default function Login() {
         onError: (err: any) => {
           toast({
             variant: "destructive",
-            title: "Erreur",
-            description: err?.message || "Impossible d'envoyer le code",
+            title: t("common.error"),
+            description: err?.message || t("login.sendOtpError"),
           });
         },
       }
@@ -95,8 +102,8 @@ export default function Login() {
         onError: (err: any) => {
           toast({
             variant: "destructive",
-            title: "Code invalide",
-            description: err?.message || "Veuillez vérifier votre code",
+            title: t("login.invalidCodeTitle"),
+            description: err?.message || t("login.invalidCodeDesc"),
           });
         },
       }
@@ -112,8 +119,8 @@ export default function Login() {
           <div className="bg-primary/20 p-4 rounded-full mb-8">
             <BusFront className="w-16 h-16 text-primary" />
           </div>
-          <h1 className="text-4xl font-bold mb-4 font-sans">UTB Billetterie</h1>
-          <p className="text-xl text-white/80">Le réseau de transport le plus fiable de Côte d'Ivoire. Réservez, payez et voyagez.</p>
+          <h1 className="text-4xl font-bold mb-4 font-sans">Trajet CI</h1>
+          <p className="text-xl text-white/80">{t("login.heroSubtitle")}</p>
         </div>
       </div>
 
@@ -122,12 +129,12 @@ export default function Login() {
         <div className="mx-auto w-full max-w-sm">
           <div className="text-center md:text-left mb-8">
             <h2 className="text-3xl font-bold tracking-tight text-foreground">
-              {step === "phone" ? "Connexion" : "Vérification"}
+              {step === "phone" ? t("login.stepLoginTitle") : t("login.stepOtpTitle")}
             </h2>
             <p className="text-sm text-muted-foreground mt-2">
-              {step === "phone" 
-                ? "Entrez votre numéro de téléphone pour continuer" 
-                : `Entrez le code à 6 chiffres envoyé au ${phone}`}
+              {step === "phone"
+                ? t("login.enterPhone")
+                : t("login.enterOtp", { phone })}
             </p>
           </div>
 
@@ -139,7 +146,7 @@ export default function Login() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Numéro de téléphone</FormLabel>
+                      <FormLabel>{t("login.phoneLabel")}</FormLabel>
                       <FormControl>
                         <Input placeholder="07 XX XX XX XX" {...field} className="h-12" />
                       </FormControl>
@@ -152,7 +159,7 @@ export default function Login() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nom complet (Optionnel)</FormLabel>
+                      <FormLabel>{t("login.nameLabel")}</FormLabel>
                       <FormControl>
                         <Input placeholder="John Doe" {...field} className="h-12" />
                       </FormControl>
@@ -161,7 +168,7 @@ export default function Login() {
                   )}
                 />
                 <Button type="submit" className="w-full h-12 text-base font-bold" disabled={requestOtp.isPending}>
-                  {requestOtp.isPending ? "Envoi..." : "Recevoir le code"}
+                  {requestOtp.isPending ? t("login.sending") : t("login.receiveCode")}
                 </Button>
               </form>
             </Form>
@@ -173,12 +180,12 @@ export default function Login() {
                   name="otp"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Code OTP</FormLabel>
+                      <FormLabel>{t("login.otpLabel")}</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="123456" 
-                          {...field} 
-                          className="h-12 text-center text-2xl tracking-widest font-mono" 
+                        <Input
+                          placeholder="123456"
+                          {...field}
+                          className="h-12 text-center text-2xl tracking-widest font-mono"
                           maxLength={6}
                         />
                       </FormControl>
@@ -188,15 +195,15 @@ export default function Login() {
                 />
                 <div className="flex flex-col gap-3">
                   <Button type="submit" className="w-full h-12 text-base font-bold" disabled={verifyOtp.isPending}>
-                    {verifyOtp.isPending ? "Vérification..." : "Vérifier"}
+                    {verifyOtp.isPending ? t("login.verifying") : t("login.verify")}
                   </Button>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
+                  <Button
+                    type="button"
+                    variant="ghost"
                     onClick={() => setStep("phone")}
                     className="w-full"
                   >
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+                    <ArrowLeft className="w-4 h-4 mr-2" /> {t("common.back")}
                   </Button>
                 </div>
               </form>

@@ -5,6 +5,7 @@
  * UTB Bus Ticketing API
  * OpenAPI spec version: 0.1.0
  */
+import type { TicketPaymentMethod } from './ticketPaymentMethod';
 import type { TicketPaymentStatus } from './ticketPaymentStatus';
 
 export interface Ticket {
@@ -20,6 +21,7 @@ export interface Ticket {
   companyName: string;
   price: number;
   qrCode: string;
+  paymentMethod: TicketPaymentMethod;
   paymentStatus: TicketPaymentStatus;
   validated?: boolean;
   createdAt: Date;

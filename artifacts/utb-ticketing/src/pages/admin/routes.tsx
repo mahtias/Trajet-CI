@@ -21,10 +21,17 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { ListPagination } from "@/components/list-pagination";
+
+const PAGE_SIZE = 20;
 
 export default function AdminRoutes() {
-  const { data: routes, isLoading } = useGetAdminRoutes();
-  const { data: companies } = useGetAdminCompanies();
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useGetAdminRoutes({ page, pageSize: PAGE_SIZE });
+  const routes = data?.items;
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
+  const { data: companiesData } = useGetAdminCompanies({ page: 1, pageSize: 100 });
+  const companies = companiesData?.items;
   
   const createRoute = useCreateRoute();
   const updateRoute = useUpdateRoute();
@@ -221,6 +228,7 @@ export default function AdminRoutes() {
             )}
           </TableBody>
         </Table>
+        <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
     </div>
   );

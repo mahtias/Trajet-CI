@@ -26,7 +26,8 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  const { phone, name } = parsed.data;
+  const phone = parsed.data.phone.trim();
+  const { name } = parsed.data;
   const otp = generateOtp();
   const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
@@ -51,7 +52,8 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  const { phone, otp } = parsed.data;
+  const phone = parsed.data.phone.trim();
+  const { otp } = parsed.data;
   const stored = otpStore.get(phone);
 
   if (!stored || stored.otp !== otp || Date.now() > stored.expiresAt) {

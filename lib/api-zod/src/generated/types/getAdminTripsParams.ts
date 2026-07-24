@@ -9,4 +9,6 @@
 export type GetAdminTripsParams = {
 date?: Date;
 routeId?: number;
+page?: number;
+pageSize?: number;
 };

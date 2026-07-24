@@ -20,7 +20,7 @@ router.post("/payments/initiate", async (req, res): Promise<void> => {
     return;
   }
 
-  const { seatId, passengerName, passengerPhone } = body.data;
+  const { seatId, passengerName, passengerPhone, paymentMethod } = body.data;
 
   const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, seatId)).limit(1);
   if (!seat) {
@@ -67,6 +67,7 @@ router.post("/payments/initiate", async (req, res): Promise<void> => {
       passengerPhone,
       price: tripData.trip.price,
       qrCode,
+      paymentMethod,
       paymentStatus: "pending",
       paymentId,
     })

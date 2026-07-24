@@ -7,12 +7,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ListPagination } from "@/components/list-pagination";
+
+const PAGE_SIZE = 20;
 
 export default function AdminReports() {
   const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 7), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [page, setPage] = useState(1);
 
-  const { data: report, isLoading } = useGetSalesReport({ from: dateFrom, to: dateTo });
+  const { data: report, isLoading } = useGetSalesReport({ from: dateFrom, to: dateTo, page, pageSize: PAGE_SIZE });
+  const totalPages = Math.max(1, Math.ceil((report?.total ?? 0) / PAGE_SIZE));
 
   const exportCSV = () => {
     if (!report) return;
@@ -50,11 +55,11 @@ export default function AdminReports() {
         <div className="flex gap-4 items-end bg-card p-4 rounded-xl border border-border shadow-sm">
           <div>
             <label className="text-xs font-bold uppercase text-muted-foreground mb-1 block">Du</label>
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} />
           </div>
           <div>
             <label className="text-xs font-bold uppercase text-muted-foreground mb-1 block">Au</label>
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} />
           </div>
           <Button variant="outline" onClick={exportCSV} disabled={!report || report.rows.length === 0} className="gap-2">
             <Download className="w-4 h-4" /> CSV
@@ -113,6 +118,7 @@ export default function AdminReports() {
               )}
             </TableBody>
           </Table>
+          <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </CardContent>
       </Card>
     </div>

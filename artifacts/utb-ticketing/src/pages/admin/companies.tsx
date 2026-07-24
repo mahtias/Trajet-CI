@@ -26,9 +26,15 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ListPagination } from "@/components/list-pagination";
+
+const PAGE_SIZE = 20;
 
 export default function AdminCompanies() {
-  const { data: companies, isLoading } = useGetAdminCompanies();
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useGetAdminCompanies({ page, pageSize: PAGE_SIZE });
+  const companies = data?.items;
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const createCompany = useCreateCompany();
   const updateCompany = useUpdateCompany();
   const deleteCompany = useDeleteCompany();
@@ -169,6 +175,7 @@ export default function AdminCompanies() {
             )}
           </TableBody>
         </Table>
+        <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
     </div>
   );

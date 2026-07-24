@@ -170,12 +170,13 @@ export const ReleaseSeatResponse = zod.object({
 
 
 /**
- * @summary Initiate Orange Money payment
+ * @summary Initiate mobile money payment (Wave, Orange Money, or MTN Money)
  */
 export const InitiatePaymentBody = zod.object({
   "seatId": zod.number(),
   "passengerName": zod.string(),
-  "passengerPhone": zod.string()
+  "passengerPhone": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money'])
 })
 
 export const InitiatePaymentResponse = zod.object({
@@ -188,7 +189,7 @@ export const InitiatePaymentResponse = zod.object({
 
 
 /**
- * @summary Orange Money payment callback
+ * @summary Mobile money payment callback
  */
 export const PaymentCallbackBody = zod.object({
   "paymentId": zod.string(),
@@ -217,6 +218,7 @@ export const GetMyTicketsResponseItem = zod.object({
   "companyName": zod.string(),
   "price": zod.number(),
   "qrCode": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
@@ -244,6 +246,7 @@ export const GetTicketResponse = zod.object({
   "companyName": zod.string(),
   "price": zod.number(),
   "qrCode": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
@@ -310,6 +313,7 @@ export const ClerkSellSeatResponse = zod.object({
   "companyName": zod.string(),
   "price": zod.number(),
   "qrCode": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
@@ -356,6 +360,7 @@ export const ValidateTicketResponse = zod.object({
   "companyName": zod.string(),
   "price": zod.number(),
   "qrCode": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
@@ -367,12 +372,21 @@ export const ValidateTicketResponse = zod.object({
 /**
  * @summary List all companies
  */
-export const GetAdminCompaniesResponseItem = zod.object({
+export const GetAdminCompaniesQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetAdminCompaniesResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "createdAt": zod.coerce.date().optional()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
 })
-export const GetAdminCompaniesResponse = zod.array(GetAdminCompaniesResponseItem)
 
 
 /**
@@ -420,17 +434,68 @@ export const DeleteCompanyResponse = zod.object({
 
 
 /**
+ * @summary List all users
+ */
+export const GetAdminUsersQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetAdminUsersResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "name": zod.string().nullish(),
+  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Update a user's role
+ */
+export const UpdateUserRoleParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const UpdateUserRoleBody = zod.object({
+  "role": zod.enum(['passenger', 'clerk', 'admin'])
+})
+
+export const UpdateUserRoleResponse = zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "name": zod.string().nullish(),
+  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List all routes
  */
-export const GetAdminRoutesResponseItem = zod.object({
+export const GetAdminRoutesQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetAdminRoutesResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "origin": zod.string(),
   "destination": zod.string(),
   "durationMinutes": zod.number(),
   "companyId": zod.number(),
   "companyName": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
 })
-export const GetAdminRoutesResponse = zod.array(GetAdminRoutesResponseItem)
 
 
 /**
@@ -494,10 +559,13 @@ export const DeleteRouteResponse = zod.object({
  */
 export const GetAdminTripsQueryParams = zod.object({
   "date": zod.date().optional(),
-  "routeId": zod.coerce.number().optional()
+  "routeId": zod.coerce.number().optional(),
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
 })
 
-export const GetAdminTripsResponseItem = zod.object({
+export const GetAdminTripsResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "origin": zod.string(),
   "destination": zod.string(),
@@ -511,8 +579,11 @@ export const GetAdminTripsResponseItem = zod.object({
   "totalSeats": zod.number(),
   "availableSeats": zod.number(),
   "status": zod.enum(['active', 'cancelled'])
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
 })
-export const GetAdminTripsResponse = zod.array(GetAdminTripsResponseItem)
 
 
 /**
@@ -612,7 +683,9 @@ export const GetAdminStatsResponse = zod.object({
 export const GetSalesReportQueryParams = zod.object({
   "from": zod.date().optional(),
   "to": zod.date().optional(),
-  "companyId": zod.coerce.number().optional()
+  "companyId": zod.coerce.number().optional(),
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
 })
 
 export const GetSalesReportResponse = zod.object({
@@ -627,7 +700,10 @@ export const GetSalesReportResponse = zod.object({
   "destination": zod.string(),
   "ticketCount": zod.number(),
   "revenue": zod.number()
-}))
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
 })
 
 

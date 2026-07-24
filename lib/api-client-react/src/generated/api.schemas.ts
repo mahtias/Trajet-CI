@@ -56,6 +56,51 @@ export interface CompanyInput {
   name: string;
 }
 
+export interface PaginatedCompanies {
+  items: Company[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+
+export const UserRole = {
+  passenger: 'passenger',
+  clerk: 'clerk',
+  admin: 'admin',
+} as const;
+
+export interface User {
+  id: number;
+  phone: string;
+  /** @nullable */
+  name?: string | null;
+  role: UserRole;
+  createdAt: string;
+}
+
+export type UserRoleInputRole = typeof UserRoleInputRole[keyof typeof UserRoleInputRole];
+
+
+export const UserRoleInputRole = {
+  passenger: 'passenger',
+  clerk: 'clerk',
+  admin: 'admin',
+} as const;
+
+export interface UserRoleInput {
+  role: UserRoleInputRole;
+}
+
+export interface PaginatedUsers {
+  items: User[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface Route {
   id: number;
   origin: string;
@@ -70,6 +115,13 @@ export interface RouteInput {
   destination: string;
   durationMinutes: number;
   companyId: number;
+}
+
+export interface PaginatedRoutes {
+  items: Route[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface TripSummary {
@@ -106,6 +158,13 @@ export interface TripDetail {
   totalSeats: number;
   availableSeats: number;
   status: TripDetailStatus;
+}
+
+export interface PaginatedTrips {
+  items: TripDetail[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface TripInput {
@@ -155,10 +214,20 @@ export interface ReserveInput {
   passengerPhone: string;
 }
 
+export type PaymentInputPaymentMethod = typeof PaymentInputPaymentMethod[keyof typeof PaymentInputPaymentMethod];
+
+
+export const PaymentInputPaymentMethod = {
+  wave: 'wave',
+  orange_money: 'orange_money',
+  mtn_money: 'mtn_money',
+} as const;
+
 export interface PaymentInput {
   seatId: number;
   passengerName: string;
   passengerPhone: string;
+  paymentMethod: PaymentInputPaymentMethod;
 }
 
 export interface PaymentResponse {
@@ -177,6 +246,15 @@ export interface PaymentCallbackInput {
   /** @nullable */
   ticketId?: number | null;
 }
+
+export type TicketPaymentMethod = typeof TicketPaymentMethod[keyof typeof TicketPaymentMethod];
+
+
+export const TicketPaymentMethod = {
+  wave: 'wave',
+  orange_money: 'orange_money',
+  mtn_money: 'mtn_money',
+} as const;
 
 export type TicketPaymentStatus = typeof TicketPaymentStatus[keyof typeof TicketPaymentStatus];
 
@@ -199,6 +277,7 @@ export interface Ticket {
   companyName: string;
   price: number;
   qrCode: string;
+  paymentMethod: TicketPaymentMethod;
   paymentStatus: TicketPaymentStatus;
   validated?: boolean;
   createdAt: string;
@@ -261,6 +340,9 @@ export interface SalesReport {
   totalTickets: number;
   totalRevenue: number;
   rows: SalesReportRow[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export type SearchTripsParams = {
@@ -269,14 +351,33 @@ destination: string;
 date: string;
 };
 
+export type GetAdminCompaniesParams = {
+page?: number;
+pageSize?: number;
+};
+
+export type GetAdminUsersParams = {
+page?: number;
+pageSize?: number;
+};
+
+export type GetAdminRoutesParams = {
+page?: number;
+pageSize?: number;
+};
+
 export type GetAdminTripsParams = {
 date?: string;
 routeId?: number;
+page?: number;
+pageSize?: number;
 };
 
 export type GetSalesReportParams = {
 from?: string;
 to?: string;
 companyId?: number;
+page?: number;
+pageSize?: number;
 };
 

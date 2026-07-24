@@ -14,6 +14,7 @@ export const ticketsTable = pgTable("tickets", {
   passengerPhone: text("passenger_phone").notNull(),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   qrCode: text("qr_code").notNull().default(""),
+  paymentMethod: text("payment_method").notNull().default("orange_money"), // wave | orange_money | mtn_money
   paymentStatus: text("payment_status").notNull().default("pending"), // pending | paid
   paymentId: text("payment_id"),
   validated: boolean("validated").notNull().default(false),

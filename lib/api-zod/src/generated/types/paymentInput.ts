@@ -5,9 +5,11 @@
  * UTB Bus Ticketing API
  * OpenAPI spec version: 0.1.0
  */
+import type { PaymentInputPaymentMethod } from './paymentInputPaymentMethod';
 
 export interface PaymentInput {
   seatId: number;
   passengerName: string;
   passengerPhone: string;
+  paymentMethod: PaymentInputPaymentMethod;
 }

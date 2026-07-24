@@ -226,7 +226,7 @@ paths:
     post:
       operationId: initiatePayment
       tags: [payments]
-      summary: Initiate Orange Money payment
+      summary: Initiate mobile money payment (Wave, Orange Money, or MTN Money)
       requestBody:
         required: true
         content:
@@ -245,7 +245,7 @@ paths:
     post:
       operationId: paymentCallback
       tags: [payments]
-      summary: Orange Money payment callback
+      summary: Mobile money payment callback
       requestBody:
         required: true
         content:
@@ -403,15 +403,24 @@ paths:
       operationId: getAdminCompanies
       tags: [admin]
       summary: List all companies
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
       responses:
         "200":
           description: Companies list
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Company"
+                $ref: "#/components/schemas/PaginatedCompanies"
     post:
       operationId: createCompany
       tags: [admin]
@@ -472,21 +481,80 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  # Admin - Users
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: List all users
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedUsers"
+
+  /admin/users/{userId}/role:
+    put:
+      operationId: updateUserRole
+      tags: [admin]
+      summary: Update a user's role
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRoleInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
   # Admin - Routes
   /admin/routes:
     get:
       operationId: getAdminRoutes
       tags: [admin]
       summary: List all routes
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
       responses:
         "200":
           description: Routes list
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Route"
+                $ref: "#/components/schemas/PaginatedRoutes"
     post:
       operationId: createRoute
       tags: [admin]
@@ -565,15 +633,23 @@ paths:
           required: false
           schema:
             type: integer
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
       responses:
         "200":
           description: Trips list
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/TripDetail"
+                $ref: "#/components/schemas/PaginatedTrips"
     post:
       operationId: createTrip
       tags: [admin]
@@ -671,6 +747,16 @@ paths:
           required: false
           schema:
             type: integer
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
       responses:
         "200":
           description: Sales report
@@ -757,6 +843,62 @@ components:
         name:
           type: string
 
+    PaginatedCompanies:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Company"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    # User
+    User:
+      type: object
+      required: [id, phone, role, createdAt]
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        name:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [passenger, clerk, admin]
+        createdAt:
+          type: string
+          format: date-time
+
+    UserRoleInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [passenger, clerk, admin]
+
+    PaginatedUsers:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
     # Route
     Route:
       type: object
@@ -786,6 +928,21 @@ components:
         durationMinutes:
           type: integer
         companyId:
+          type: integer
+
+    PaginatedRoutes:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Route"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
           type: integer
 
     # Trip
@@ -843,6 +1000,21 @@ components:
         status:
           type: string
           enum: [active, cancelled]
+
+    PaginatedTrips:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TripDetail"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
 
     TripInput:
       type: object
@@ -903,7 +1075,7 @@ components:
     # Payment
     PaymentInput:
       type: object
-      required: [seatId, passengerName, passengerPhone]
+      required: [seatId, passengerName, passengerPhone, paymentMethod]
       properties:
         seatId:
           type: integer
@@ -911,6 +1083,9 @@ components:
           type: string
         passengerPhone:
           type: string
+        paymentMethod:
+          type: string
+          enum: [wave, orange_money, mtn_money]
 
     PaymentResponse:
       type: object
@@ -941,7 +1116,7 @@ components:
     # Ticket
     Ticket:
       type: object
-      required: [id, tripId, seatNumber, passengerName, passengerPhone, origin, destination, departureDate, departureTime, companyName, price, qrCode, paymentStatus, createdAt]
+      required: [id, tripId, seatNumber, passengerName, passengerPhone, origin, destination, departureDate, departureTime, companyName, price, qrCode, paymentMethod, paymentStatus, createdAt]
       properties:
         id:
           type: integer
@@ -967,6 +1142,9 @@ components:
           type: number
         qrCode:
           type: string
+        paymentMethod:
+          type: string
+          enum: [wave, orange_money, mtn_money]
         paymentStatus:
           type: string
           enum: [pending, paid]
@@ -1060,7 +1238,7 @@ components:
 
     SalesReport:
       type: object
-      required: [from, to, totalTickets, totalRevenue, rows]
+      required: [from, to, totalTickets, totalRevenue, rows, total, page, pageSize]
       properties:
         from:
           type: string
@@ -1074,6 +1252,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SalesReportRow"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
 
     SalesReportRow:
       type: object

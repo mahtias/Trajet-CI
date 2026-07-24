@@ -1,15 +1,16 @@
 import { useLocation } from "wouter";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useSearchTrips } from "@workspace/api-client-react";
 import { Clock, Users, ArrowRight, Info, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useLanguage } from "@/hooks/use-language";
 
 export default function Trips() {
   const [location] = useLocation();
+  const { t, dateLocale, numberLocale } = useLanguage();
   const searchParams = new URLSearchParams(window.location.search);
   const origin = searchParams.get("origin") || "";
   const destination = searchParams.get("destination") || "";
@@ -20,7 +21,7 @@ export default function Trips() {
     { query: { enabled: !!origin && !!destination && !!dateStr } }
   );
 
-  const displayDate = dateStr ? format(new Date(dateStr), "EEEE d MMMM yyyy", { locale: fr }) : "";
+  const displayDate = dateStr ? format(new Date(dateStr), "EEEE d MMMM yyyy", { locale: dateLocale }) : "";
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -44,17 +45,17 @@ export default function Trips() {
       {isError && (
         <div className="bg-destructive/10 text-destructive p-6 rounded-xl flex items-center gap-3">
           <AlertCircle className="w-6 h-6" />
-          <p>Impossible de charger les trajets pour le moment.</p>
+          <p>{t("trips.loadError")}</p>
         </div>
       )}
 
       {trips && trips.length === 0 && (
         <div className="text-center py-20 bg-muted/50 rounded-xl border border-border">
           <Info className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-foreground mb-2">Aucun voyage disponible</h2>
-          <p className="text-muted-foreground">Aucun départ trouvé pour cette date. Veuillez essayer une autre date.</p>
+          <h2 className="text-xl font-bold text-foreground mb-2">{t("trips.noTripsTitle")}</h2>
+          <p className="text-muted-foreground">{t("trips.noTripsDesc")}</p>
           <Button asChild className="mt-6" variant="outline">
-            <Link href="/">Modifier la recherche</Link>
+            <Link href="/">{t("trips.editSearch")}</Link>
           </Button>
         </div>
       )}
@@ -82,24 +83,24 @@ export default function Trips() {
                         </div>
                         <div className="text-right">
                           <span className="text-2xl font-bold text-accent font-mono">
-                            {trip.price.toLocaleString("fr-CI")} FCFA
+                            {trip.price.toLocaleString(numberLocale)} FCFA
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-6 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" /> Trajet: {durationStr}
+                          <Clock className="w-4 h-4" /> {t("trips.durationPrefix")}: {durationStr}
                         </div>
                         <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4" /> {trip.availableSeats} places libres
+                          <Users className="w-4 h-4" /> {t("trips.seatsAvailable", { count: trip.availableSeats })}
                         </div>
                       </div>
                     </div>
                     <div className="p-6 w-full md:w-auto bg-muted/20 flex items-center justify-center">
                       <Button asChild size="lg" className="w-full md:w-auto text-base" disabled={trip.availableSeats === 0}>
                         <Link href={`/trips/${trip.id}`}>
-                          {trip.availableSeats > 0 ? "Choisir une place" : "Complet"}
+                          {trip.availableSeats > 0 ? t("trips.chooseSeat") : t("trips.full")}
                         </Link>
                       </Button>
                     </div>
