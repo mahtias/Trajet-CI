@@ -283,6 +283,119 @@ export interface Ticket {
   createdAt: string;
 }
 
+export interface Hotel {
+  id: number;
+  name: string;
+  city: string;
+  address: string;
+  /** @nullable */
+  description?: string | null;
+  pricePerNight: number;
+  totalRooms: number;
+  /** @nullable */
+  rating?: number | null;
+  createdAt: string;
+}
+
+export interface HotelInput {
+  name: string;
+  city: string;
+  address: string;
+  /** @nullable */
+  description?: string | null;
+  pricePerNight: number;
+  totalRooms: number;
+  /** @nullable */
+  rating?: number | null;
+}
+
+export interface PaginatedHotels {
+  items: Hotel[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface HotelSearchResult {
+  id: number;
+  name: string;
+  city: string;
+  address: string;
+  /** @nullable */
+  description?: string | null;
+  pricePerNight: number;
+  totalRooms: number;
+  /** @nullable */
+  rating?: number | null;
+  availableRooms: number;
+}
+
+export type HotelBookingInputPaymentMethod = typeof HotelBookingInputPaymentMethod[keyof typeof HotelBookingInputPaymentMethod];
+
+
+export const HotelBookingInputPaymentMethod = {
+  wave: 'wave',
+  orange_money: 'orange_money',
+  mtn_money: 'mtn_money',
+} as const;
+
+export interface HotelBookingInput {
+  hotelId: number;
+  guestName: string;
+  guestPhone: string;
+  checkInDate: string;
+  checkOutDate: string;
+  rooms: number;
+  paymentMethod: HotelBookingInputPaymentMethod;
+}
+
+export interface HotelBookingCallbackInput {
+  paymentId: string;
+  status: string;
+}
+
+export interface HotelBookingInitiateResponse {
+  paymentId: string;
+  amount: number;
+  status: string;
+  /** @nullable */
+  bookingId?: number | null;
+}
+
+export type HotelBookingPaymentMethod = typeof HotelBookingPaymentMethod[keyof typeof HotelBookingPaymentMethod];
+
+
+export const HotelBookingPaymentMethod = {
+  wave: 'wave',
+  orange_money: 'orange_money',
+  mtn_money: 'mtn_money',
+} as const;
+
+export type HotelBookingPaymentStatus = typeof HotelBookingPaymentStatus[keyof typeof HotelBookingPaymentStatus];
+
+
+export const HotelBookingPaymentStatus = {
+  pending: 'pending',
+  paid: 'paid',
+} as const;
+
+export interface HotelBooking {
+  id: number;
+  hotelId: number;
+  hotelName: string;
+  city: string;
+  guestName: string;
+  guestPhone: string;
+  checkInDate: string;
+  checkOutDate: string;
+  rooms: number;
+  totalPrice: number;
+  qrCode: string;
+  paymentMethod: HotelBookingPaymentMethod;
+  paymentStatus: HotelBookingPaymentStatus;
+  createdAt: string;
+}
+
 export interface Passenger {
   ticketId: number;
   passengerName: string;
@@ -349,6 +462,18 @@ export type SearchTripsParams = {
 origin: string;
 destination: string;
 date: string;
+};
+
+export type SearchHotelsParams = {
+city: string;
+checkIn: string;
+checkOut: string;
+rooms?: number;
+};
+
+export type GetAdminHotelsParams = {
+page?: number;
+pageSize?: number;
 };
 
 export type GetAdminCompaniesParams = {

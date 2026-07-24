@@ -254,6 +254,225 @@ export const GetTicketResponse = zod.object({
 
 
 /**
+ * @summary Search hotels by city and date range
+ */
+export const SearchHotelsQueryParams = zod.object({
+  "city": zod.coerce.string(),
+  "checkIn": zod.date(),
+  "checkOut": zod.date(),
+  "rooms": zod.coerce.number().optional()
+})
+
+export const SearchHotelsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish(),
+  "availableRooms": zod.number()
+})
+export const SearchHotelsResponse = zod.array(SearchHotelsResponseItem)
+
+
+/**
+ * @summary Get hotel details
+ */
+export const GetHotelParams = zod.object({
+  "hotelId": zod.coerce.number()
+})
+
+export const GetHotelResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Initiate a hotel booking (mobile money payment)
+ */
+export const InitiateHotelBookingBody = zod.object({
+  "hotelId": zod.number(),
+  "guestName": zod.string(),
+  "guestPhone": zod.string(),
+  "checkInDate": zod.coerce.date(),
+  "checkOutDate": zod.coerce.date(),
+  "rooms": zod.number(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money'])
+})
+
+export const InitiateHotelBookingResponse = zod.object({
+  "paymentId": zod.string(),
+  "amount": zod.number(),
+  "status": zod.string(),
+  "bookingId": zod.number().nullish()
+})
+
+
+/**
+ * @summary Hotel booking payment callback
+ */
+export const HotelBookingCallbackBody = zod.object({
+  "paymentId": zod.string(),
+  "status": zod.string()
+})
+
+export const HotelBookingCallbackResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get current user's hotel bookings
+ */
+export const GetMyHotelBookingsResponseItem = zod.object({
+  "id": zod.number(),
+  "hotelId": zod.number(),
+  "hotelName": zod.string(),
+  "city": zod.string(),
+  "guestName": zod.string(),
+  "guestPhone": zod.string(),
+  "checkInDate": zod.string(),
+  "checkOutDate": zod.string(),
+  "rooms": zod.number(),
+  "totalPrice": zod.number(),
+  "qrCode": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentStatus": zod.enum(['pending', 'paid']),
+  "createdAt": zod.coerce.date()
+})
+export const GetMyHotelBookingsResponse = zod.array(GetMyHotelBookingsResponseItem)
+
+
+/**
+ * @summary Get hotel booking by ID
+ */
+export const GetHotelBookingParams = zod.object({
+  "bookingId": zod.coerce.number()
+})
+
+export const GetHotelBookingResponse = zod.object({
+  "id": zod.number(),
+  "hotelId": zod.number(),
+  "hotelName": zod.string(),
+  "city": zod.string(),
+  "guestName": zod.string(),
+  "guestPhone": zod.string(),
+  "checkInDate": zod.string(),
+  "checkOutDate": zod.string(),
+  "rooms": zod.number(),
+  "totalPrice": zod.number(),
+  "qrCode": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentStatus": zod.enum(['pending', 'paid']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List all hotels
+ */
+export const GetAdminHotelsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetAdminHotelsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Create a hotel
+ */
+export const CreateHotelBody = zod.object({
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish()
+})
+
+export const CreateHotelResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a hotel
+ */
+export const UpdateHotelParams = zod.object({
+  "hotelId": zod.coerce.number()
+})
+
+export const UpdateHotelBody = zod.object({
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish()
+})
+
+export const UpdateHotelResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a hotel
+ */
+export const DeleteHotelParams = zod.object({
+  "hotelId": zod.coerce.number()
+})
+
+export const DeleteHotelResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get today's trips for clerk selection
  */
 export const GetClerkTripsResponseItem = zod.object({

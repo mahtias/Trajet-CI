@@ -14,14 +14,7 @@ import { CityCombobox } from "@/components/city-combobox";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/use-language";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
-
-const CITIES = [
-  "Abidjan", "Bouaké", "Daloa", "Korhogo",
-  "San-Pédro", "Yamoussoukro", "Man",
-  "Gagnoa", "Divo", "Abengourou",
-  "Katiola", "Ferkessédougou", "Duékoué", "Guiglo",
-  "Bouaflé", "Soubré", "Danané", "Tengrela",
-];
+import { CITIES } from "@/lib/cities";
 
 const POPULAR_ROUTES = [
   { origin: "Abidjan", destination: "Bouaké", price: "5 000 FCFA" },

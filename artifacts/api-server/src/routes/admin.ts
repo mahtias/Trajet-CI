@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, companiesTable, routesTable, tripsTable, seatsTable, ticketsTable, usersTable } from "@workspace/db";
+import { db, companiesTable, routesTable, tripsTable, seatsTable, ticketsTable, usersTable, hotelsTable } from "@workspace/db";
 import { z } from "zod";
 import {
   CreateCompanyBody,
@@ -20,6 +20,11 @@ import {
   GetAdminCompaniesQueryParams,
   GetAdminRoutesQueryParams,
   GetAdminUsersQueryParams,
+  GetAdminHotelsQueryParams,
+  CreateHotelBody,
+  UpdateHotelParams,
+  UpdateHotelBody,
+  DeleteHotelParams,
 } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/require-role";
 
@@ -415,6 +420,65 @@ router.get("/admin/reports/sales", async (req, res): Promise<void> => {
       ticketCount: r.ticket_count, revenue: r.revenue,
     })),
   });
+});
+
+// ── Hotels ─────────────────────────────────────────────────────────────────────
+
+function formatHotel(h: typeof hotelsTable.$inferSelect) {
+  return {
+    id: h.id, name: h.name, city: h.city, address: h.address, description: h.description,
+    pricePerNight: parseFloat(h.pricePerNight), totalRooms: h.totalRooms,
+    rating: h.rating ? parseFloat(h.rating) : null, createdAt: h.createdAt.toISOString(),
+  };
+}
+
+router.get("/admin/hotels", async (req, res): Promise<void> => {
+  const query = GetAdminHotelsQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const { page, pageSize, offset } = parsePagination(query.data.page, query.data.pageSize);
+
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(hotelsTable);
+  const hotels = await db.select().from(hotelsTable).orderBy(hotelsTable.city, hotelsTable.id).limit(pageSize).offset(offset);
+
+  res.json({ items: hotels.map(formatHotel), total: count, page, pageSize });
+});
+
+router.post("/admin/hotels", async (req, res): Promise<void> => {
+  const body = CreateHotelBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const [h] = await db.insert(hotelsTable).values({
+    name: body.data.name, city: body.data.city, address: body.data.address,
+    description: body.data.description ?? null,
+    pricePerNight: String(body.data.pricePerNight), totalRooms: body.data.totalRooms,
+    rating: body.data.rating != null ? String(body.data.rating) : null,
+  }).returning();
+
+  res.status(201).json(formatHotel(h));
+});
+
+router.put("/admin/hotels/:hotelId", async (req, res): Promise<void> => {
+  const params = UpdateHotelParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = UpdateHotelBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const [h] = await db.update(hotelsTable).set({
+    name: body.data.name, city: body.data.city, address: body.data.address,
+    description: body.data.description ?? null,
+    pricePerNight: String(body.data.pricePerNight), totalRooms: body.data.totalRooms,
+    rating: body.data.rating != null ? String(body.data.rating) : null,
+  }).where(eq(hotelsTable.id, params.data.hotelId)).returning();
+
+  if (!h) { res.status(404).json({ error: "Hôtel non trouvé" }); return; }
+  res.json(formatHotel(h));
+});
+
+router.delete("/admin/hotels/:hotelId", async (req, res): Promise<void> => {
+  const params = DeleteHotelParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  await db.delete(hotelsTable).where(eq(hotelsTable.id, params.data.hotelId));
+  res.json({ success: true });
 });
 
 export default router;

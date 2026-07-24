@@ -15,6 +15,11 @@ import TripDetail from '@/pages/passenger/trip-detail';
 import Checkout from '@/pages/passenger/checkout';
 import Tickets from '@/pages/passenger/tickets';
 import TicketDetail from '@/pages/passenger/ticket-detail';
+import Hotels from '@/pages/passenger/hotels';
+import HotelDetail from '@/pages/passenger/hotel-detail';
+import HotelCheckout from '@/pages/passenger/hotel-checkout';
+import HotelBookings from '@/pages/passenger/hotel-bookings';
+import HotelBookingDetail from '@/pages/passenger/hotel-booking-detail';
 
 import ClerkDashboard from '@/pages/clerk/dashboard';
 import ClerkTripDetail from '@/pages/clerk/trip-detail';
@@ -27,6 +32,7 @@ import AdminRoutes from '@/pages/admin/routes';
 import AdminTrips from '@/pages/admin/trips';
 import AdminReports from '@/pages/admin/reports';
 import AdminUsers from '@/pages/admin/users';
+import AdminHotels from '@/pages/admin/hotels';
 
 const queryClient = new QueryClient();
 
@@ -42,6 +48,11 @@ function Router() {
         <Route path="/checkout" component={Checkout} />
         <Route path="/tickets" component={Tickets} />
         <Route path="/tickets/:id" component={TicketDetail} />
+        <Route path="/hotels" component={Hotels} />
+        <Route path="/hotels/:id" component={HotelDetail} />
+        <Route path="/hotels/:id/checkout" component={HotelCheckout} />
+        <Route path="/hotel-bookings" component={HotelBookings} />
+        <Route path="/hotel-bookings/:id" component={HotelBookingDetail} />
 
         {/* Clerk */}
         <Route path="/clerk">
@@ -75,6 +86,9 @@ function Router() {
         </Route>
         <Route path="/admin/users">
           <RequireRole roles={['admin']}><AdminUsers /></RequireRole>
+        </Route>
+        <Route path="/admin/hotels">
+          <RequireRole roles={['admin']}><AdminHotels /></RequireRole>
         </Route>
 
         <Route component={NotFound} />

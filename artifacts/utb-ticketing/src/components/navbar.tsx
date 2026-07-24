@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
-import { BusFront, User, LogOut, Ticket, Menu, X, LayoutDashboard, QrCode } from "lucide-react";
+import { BusFront, User, LogOut, Ticket, Menu, X, LayoutDashboard, QrCode, Hotel } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/use-language";
@@ -52,6 +52,9 @@ export function Navbar() {
     if (!user) {
       return (
         <>
+          <Link href="/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
+            <Hotel className="h-4 w-4" /> Hôtels
+          </Link>
           <Link href="/login" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             {t("nav.login")}
           </Link>
@@ -83,6 +86,9 @@ export function Navbar() {
           <Link href="/admin/users" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             Utilisateurs
           </Link>
+          <Link href="/admin/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            Hôtels
+          </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
             <LogOut className="h-4 w-4 mr-2" /> {t("nav.logout")}
           </Button>
@@ -110,6 +116,12 @@ export function Navbar() {
       <>
         <Link href="/tickets" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
           <Ticket className="h-4 w-4" /> {t("nav.myTickets")}
+        </Link>
+        <Link href="/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
+          <Hotel className="h-4 w-4" /> Hôtels
+        </Link>
+        <Link href="/hotel-bookings" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+          Mes réservations
         </Link>
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <User className="h-4 w-4" /> {user.name || user.phone}

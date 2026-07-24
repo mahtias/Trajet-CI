@@ -5,6 +5,7 @@ import tripsRouter from "./trips";
 import seatsRouter from "./seats";
 import paymentsRouter from "./payments";
 import ticketsRouter from "./tickets";
+import hotelsRouter from "./hotels";
 import clerkRouter from "./clerk";
 import adminRouter from "./admin";
 
@@ -16,6 +17,7 @@ router.use(tripsRouter);
 router.use(seatsRouter);
 router.use(paymentsRouter);
 router.use(ticketsRouter);
+router.use(hotelsRouter);
 router.use(clerkRouter);
 router.use(adminRouter);
 

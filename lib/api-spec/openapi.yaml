@@ -20,6 +20,8 @@ tags:
     description: Payment operations
   - name: tickets
     description: Ticket management
+  - name: hotels
+    description: Hotel search and booking
   - name: clerk
     description: Station clerk operations
   - name: admin
@@ -294,6 +296,220 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Ticket"
+
+  # Hotels
+  /hotels/search:
+    get:
+      operationId: searchHotels
+      tags: [hotels]
+      summary: Search hotels by city and date range
+      parameters:
+        - name: city
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: checkIn
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: checkOut
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: rooms
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Hotels available for the given city and dates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HotelSearchResult"
+
+  /hotels/{hotelId}:
+    get:
+      operationId: getHotel
+      tags: [hotels]
+      summary: Get hotel details
+      parameters:
+        - name: hotelId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Hotel details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hotel"
+
+  /hotel-bookings/initiate:
+    post:
+      operationId: initiateHotelBooking
+      tags: [hotels]
+      summary: Initiate a hotel booking (mobile money payment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HotelBookingInput"
+      responses:
+        "200":
+          description: Booking initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HotelBookingInitiateResponse"
+
+  /hotel-bookings/callback:
+    post:
+      operationId: hotelBookingCallback
+      tags: [hotels]
+      summary: Hotel booking payment callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HotelBookingCallbackInput"
+      responses:
+        "200":
+          description: Callback processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /hotel-bookings:
+    get:
+      operationId: getMyHotelBookings
+      tags: [hotels]
+      summary: Get current user's hotel bookings
+      responses:
+        "200":
+          description: Hotel booking list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HotelBooking"
+
+  /hotel-bookings/{bookingId}:
+    get:
+      operationId: getHotelBooking
+      tags: [hotels]
+      summary: Get hotel booking by ID
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Hotel booking details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HotelBooking"
+
+  # Admin - Hotels
+  /admin/hotels:
+    get:
+      operationId: getAdminHotels
+      tags: [admin]
+      summary: List all hotels
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Hotels list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedHotels"
+    post:
+      operationId: createHotel
+      tags: [admin]
+      summary: Create a hotel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HotelInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hotel"
+
+  /admin/hotels/{hotelId}:
+    put:
+      operationId: updateHotel
+      tags: [admin]
+      summary: Update a hotel
+      parameters:
+        - name: hotelId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HotelInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hotel"
+    delete:
+      operationId: deleteHotel
+      tags: [admin]
+      summary: Delete a hotel
+      parameters:
+        - name: hotelId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
 
   # Clerk
   /clerk/trips:
@@ -1150,6 +1366,168 @@ components:
           enum: [pending, paid]
         validated:
           type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    # Hotel
+    Hotel:
+      type: object
+      required: [id, name, city, address, pricePerNight, totalRooms, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        city:
+          type: string
+        address:
+          type: string
+        description:
+          type: ["string", "null"]
+        pricePerNight:
+          type: number
+        totalRooms:
+          type: integer
+        rating:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    HotelInput:
+      type: object
+      required: [name, city, address, pricePerNight, totalRooms]
+      properties:
+        name:
+          type: string
+        city:
+          type: string
+        address:
+          type: string
+        description:
+          type: ["string", "null"]
+        pricePerNight:
+          type: number
+        totalRooms:
+          type: integer
+        rating:
+          type: ["number", "null"]
+
+    PaginatedHotels:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Hotel"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    HotelSearchResult:
+      type: object
+      required: [id, name, city, address, pricePerNight, totalRooms, availableRooms]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        city:
+          type: string
+        address:
+          type: string
+        description:
+          type: ["string", "null"]
+        pricePerNight:
+          type: number
+        totalRooms:
+          type: integer
+        rating:
+          type: ["number", "null"]
+        availableRooms:
+          type: integer
+
+    HotelBookingInput:
+      type: object
+      required: [hotelId, guestName, guestPhone, checkInDate, checkOutDate, rooms, paymentMethod]
+      properties:
+        hotelId:
+          type: integer
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+        checkInDate:
+          type: string
+          format: date
+        checkOutDate:
+          type: string
+          format: date
+        rooms:
+          type: integer
+        paymentMethod:
+          type: string
+          enum: [wave, orange_money, mtn_money]
+
+    HotelBookingCallbackInput:
+      type: object
+      required: [paymentId, status]
+      properties:
+        paymentId:
+          type: string
+        status:
+          type: string
+
+    HotelBookingInitiateResponse:
+      type: object
+      required: [paymentId, amount, status]
+      properties:
+        paymentId:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+        bookingId:
+          type: ["integer", "null"]
+
+    HotelBooking:
+      type: object
+      required: [id, hotelId, hotelName, city, guestName, guestPhone, checkInDate, checkOutDate, rooms, totalPrice, qrCode, paymentMethod, paymentStatus, createdAt]
+      properties:
+        id:
+          type: integer
+        hotelId:
+          type: integer
+        hotelName:
+          type: string
+        city:
+          type: string
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+        checkInDate:
+          type: string
+        checkOutDate:
+          type: string
+        rooms:
+          type: integer
+        totalPrice:
+          type: number
+        qrCode:
+          type: string
+        paymentMethod:
+          type: string
+          enum: [wave, orange_money, mtn_money]
+        paymentStatus:
+          type: string
+          enum: [pending, paid]
         createdAt:
           type: string
           format: date-time
