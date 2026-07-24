@@ -111,8 +111,8 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
-    // Local dev only: Replit's app router proxies /api to the api-server in
-    // deployed environments; outside Replit, proxy it to the local process.
+    // Local dev only: the deployed app router proxies /api to the api-server
+    // automatically; outside that environment, proxy it to the local process.
     proxy: {
       '/api': {
         target: `http://localhost:${process.env.API_PORT ?? 8080}`,
