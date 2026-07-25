@@ -24,5 +24,9 @@ export interface Ticket {
   paymentMethod: TicketPaymentMethod;
   paymentStatus: TicketPaymentStatus;
   validated?: boolean;
+  /** @nullable */
+  cancelledAt?: Date | null;
+  /** @nullable */
+  refundAmount?: number | null;
   createdAt: Date;
 }

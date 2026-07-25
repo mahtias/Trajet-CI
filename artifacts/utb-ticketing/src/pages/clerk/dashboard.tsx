@@ -1,7 +1,7 @@
-import { useGetClerkTrips } from "@workspace/api-client-react";
+import { useGetClerkTrips, useGetMe } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Users, Clock, ArrowRight } from "lucide-react";
+import { Users, Clock, ArrowRight, Building2 } from "lucide-react";
 import { Link } from "wouter";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 
 export default function ClerkDashboard() {
   const { data: trips, isLoading } = useGetClerkTrips();
+  const { data: me } = useGetMe({ query: { retry: false } });
 
   if (isLoading) {
     return (
@@ -29,6 +30,11 @@ export default function ClerkDashboard() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Ventes au Guichet</h1>
           <p className="text-muted-foreground capitalize">{todayStr}</p>
+          {me?.companyName && (
+            <p className="text-sm font-semibold text-primary flex items-center gap-1 mt-1">
+              <Building2 className="w-4 h-4" /> {me.companyName}
+            </p>
+          )}
         </div>
         <Button asChild variant="outline">
           <Link href="/clerk/validate">Validation QR Code</Link>
@@ -84,7 +90,9 @@ export default function ClerkDashboard() {
 
         {trips?.length === 0 && (
           <div className="col-span-full text-center py-12 text-muted-foreground bg-card rounded-xl border border-border">
-            Aucun voyage assigné pour aujourd'hui.
+            {me?.role === "clerk" && !me?.companyId
+              ? "Aucune compagnie n'est assignée à votre compte. Contactez un administrateur."
+              : "Aucun voyage assigné pour aujourd'hui."}
           </div>
         )}
       </div>

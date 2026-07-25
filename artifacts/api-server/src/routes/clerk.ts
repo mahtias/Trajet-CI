@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, tripsTable, routesTable, companiesTable, seatsTable, ticketsTable } from "@workspace/db";
+import { db, tripsTable, routesTable, companiesTable, seatsTable, ticketsTable, type User } from "@workspace/db";
 import {
   GetClerkTripSeatsParams,
   ClerkSellSeatParams,
@@ -14,16 +14,47 @@ import { requireRole } from "../middlewares/require-role";
 const router: IRouter = Router();
 router.use(requireRole("clerk", "admin"));
 
+function currentUser(req: any): User {
+  return req.currentUser;
+}
+
+/** Company id for the given trip, or null if the trip doesn't exist. */
+async function getTripCompanyId(tripId: number): Promise<number | null> {
+  const [result] = await db
+    .select({ companyId: routesTable.companyId })
+    .from(tripsTable)
+    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
+    .where(eq(tripsTable.id, tripId))
+    .limit(1);
+  return result?.companyId ?? null;
+}
+
+/** True if a clerk (scoped to a company) is allowed to act on this trip. Admins are unrestricted. */
+function isAllowed(user: User, tripCompanyId: number | null): boolean {
+  if (user.role === "admin") return true;
+  return user.companyId !== null && user.companyId === tripCompanyId;
+}
+
 // Get today's trips for clerk
 router.get("/clerk/trips", async (req, res): Promise<void> => {
+  const user = currentUser(req);
+  if (user.role === "clerk" && !user.companyId) {
+    res.json([]);
+    return;
+  }
+
   const today = new Date().toISOString().split("T")[0];
+  const conditions = [eq(tripsTable.departureDate, today), eq(tripsTable.status, "active")];
+  if (user.role === "clerk" && user.companyId) {
+    conditions.push(eq(companiesTable.id, user.companyId));
+  }
 
   const results = await db
     .select({ trip: tripsTable, route: routesTable, company: companiesTable })
     .from(tripsTable)
     .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
     .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .where(and(eq(tripsTable.departureDate, today), eq(tripsTable.status, "active")));
+    .where(and(...conditions));
 
   const trips = await Promise.all(
     results.map(async ({ trip, route, company }) => {
@@ -58,6 +89,13 @@ router.get("/clerk/trips/:tripId/seats", async (req, res): Promise<void> => {
   const params = GetClerkTripSeatsParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const user = currentUser(req);
+  const tripCompanyId = await getTripCompanyId(params.data.tripId);
+  if (!isAllowed(user, tripCompanyId)) {
+    res.status(403).json({ error: "Ce trajet appartient à une autre compagnie" });
     return;
   }
 
@@ -102,6 +140,13 @@ router.post("/clerk/seats/:seatId/sell", async (req, res): Promise<void> => {
   const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, params.data.seatId)).limit(1);
   if (!seat) {
     res.status(404).json({ error: "Siège non trouvé" });
+    return;
+  }
+
+  const user = currentUser(req);
+  const tripCompanyId = await getTripCompanyId(seat.tripId);
+  if (!isAllowed(user, tripCompanyId)) {
+    res.status(403).json({ error: "Ce trajet appartient à une autre compagnie" });
     return;
   }
 
@@ -168,6 +213,13 @@ router.get("/clerk/trips/:tripId/passengers", async (req, res): Promise<void> =>
     return;
   }
 
+  const user = currentUser(req);
+  const tripCompanyId = await getTripCompanyId(params.data.tripId);
+  if (!isAllowed(user, tripCompanyId)) {
+    res.status(403).json({ error: "Ce trajet appartient à une autre compagnie" });
+    return;
+  }
+
   const tickets = await db
     .select({ ticket: ticketsTable, seat: seatsTable })
     .from(ticketsTable)
@@ -197,6 +249,13 @@ router.post("/clerk/tickets/:ticketId/validate", async (req, res): Promise<void>
   const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, params.data.ticketId)).limit(1);
   if (!ticket) {
     res.status(404).json({ error: "Ticket non trouvé" });
+    return;
+  }
+
+  const user = currentUser(req);
+  const tripCompanyId = await getTripCompanyId(ticket.tripId);
+  if (!isAllowed(user, tripCompanyId)) {
+    res.status(403).json({ error: "Ce billet appartient à une autre compagnie" });
     return;
   }
 

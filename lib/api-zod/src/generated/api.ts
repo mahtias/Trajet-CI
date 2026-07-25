@@ -42,7 +42,9 @@ export const VerifyOtpResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['passenger', 'clerk', 'admin'])
+  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "companyId": zod.number().nullish(),
+  "companyName": zod.string().nullish()
 })
 
 
@@ -61,7 +63,9 @@ export const GetMeResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['passenger', 'clerk', 'admin'])
+  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "companyId": zod.number().nullish(),
+  "companyName": zod.string().nullish()
 })
 
 
@@ -221,6 +225,8 @@ export const GetMyTicketsResponseItem = zod.object({
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "refundAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const GetMyTicketsResponse = zod.array(GetMyTicketsResponseItem)
@@ -249,7 +255,23 @@ export const GetTicketResponse = zod.object({
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "refundAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Cancel a paid ticket (tiered refund based on time before departure)
+ */
+export const CancelTicketParams = zod.object({
+  "ticketId": zod.coerce.number()
+})
+
+export const CancelTicketResponse = zod.object({
+  "success": zod.boolean(),
+  "refundAmount": zod.number(),
+  "feePercent": zod.number()
 })
 
 
@@ -535,6 +557,8 @@ export const ClerkSellSeatResponse = zod.object({
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "refundAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -582,6 +606,8 @@ export const ValidateTicketResponse = zod.object({
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
+  "cancelledAt": zod.coerce.date().nullish(),
+  "refundAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 }),
   "message": zod.string().nullish()
@@ -666,6 +692,8 @@ export const GetAdminUsersResponse = zod.object({
   "phone": zod.string(),
   "name": zod.string().nullish(),
   "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "companyId": zod.number().nullish(),
+  "companyName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -682,7 +710,8 @@ export const UpdateUserRoleParams = zod.object({
 })
 
 export const UpdateUserRoleBody = zod.object({
-  "role": zod.enum(['passenger', 'clerk', 'admin'])
+  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "companyId": zod.number().nullish()
 })
 
 export const UpdateUserRoleResponse = zod.object({
@@ -690,6 +719,8 @@ export const UpdateUserRoleResponse = zod.object({
   "phone": zod.string(),
   "name": zod.string().nullish(),
   "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "companyId": zod.number().nullish(),
+  "companyName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 

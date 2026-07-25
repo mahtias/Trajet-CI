@@ -104,11 +104,18 @@ router.get("/admin/users", async (req, res): Promise<void> => {
   const { page, pageSize, offset } = parsePagination(query.data.page, query.data.pageSize);
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
-  const users = await db.select().from(usersTable).orderBy(usersTable.createdAt, usersTable.id).limit(pageSize).offset(offset);
+  const results = await db
+    .select({ user: usersTable, company: companiesTable })
+    .from(usersTable)
+    .leftJoin(companiesTable, eq(usersTable.companyId, companiesTable.id))
+    .orderBy(usersTable.createdAt, usersTable.id)
+    .limit(pageSize).offset(offset);
 
   res.json({
-    items: users.map((u) => ({
-      id: u.id, phone: u.phone, name: u.name, role: u.role, createdAt: u.createdAt.toISOString(),
+    items: results.map(({ user: u, company }) => ({
+      id: u.id, phone: u.phone, name: u.name, role: u.role,
+      companyId: u.companyId, companyName: company?.name ?? null,
+      createdAt: u.createdAt.toISOString(),
     })),
     total: count, page, pageSize,
   });
@@ -126,9 +133,22 @@ router.put("/admin/users/:userId/role", async (req, res): Promise<void> => {
     return;
   }
 
-  const [u] = await db.update(usersTable).set({ role: body.data.role }).where(eq(usersTable.id, params.data.userId)).returning();
+  const [u] = await db
+    .update(usersTable)
+    .set({ role: body.data.role, companyId: body.data.companyId ?? null })
+    .where(eq(usersTable.id, params.data.userId))
+    .returning();
   if (!u) { res.status(404).json({ error: "Utilisateur non trouvé" }); return; }
-  res.json({ id: u.id, phone: u.phone, name: u.name, role: u.role, createdAt: u.createdAt.toISOString() });
+
+  const [company] = u.companyId
+    ? await db.select().from(companiesTable).where(eq(companiesTable.id, u.companyId)).limit(1)
+    : [undefined];
+
+  res.json({
+    id: u.id, phone: u.phone, name: u.name, role: u.role,
+    companyId: u.companyId, companyName: company?.name ?? null,
+    createdAt: u.createdAt.toISOString(),
+  });
 });
 
 // ── Routes ─────────────────────────────────────────────────────────────────────
@@ -319,13 +339,13 @@ router.get("/admin/dashboard/stats", async (_req, res): Promise<void> => {
   const { rows: [todayStats] } = await db.execute(sql`
     SELECT COUNT(*)::int as ticket_count, COALESCE(SUM(t.price::numeric), 0)::float as revenue
     FROM tickets t
-    WHERE t.payment_status = 'paid' AND DATE(t.created_at) = ${today}
+    WHERE t.payment_status = 'paid' AND t.cancelled_at IS NULL AND DATE(t.created_at) = ${today}
   `) as any;
 
   const { rows: [monthStats] } = await db.execute(sql`
     SELECT COUNT(*)::int as ticket_count, COALESCE(SUM(t.price::numeric), 0)::float as revenue
     FROM tickets t
-    WHERE t.payment_status = 'paid' AND DATE(t.created_at) >= ${monthStart}
+    WHERE t.payment_status = 'paid' AND t.cancelled_at IS NULL AND DATE(t.created_at) >= ${monthStart}
   `) as any;
 
   const { rows: byCompany } = await db.execute(sql`
@@ -334,7 +354,7 @@ router.get("/admin/dashboard/stats", async (_req, res): Promise<void> => {
     JOIN trips tr ON tk.trip_id = tr.id
     JOIN routes r ON tr.route_id = r.id
     JOIN companies c ON r.company_id = c.id
-    WHERE tk.payment_status = 'paid'
+    WHERE tk.payment_status = 'paid' AND tk.cancelled_at IS NULL
     GROUP BY c.name
     ORDER BY ticket_count DESC
   `) as any;
@@ -342,7 +362,7 @@ router.get("/admin/dashboard/stats", async (_req, res): Promise<void> => {
   const { rows: byDay } = await db.execute(sql`
     SELECT DATE(created_at)::text as date, COUNT(*)::int as ticket_count, COALESCE(SUM(price::numeric), 0)::float as revenue
     FROM tickets
-    WHERE payment_status = 'paid' AND created_at >= NOW() - INTERVAL '14 days'
+    WHERE payment_status = 'paid' AND cancelled_at IS NULL AND created_at >= NOW() - INTERVAL '14 days'
     GROUP BY DATE(created_at)
     ORDER BY date ASC
   `) as any;
@@ -376,7 +396,7 @@ router.get("/admin/reports/sales", async (req, res): Promise<void> => {
     JOIN trips tr ON tk.trip_id = tr.id
     JOIN routes r ON tr.route_id = r.id
     JOIN companies c ON r.company_id = c.id
-    WHERE tk.payment_status = 'paid'
+    WHERE tk.payment_status = 'paid' AND tk.cancelled_at IS NULL
       AND DATE(tk.created_at) >= ${from}
       AND DATE(tk.created_at) <= ${to}
   `;

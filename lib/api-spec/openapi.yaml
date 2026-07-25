@@ -297,6 +297,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ticket"
 
+  /tickets/{ticketId}/cancel:
+    post:
+      operationId: cancelTicket
+      tags: [tickets]
+      summary: Cancel a paid ticket (tiered refund based on time before departure)
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketCancellation"
+
   # Hotels
   /hotels/search:
     get:
@@ -1038,6 +1057,10 @@ components:
         role:
           type: string
           enum: [passenger, clerk, admin]
+        companyId:
+          type: ["integer", "null"]
+        companyName:
+          type: ["string", "null"]
 
     # Company
     Company:
@@ -1088,6 +1111,10 @@ components:
         role:
           type: string
           enum: [passenger, clerk, admin]
+        companyId:
+          type: ["integer", "null"]
+        companyName:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -1099,6 +1126,8 @@ components:
         role:
           type: string
           enum: [passenger, clerk, admin]
+        companyId:
+          type: ["integer", "null"]
 
     PaginatedUsers:
       type: object
@@ -1366,9 +1395,25 @@ components:
           enum: [pending, paid]
         validated:
           type: boolean
+        cancelledAt:
+          type: ["string", "null"]
+          format: date-time
+        refundAmount:
+          type: ["number", "null"]
         createdAt:
           type: string
           format: date-time
+
+    TicketCancellation:
+      type: object
+      required: [success, refundAmount, feePercent]
+      properties:
+        success:
+          type: boolean
+        refundAmount:
+          type: number
+        feePercent:
+          type: number
 
     # Hotel
     Hotel:

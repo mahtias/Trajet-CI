@@ -1,19 +1,38 @@
 import { useParams } from "wouter";
 import { format } from "date-fns";
-import { useGetTicket } from "@workspace/api-client-react";
-import { MapPin, Clock, Calendar as CalendarIcon, ArrowLeft, Download, ShieldCheck, Hotel } from "lucide-react";
+import { useGetTicket, useCancelTicket, getGetTicketQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { MapPin, Clock, Calendar as CalendarIcon, ArrowLeft, Download, ShieldCheck, Hotel, XCircle, Ban } from "lucide-react";
 import { Link } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useLanguage } from "@/hooks/use-language";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getPaymentMethod } from "@/lib/payment-methods";
+
+const ADVANCE_FEE_PERCENT = 5;
+const SAME_DAY_FEE_PERCENT = 25;
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
   const ticketId = parseInt(id, 10);
   const { t, dateLocale } = useLanguage();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const cancelTicket = useCancelTicket();
 
   const { data: ticket, isLoading } = useGetTicket(ticketId, {
     query: { enabled: !!ticketId }
@@ -36,6 +55,35 @@ export default function TicketDetail() {
   }
 
   const method = getPaymentMethod(ticket.paymentMethod);
+
+  const departureAt = new Date(`${ticket.departureDate}T${ticket.departureTime}`);
+  const hoursUntilDeparture = (departureAt.getTime() - Date.now()) / (60 * 60 * 1000);
+  const isCancelled = !!ticket.cancelledAt;
+  const canCancel = !isCancelled && !ticket.validated && hoursUntilDeparture > 0;
+  const previewFeePercent = hoursUntilDeparture >= 24 ? ADVANCE_FEE_PERCENT : SAME_DAY_FEE_PERCENT;
+  const previewRefund = Math.round(ticket.price * (1 - previewFeePercent / 100) * 100) / 100;
+
+  const handleCancel = () => {
+    cancelTicket.mutate(
+      { ticketId },
+      {
+        onSuccess: (res) => {
+          queryClient.invalidateQueries({ queryKey: getGetTicketQueryKey(ticketId) });
+          toast({
+            title: t("ticketDetail.cancelSuccessTitle"),
+            description: t("ticketDetail.cancelSuccessDesc", { amount: res.refundAmount.toLocaleString("fr-CI") }),
+          });
+        },
+        onError: (err: any) => {
+          toast({
+            variant: "destructive",
+            title: t("common.error"),
+            description: err?.message || t("ticketDetail.cancelError"),
+          });
+        },
+      }
+    );
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-md">
@@ -60,7 +108,7 @@ export default function TicketDetail() {
           {/* QR Code Section */}
           <div className="p-8 flex flex-col items-center justify-center border-b-2 border-dashed border-border pb-10">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-border/50 mb-4">
-              <img src={ticket.qrCode} alt="QR Code" className="w-48 h-48" />
+              <img src={ticket.qrCode} alt="QR Code" className={cn("w-48 h-48", isCancelled && "opacity-30 grayscale")} />
             </div>
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">{t("ticketDetail.ticketNumber")}</p>
@@ -123,6 +171,13 @@ export default function TicketDetail() {
                 <span className="font-semibold text-sm">{t("ticketDetail.validated")}</span>
               </div>
             )}
+
+            {isCancelled && (
+              <div className="mt-6 flex items-center justify-center gap-2 text-destructive bg-destructive/10 p-3 rounded-lg border border-destructive/20">
+                <XCircle className="w-5 h-5" />
+                <span className="font-semibold text-sm">{t("ticketDetail.cancelledBanner")}</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -131,11 +186,42 @@ export default function TicketDetail() {
         <Download className="w-4 h-4 mr-2" /> {t("ticketDetail.downloadPrint")}
       </Button>
 
-      <Button asChild className="w-full mt-3 h-12">
-        <Link href={`/hotels?city=${encodeURIComponent(ticket.destination)}`}>
-          <Hotel className="w-4 h-4 mr-2" /> Voir les hôtels à {ticket.destination}
-        </Link>
-      </Button>
+      {!isCancelled && (
+        <Button asChild className="w-full mt-3 h-12">
+          <Link href={`/hotels?city=${encodeURIComponent(ticket.destination)}`}>
+            <Hotel className="w-4 h-4 mr-2" /> Voir les hôtels à {ticket.destination}
+          </Link>
+        </Button>
+      )}
+
+      {canCancel && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button className="w-full mt-3 h-12" variant="outline">
+              <Ban className="w-4 h-4 mr-2 text-destructive" /> {t("ticketDetail.cancelButton")}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("ticketDetail.cancelConfirmTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("ticketDetail.cancelConfirmDesc", {
+                  feePercent: previewFeePercent,
+                  hoursNote: t(hoursUntilDeparture >= 24 ? "ticketDetail.cancelHoursNoteAdvance" : "ticketDetail.cancelHoursNoteSameDay"),
+                  refundAmount: previewRefund.toLocaleString("fr-CI"),
+                  price: ticket.price.toLocaleString("fr-CI"),
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("ticketDetail.cancelDismiss")}</AlertDialogCancel>
+              <AlertDialogAction onClick={handleCancel} disabled={cancelTicket.isPending}>
+                {t("ticketDetail.cancelConfirmAction")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

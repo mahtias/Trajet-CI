@@ -120,6 +120,7 @@ const fr: Dictionary = {
     searchTrip: 'Rechercher un trajet',
     used: 'Utilisé',
     valid: 'Valide',
+    cancelled: 'Annulé',
     viewQr: 'Voir le QR',
   },
   ticketDetail: {
@@ -129,6 +130,17 @@ const fr: Dictionary = {
     ticketNumber: 'N° de Billet',
     validated: 'Billet Validé',
     downloadPrint: 'Télécharger / Imprimer',
+    cancelButton: 'Annuler le billet',
+    cancelConfirmTitle: 'Annuler ce billet ?',
+    cancelConfirmDesc: "Des frais d'annulation de {{feePercent}}% s'appliquent ({{hoursNote}}). Vous serez remboursé {{refundAmount}} FCFA sur {{price}} FCFA.",
+    cancelHoursNoteAdvance: 'annulation à plus de 24h du départ',
+    cancelHoursNoteSameDay: 'annulation le jour même du départ',
+    cancelDismiss: 'Retour',
+    cancelConfirmAction: "Confirmer l'annulation",
+    cancelSuccessTitle: 'Billet annulé',
+    cancelSuccessDesc: 'Remboursement de {{amount}} FCFA effectué.',
+    cancelledBanner: 'Ce billet a été annulé',
+    cancelError: "Impossible d'annuler ce billet.",
   },
 };
 
@@ -244,6 +256,7 @@ const en: Dictionary = {
     searchTrip: 'Search a trip',
     used: 'Used',
     valid: 'Valid',
+    cancelled: 'Cancelled',
     viewQr: 'View QR',
   },
   ticketDetail: {
@@ -253,6 +266,17 @@ const en: Dictionary = {
     ticketNumber: 'Ticket No.',
     validated: 'Ticket Validated',
     downloadPrint: 'Download / Print',
+    cancelButton: 'Cancel ticket',
+    cancelConfirmTitle: 'Cancel this ticket?',
+    cancelConfirmDesc: 'A {{feePercent}}% cancellation fee applies ({{hoursNote}}). You will be refunded {{refundAmount}} FCFA out of {{price}} FCFA.',
+    cancelHoursNoteAdvance: 'cancelling more than 24h before departure',
+    cancelHoursNoteSameDay: 'cancelling the same day as departure',
+    cancelDismiss: 'Back',
+    cancelConfirmAction: 'Confirm cancellation',
+    cancelSuccessTitle: 'Ticket cancelled',
+    cancelSuccessDesc: 'Refund of {{amount}} FCFA processed.',
+    cancelledBanner: 'This ticket has been cancelled',
+    cancelError: 'Unable to cancel this ticket.',
   },
 };
 

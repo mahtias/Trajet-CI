@@ -53,7 +53,9 @@ export default function Tickets() {
                         <span className="text-xs font-bold px-2 py-1 bg-secondary/10 text-secondary rounded-md">
                           {ticket.companyName}
                         </span>
-                        {ticket.validated ? (
+                        {ticket.cancelledAt ? (
+                          <span className="text-xs font-bold px-2 py-1 bg-destructive/10 text-destructive rounded-md">{t("tickets.cancelled")}</span>
+                        ) : ticket.validated ? (
                           <span className="text-xs font-bold px-2 py-1 bg-muted text-muted-foreground rounded-md flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" /> {t("tickets.used")}
                           </span>

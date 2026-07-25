@@ -20,6 +20,7 @@ export function requireRole(...roles: Array<"passenger" | "clerk" | "admin">) {
       return;
     }
 
+    (req as any).currentUser = user;
     next();
   };
 }

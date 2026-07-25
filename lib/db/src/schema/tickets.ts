@@ -18,6 +18,8 @@ export const ticketsTable = pgTable("tickets", {
   paymentStatus: text("payment_status").notNull().default("pending"), // pending | paid
   paymentId: text("payment_id"),
   validated: boolean("validated").notNull().default(false),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  refundAmount: numeric("refund_amount", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -9,4 +9,6 @@ import type { UserRoleInputRole } from './userRoleInputRole';
 
 export interface UserRoleInput {
   role: UserRoleInputRole;
+  /** @nullable */
+  companyId?: number | null;
 }

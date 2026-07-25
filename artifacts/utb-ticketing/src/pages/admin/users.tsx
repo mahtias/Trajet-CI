@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetAdminUsers, useUpdateUserRole, useGetMe } from "@workspace/api-client-react";
+import { useGetAdminUsers, useUpdateUserRole, useGetMe, useGetAdminCompanies } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -34,27 +34,37 @@ export default function AdminUsers() {
   const users = data?.items;
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const { data: me } = useGetMe({ query: { retry: false } });
+  const { data: companiesData } = useGetAdminCompanies({ page: 1, pageSize: 100 });
+  const companies = companiesData?.items;
   const updateUserRole = useUpdateUserRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const handleRoleChange = (userId: number, role: string) => {
+  const saveUser = (userId: number, role: "passenger" | "clerk" | "admin", companyId: number | null) => {
     updateUserRole.mutate(
-      { userId, data: { role: role as "passenger" | "clerk" | "admin" } },
+      { userId, data: { role, companyId } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-          toast({ title: "Rôle mis à jour" });
+          toast({ title: "Utilisateur mis à jour" });
         },
         onError: (err: any) => {
           toast({
             variant: "destructive",
             title: "Erreur",
-            description: err?.message || "Impossible de modifier le rôle",
+            description: err?.message || "Impossible de modifier l'utilisateur",
           });
         },
       }
     );
+  };
+
+  const handleRoleChange = (userId: number, role: string, currentCompanyId: number | null) => {
+    saveUser(userId, role as "passenger" | "clerk" | "admin", role === "clerk" ? currentCompanyId : null);
+  };
+
+  const handleCompanyChange = (userId: number, companyId: string) => {
+    saveUser(userId, "clerk", parseInt(companyId, 10));
   };
 
   return (
@@ -75,16 +85,17 @@ export default function AdminUsers() {
               <TableHead>Nom</TableHead>
               <TableHead>Date création</TableHead>
               <TableHead className="w-48">Rôle</TableHead>
+              <TableHead className="w-48">Compagnie</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
               </TableRow>
             ) : users?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Aucun utilisateur.</TableCell>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Aucun utilisateur.</TableCell>
               </TableRow>
             ) : (
               users?.map((user) => {
@@ -101,7 +112,7 @@ export default function AdminUsers() {
                       <Select
                         value={user.role}
                         disabled={isSelf || updateUserRole.isPending}
-                        onValueChange={(role) => handleRoleChange(user.id, role)}
+                        onValueChange={(role) => handleRoleChange(user.id, role, user.companyId ?? null)}
                       >
                         <SelectTrigger className="h-9">
                           <SelectValue />
@@ -113,6 +124,26 @@ export default function AdminUsers() {
                         </SelectContent>
                       </Select>
                       {isSelf && <p className="text-xs text-muted-foreground mt-1">Votre compte</p>}
+                    </TableCell>
+                    <TableCell>
+                      {user.role === "clerk" ? (
+                        <Select
+                          value={user.companyId ? user.companyId.toString() : undefined}
+                          disabled={updateUserRole.isPending}
+                          onValueChange={(companyId) => handleCompanyChange(user.id, companyId)}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Choisir..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {companies?.map((c) => (
+                              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

@@ -44,6 +44,10 @@ export interface AuthUser {
   /** @nullable */
   name?: string | null;
   role: AuthUserRole;
+  /** @nullable */
+  companyId?: number | null;
+  /** @nullable */
+  companyName?: string | null;
 }
 
 export interface Company {
@@ -78,6 +82,10 @@ export interface User {
   /** @nullable */
   name?: string | null;
   role: UserRole;
+  /** @nullable */
+  companyId?: number | null;
+  /** @nullable */
+  companyName?: string | null;
   createdAt: string;
 }
 
@@ -92,6 +100,8 @@ export const UserRoleInputRole = {
 
 export interface UserRoleInput {
   role: UserRoleInputRole;
+  /** @nullable */
+  companyId?: number | null;
 }
 
 export interface PaginatedUsers {
@@ -280,7 +290,17 @@ export interface Ticket {
   paymentMethod: TicketPaymentMethod;
   paymentStatus: TicketPaymentStatus;
   validated?: boolean;
+  /** @nullable */
+  cancelledAt?: string | null;
+  /** @nullable */
+  refundAmount?: number | null;
   createdAt: string;
+}
+
+export interface TicketCancellation {
+  success: boolean;
+  refundAmount: number;
+  feePercent: number;
 }
 
 export interface Hotel {

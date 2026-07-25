@@ -60,6 +60,7 @@ import type {
   Seat,
   SuccessResponse,
   Ticket,
+  TicketCancellation,
   TicketValidation,
   TripDetail,
   TripInput,
@@ -1139,6 +1140,77 @@ export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TErr
 
 
 
+
+export const getCancelTicketUrl = (ticketId: number,) => {
+
+
+
+
+  return `/api/tickets/${ticketId}/cancel`
+}
+
+/**
+ * @summary Cancel a paid ticket (tiered refund based on time before departure)
+ */
+export const cancelTicket = async (ticketId: number, options?: RequestInit): Promise<TicketCancellation> => {
+
+  return customFetch<TicketCancellation>(getCancelTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelTicketMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelTicket>>, TError,{ticketId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelTicket>>, TError,{ticketId: number}, TContext> => {
+
+const mutationKey = ['cancelTicket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelTicket>>, {ticketId: number}> = (props) => {
+          const {ticketId} = props ?? {};
+
+          return  cancelTicket(ticketId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelTicketMutationResult = NonNullable<Awaited<ReturnType<typeof cancelTicket>>>
+
+    export type CancelTicketMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Cancel a paid ticket (tiered refund based on time before departure)
+ */
+export const useCancelTicket = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelTicket>>, TError,{ticketId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelTicket>>,
+        TError,
+        {ticketId: number},
+        TContext
+      > => {
+      return useMutation(getCancelTicketMutationOptions(options));
+    }
 
 export const getSearchHotelsUrl = (params: SearchHotelsParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -55,6 +55,7 @@ export * from './seat';
 export * from './seatStatus';
 export * from './successResponse';
 export * from './ticket';
+export * from './ticketCancellation';
 export * from './ticketPaymentMethod';
 export * from './ticketPaymentStatus';
 export * from './ticketValidation';

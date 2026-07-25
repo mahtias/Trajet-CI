@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, companiesTable } from "@workspace/db";
 import {
   RequestOtpBody,
   VerifyOtpBody,
@@ -17,6 +17,21 @@ function generateOtp(): string {
 
 function getSession(req: any) {
   return req.session as { userId?: number };
+}
+
+async function formatAuthUser(user: typeof usersTable.$inferSelect) {
+  const [company] = user.companyId
+    ? await db.select().from(companiesTable).where(eq(companiesTable.id, user.companyId)).limit(1)
+    : [undefined];
+
+  return {
+    id: user.id,
+    phone: user.phone,
+    name: user.name,
+    role: user.role,
+    companyId: user.companyId,
+    companyName: company?.name ?? null,
+  };
 }
 
 router.post("/auth/request-otp", async (req, res): Promise<void> => {
@@ -71,12 +86,7 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 
   getSession(req).userId = user.id;
 
-  res.json({
-    id: user.id,
-    phone: user.phone,
-    name: user.name,
-    role: user.role,
-  });
+  res.json(await formatAuthUser(user));
 });
 
 router.post("/auth/logout", async (req, res): Promise<void> => {
@@ -97,12 +107,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json({
-    id: user.id,
-    phone: user.phone,
-    name: user.name,
-    role: user.role,
-  });
+  res.json(await formatAuthUser(user));
 });
 
 export default router;
