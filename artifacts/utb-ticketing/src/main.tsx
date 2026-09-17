@@ -1,12 +1,13 @@
 import { createRoot } from 'react-dom/client';
-import { registerSW } from 'virtual:pwa-register';
 
+import { registerSW } from 'virtual:pwa-register';
+import { setBaseUrl } from '@workspace/api-client-react';
 import App from './App';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 
 import './index.css';
-
+setBaseUrl(import.meta.env.VITE_API_URL || null);
 createRoot(document.getElementById('root')!).render(<App />);
 
 const updateSW = registerSW({
