@@ -57,7 +57,7 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
   req.log.info({ phone }, "OTP generated");
 
   // In production, send via SMS. For MVP return it in response for dev.
-  res.json({ message: "OTP sent", devOtp: otp });
+  res.json(process.env.ALLOW_DEV_OTP === "true" ? { message: "OTP sent", devOtp: otp } : { message: "OTP sent" });
 });
 
 router.post("/auth/verify-otp", async (req, res): Promise<void> => {
