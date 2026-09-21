@@ -31,8 +31,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: null,
       manifest: {
-        name: 'Trajet CI',
-        short_name: 'Trajet CI',
+        name: 'ChapVoyage',
+        short_name: 'ChapVoyage',
         description:
           "Réservez vos billets de bus interurbains en Côte d'Ivoire, toutes compagnies.",
         theme_color: '#FF3C00',
