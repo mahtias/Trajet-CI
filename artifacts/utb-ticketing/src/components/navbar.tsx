@@ -140,7 +140,7 @@ export function Navbar() {
           <div className="bg-primary text-primary-foreground p-1.5 rounded-md">
             <BusFront className="h-5 w-5" />
           </div>
-          Trajet CI
+         ChapVoyage
         </Link>
 
         {/* Desktop Nav */}
