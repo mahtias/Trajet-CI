@@ -1,37 +1,34 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, tripsTable, routesTable, companiesTable, seatsTable } from "@workspace/db";
+import { db, tripsTable, citiesTable, seatsTable } from "@workspace/db";
 import {
   GetTripParams,
   GetTripSeatsParams,
 } from "@workspace/api-zod";
 import { z } from "zod";
+import {
+  selectTrips,
+  getTripDetails,
+  getSeatCounts,
+  formatTripSummary,
+  formatTripDetail,
+  originStation,
+  destinationStation,
+} from "../lib/trip-queries";
 
+// Generated SearchTripsQueryParams expects a Date for `date`; query strings need the YYYY-MM-DD form.
 const SearchQuery = z.object({
-  origin: z.string().min(1),
-  destination: z.string().min(1),
+  originCityId: z.coerce.number().int().positive(),
+  destinationCityId: z.coerce.number().int().positive(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
 const router: IRouter = Router();
 
-function formatTrip(trip: any, route: any, company: any, availableSeats: number, totalSeats: number) {
-  return {
-    id: trip.id,
-    origin: route.origin,
-    destination: route.destination,
-    departureDate: trip.departureDate,
-    departureTime: trip.departureTime,
-    price: parseFloat(trip.price),
-    companyName: company.name,
-    companyId: company.id,
-    routeId: route.id,
-    durationMinutes: route.durationMinutes,
-    totalSeats,
-    availableSeats,
-    status: trip.status,
-  };
-}
+router.get("/cities", async (_req, res): Promise<void> => {
+  const cities = await db.select().from(citiesTable).orderBy(citiesTable.name);
+  res.json(cities.map((c) => ({ id: c.id, name: c.name })));
+});
 
 router.get("/trips/search", async (req, res): Promise<void> => {
   const parsed = SearchQuery.safeParse(req.query);
@@ -40,25 +37,18 @@ router.get("/trips/search", async (req, res): Promise<void> => {
     return;
   }
 
-  const { origin, destination, date } = parsed.data;
+  const { originCityId, destinationCityId, date } = parsed.data;
 
-  const results = await db
-    .select({
-      trip: tripsTable,
-      route: routesTable,
-      company: companiesTable,
-    })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
+  const results = await selectTrips()
     .where(
       and(
-        sql`lower(${routesTable.origin}) = lower(${origin})`,
-        sql`lower(${routesTable.destination}) = lower(${destination})`,
+        eq(originStation.cityId, originCityId),
+        eq(destinationStation.cityId, destinationCityId),
         eq(tripsTable.departureDate, date),
         eq(tripsTable.status, "active"),
       )
-    );
+    )
+    .orderBy(tripsTable.departureTime, tripsTable.id);
 
   // Auto-release expired reservations (older than 10 min)
   await db.execute(
@@ -67,27 +57,9 @@ router.get("/trips/search", async (req, res): Promise<void> => {
   );
 
   const trips = await Promise.all(
-    results.map(async ({ trip, route, company }) => {
-      const seatCounts = await db
-        .select({ status: seatsTable.status, count: sql<number>`count(*)::int` })
-        .from(seatsTable)
-        .where(eq(seatsTable.tripId, trip.id))
-        .groupBy(seatsTable.status);
-
-      const totalSeats = seatCounts.reduce((s, r) => s + r.count, 0);
-      const availableSeats = seatCounts.find(r => r.status === "available")?.count ?? 0;
-
-      return {
-        id: trip.id,
-        origin: route.origin,
-        destination: route.destination,
-        departureDate: trip.departureDate,
-        departureTime: trip.departureTime,
-        price: parseFloat(trip.price),
-        companyName: company.name,
-        availableSeats,
-        durationMinutes: route.durationMinutes,
-      };
+    results.map(async (row) => {
+      const { availableSeats } = await getSeatCounts(row.trip.id);
+      return formatTripSummary(row, availableSeats);
     })
   );
 
@@ -101,29 +73,14 @@ router.get("/trips/:tripId", async (req, res): Promise<void> => {
     return;
   }
 
-  const [result] = await db
-    .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .where(eq(tripsTable.id, params.data.tripId))
-    .limit(1);
-
+  const result = await getTripDetails(params.data.tripId);
   if (!result) {
     res.status(404).json({ error: "Trajet non trouvé" });
     return;
   }
 
-  const seatCounts = await db
-    .select({ status: seatsTable.status, count: sql<number>`count(*)::int` })
-    .from(seatsTable)
-    .where(eq(seatsTable.tripId, params.data.tripId))
-    .groupBy(seatsTable.status);
-
-  const totalSeats = seatCounts.reduce((s, r) => s + r.count, 0);
-  const availableSeats = seatCounts.find(r => r.status === "available")?.count ?? 0;
-
-  res.json(formatTrip(result.trip, result.route, result.company, availableSeats, totalSeats));
+  const { totalSeats, availableSeats } = await getSeatCounts(params.data.tripId);
+  res.json(formatTripDetail(result, availableSeats, totalSeats));
 });
 
 router.get("/trips/:tripId/seats", async (req, res): Promise<void> => {

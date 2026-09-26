@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, ticketsTable, tripsTable, routesTable, companiesTable, seatsTable } from "@workspace/db";
+import { db, ticketsTable, tripsTable, seatsTable } from "@workspace/db";
 import {
   GetTicketParams,
   CancelTicketParams,
 } from "@workspace/api-zod";
+import { getTripDetails, routeLabels } from "../lib/trip-queries";
 
 const SAME_DAY_FEE_PERCENT = 25;
 const ADVANCE_FEE_PERCENT = 5;
@@ -16,13 +17,7 @@ function getSession(req: any) {
 }
 
 async function buildTicket(ticket: any) {
-  const [tripData] = await db
-    .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .where(eq(tripsTable.id, ticket.tripId))
-    .limit(1);
+  const tripData = await getTripDetails(ticket.tripId);
 
   const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, ticket.seatId)).limit(1);
 
@@ -32,8 +27,8 @@ async function buildTicket(ticket: any) {
     seatNumber: seat?.seatNumber ?? 0,
     passengerName: ticket.passengerName,
     passengerPhone: ticket.passengerPhone,
-    origin: tripData?.route.origin ?? "",
-    destination: tripData?.route.destination ?? "",
+    origin: tripData ? routeLabels(tripData).origin : "",
+    destination: tripData ? routeLabels(tripData).destination : "",
     departureDate: tripData?.trip.departureDate ?? "",
     departureTime: tripData?.trip.departureTime ?? "",
     companyName: tripData?.company.name ?? "",

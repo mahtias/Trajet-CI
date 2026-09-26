@@ -8,10 +8,15 @@
 
 export * from './authUser';
 export * from './authUserRole';
+export * from './bus';
+export * from './busInput';
+export * from './city';
+export * from './cityInput';
 export * from './clerkSellInput';
 export * from './company';
 export * from './companyInput';
 export * from './companyStat';
+export * from './companyStationInput';
 export * from './dailyStat';
 export * from './dashboardStats';
 export * from './getAdminCompaniesParams';
@@ -53,6 +58,8 @@ export * from './searchHotelsParams';
 export * from './searchTripsParams';
 export * from './seat';
 export * from './seatStatus';
+export * from './station';
+export * from './stationInput';
 export * from './successResponse';
 export * from './ticket';
 export * from './ticketCancellation';

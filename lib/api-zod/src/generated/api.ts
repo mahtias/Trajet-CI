@@ -70,11 +70,21 @@ export const GetMeResponse = zod.object({
 
 
 /**
+ * @summary List all cities
+ */
+export const ListCitiesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+})
+export const ListCitiesResponse = zod.array(ListCitiesResponseItem)
+
+
+/**
  * @summary Search available trips
  */
 export const SearchTripsQueryParams = zod.object({
-  "origin": zod.coerce.string(),
-  "destination": zod.coerce.string(),
+  "originCityId": zod.coerce.number(),
+  "destinationCityId": zod.coerce.number(),
   "date": zod.date()
 })
 
@@ -112,7 +122,9 @@ export const GetTripResponse = zod.object({
   "durationMinutes": zod.number(),
   "totalSeats": zod.number(),
   "availableSeats": zod.number(),
-  "status": zod.enum(['active', 'cancelled'])
+  "status": zod.enum(['active', 'cancelled']),
+  "busId": zod.number().optional(),
+  "busName": zod.string().optional()
 })
 
 
@@ -726,6 +738,202 @@ export const UpdateUserRoleResponse = zod.object({
 
 
 /**
+ * @summary List all cities
+ */
+export const GetAdminCitiesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+})
+export const GetAdminCitiesResponse = zod.array(GetAdminCitiesResponseItem)
+
+
+/**
+ * @summary Create a city
+ */
+export const CreateCityBody = zod.object({
+  "name": zod.string()
+})
+
+export const CreateCityResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+})
+
+
+/**
+ * @summary Delete a city
+ */
+export const DeleteCityParams = zod.object({
+  "cityId": zod.coerce.number()
+})
+
+export const DeleteCityResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List all stations
+ */
+export const GetAdminStationsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "cityId": zod.number(),
+  "cityName": zod.string()
+})
+export const GetAdminStationsResponse = zod.array(GetAdminStationsResponseItem)
+
+
+/**
+ * @summary Create a station
+ */
+export const CreateStationBody = zod.object({
+  "name": zod.string(),
+  "cityId": zod.number()
+})
+
+export const CreateStationResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "cityId": zod.number(),
+  "cityName": zod.string()
+})
+
+
+/**
+ * @summary Delete a station
+ */
+export const DeleteStationParams = zod.object({
+  "stationId": zod.coerce.number()
+})
+
+export const DeleteStationResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List stations used by a company
+ */
+export const GetCompanyStationsParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const GetCompanyStationsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "cityId": zod.number(),
+  "cityName": zod.string()
+})
+export const GetCompanyStationsResponse = zod.array(GetCompanyStationsResponseItem)
+
+
+/**
+ * @summary Link a station to a company
+ */
+export const AddCompanyStationParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const AddCompanyStationBody = zod.object({
+  "stationId": zod.number()
+})
+
+export const AddCompanyStationResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "cityId": zod.number(),
+  "cityName": zod.string()
+})
+
+
+/**
+ * @summary Unlink a station from a company
+ */
+export const RemoveCompanyStationParams = zod.object({
+  "companyId": zod.coerce.number(),
+  "stationId": zod.coerce.number()
+})
+
+export const RemoveCompanyStationResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List buses for a company
+ */
+export const GetCompanyBusesParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const GetCompanyBusesResponseItem = zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "name": zod.string(),
+  "capacity": zod.number(),
+  "isActive": zod.boolean()
+})
+export const GetCompanyBusesResponse = zod.array(GetCompanyBusesResponseItem)
+
+
+/**
+ * @summary Create a bus for a company
+ */
+export const CreateBusParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const CreateBusBody = zod.object({
+  "name": zod.string(),
+  "capacity": zod.number(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateBusResponse = zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "name": zod.string(),
+  "capacity": zod.number(),
+  "isActive": zod.boolean()
+})
+
+
+/**
+ * @summary Update a bus
+ */
+export const UpdateBusParams = zod.object({
+  "busId": zod.coerce.number()
+})
+
+export const UpdateBusBody = zod.object({
+  "name": zod.string(),
+  "capacity": zod.number(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateBusResponse = zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "name": zod.string(),
+  "capacity": zod.number(),
+  "isActive": zod.boolean()
+})
+
+
+/**
+ * @summary Delete a bus
+ */
+export const DeleteBusParams = zod.object({
+  "busId": zod.coerce.number()
+})
+
+export const DeleteBusResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary List all routes
  */
 export const GetAdminRoutesQueryParams = zod.object({
@@ -736,7 +944,9 @@ export const GetAdminRoutesQueryParams = zod.object({
 export const GetAdminRoutesResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
+  "originStationId": zod.number(),
   "origin": zod.string(),
+  "destinationStationId": zod.number(),
   "destination": zod.string(),
   "durationMinutes": zod.number(),
   "companyId": zod.number(),
@@ -752,15 +962,17 @@ export const GetAdminRoutesResponse = zod.object({
  * @summary Create a route
  */
 export const CreateRouteBody = zod.object({
-  "origin": zod.string(),
-  "destination": zod.string(),
+  "originStationId": zod.number(),
+  "destinationStationId": zod.number(),
   "durationMinutes": zod.number(),
   "companyId": zod.number()
 })
 
 export const CreateRouteResponse = zod.object({
   "id": zod.number(),
+  "originStationId": zod.number(),
   "origin": zod.string(),
+  "destinationStationId": zod.number(),
   "destination": zod.string(),
   "durationMinutes": zod.number(),
   "companyId": zod.number(),
@@ -776,15 +988,17 @@ export const UpdateRouteParams = zod.object({
 })
 
 export const UpdateRouteBody = zod.object({
-  "origin": zod.string(),
-  "destination": zod.string(),
+  "originStationId": zod.number(),
+  "destinationStationId": zod.number(),
   "durationMinutes": zod.number(),
   "companyId": zod.number()
 })
 
 export const UpdateRouteResponse = zod.object({
   "id": zod.number(),
+  "originStationId": zod.number(),
   "origin": zod.string(),
+  "destinationStationId": zod.number(),
   "destination": zod.string(),
   "durationMinutes": zod.number(),
   "companyId": zod.number(),
@@ -828,7 +1042,9 @@ export const GetAdminTripsResponse = zod.object({
   "durationMinutes": zod.number(),
   "totalSeats": zod.number(),
   "availableSeats": zod.number(),
-  "status": zod.enum(['active', 'cancelled'])
+  "status": zod.enum(['active', 'cancelled']),
+  "busId": zod.number().optional(),
+  "busName": zod.string().optional()
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -841,6 +1057,7 @@ export const GetAdminTripsResponse = zod.object({
  */
 export const CreateTripBody = zod.object({
   "routeId": zod.number(),
+  "busId": zod.number(),
   "departureDate": zod.coerce.date(),
   "departureTime": zod.string(),
   "price": zod.number()
@@ -859,7 +1076,9 @@ export const CreateTripResponse = zod.object({
   "durationMinutes": zod.number(),
   "totalSeats": zod.number(),
   "availableSeats": zod.number(),
-  "status": zod.enum(['active', 'cancelled'])
+  "status": zod.enum(['active', 'cancelled']),
+  "busId": zod.number().optional(),
+  "busName": zod.string().optional()
 })
 
 
@@ -871,6 +1090,7 @@ export const UpdateTripParams = zod.object({
 })
 
 export const UpdateTripBody = zod.object({
+  "busId": zod.number().optional(),
   "departureDate": zod.coerce.date().optional(),
   "departureTime": zod.string().optional(),
   "price": zod.number().optional(),
@@ -890,7 +1110,9 @@ export const UpdateTripResponse = zod.object({
   "durationMinutes": zod.number(),
   "totalSeats": zod.number(),
   "availableSeats": zod.number(),
-  "status": zod.enum(['active', 'cancelled'])
+  "status": zod.enum(['active', 'cancelled']),
+  "busId": zod.number().optional(),
+  "busName": zod.string().optional()
 })
 
 

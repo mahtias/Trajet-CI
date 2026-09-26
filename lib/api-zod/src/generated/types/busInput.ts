@@ -6,10 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface TripInput {
-  routeId: number;
-  busId: number;
-  departureDate: Date;
-  departureTime: string;
-  price: number;
+export interface BusInput {
+  name: string;
+  capacity: number;
+  isActive?: boolean;
 }

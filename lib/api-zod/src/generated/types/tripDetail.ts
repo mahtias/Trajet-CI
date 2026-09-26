@@ -21,4 +21,6 @@ export interface TripDetail {
   totalSeats: number;
   availableSeats: number;
   status: TripDetailStatus;
+  busId?: number;
+  busName?: string;
 }

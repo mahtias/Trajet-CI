@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { format } from "date-fns";
-import { useSearchTrips } from "@workspace/api-client-react";
+import { useSearchTrips, getSearchTripsQueryKey, useListCities, getListCitiesQueryKey } from "@workspace/api-client-react";
 import { Clock, Users, ArrowRight, Info, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 
@@ -12,14 +12,19 @@ export default function Trips() {
   const [location] = useLocation();
   const { t, dateLocale, numberLocale } = useLanguage();
   const searchParams = new URLSearchParams(window.location.search);
-  const origin = searchParams.get("origin") || "";
-  const destination = searchParams.get("destination") || "";
+  const originCityId = Number(searchParams.get("originCityId")) || 0;
+  const destinationCityId = Number(searchParams.get("destinationCityId")) || 0;
   const dateStr = searchParams.get("date") || format(new Date(), "yyyy-MM-dd");
 
+  const searchQuery = { originCityId, destinationCityId, date: dateStr };
   const { data: trips, isLoading, isError } = useSearchTrips(
-    { origin, destination, date: dateStr },
-    { query: { enabled: !!origin && !!destination && !!dateStr } }
+    searchQuery,
+    { query: { queryKey: getSearchTripsQueryKey(searchQuery), enabled: !!originCityId && !!destinationCityId && !!dateStr } }
   );
+
+  const { data: cities } = useListCities({ query: { queryKey: getListCitiesQueryKey() } });
+  const origin = cities?.find((c) => c.id === originCityId)?.name ?? "";
+  const destination = cities?.find((c) => c.id === destinationCityId)?.name ?? "";
 
   const displayDate = dateStr ? format(new Date(dateStr), "EEEE d MMMM yyyy", { locale: dateLocale }) : "";
 

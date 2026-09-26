@@ -34,7 +34,7 @@ function LanguageToggle() {
 }
 
 export function Navbar() {
-  const { data: user } = useGetMe({ query: { retry: false } });
+  const { data: user } = useGetMe({ query: { queryKey: ["/api/auth/me"], retry: false } });
   const logout = useLogout();
   const [location, setLocation] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -53,7 +53,7 @@ export function Navbar() {
       return (
         <>
           <Link href="/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
-            <Hotel className="h-4 w-4" /> Hôtels
+            <Hotel className="h-4 w-4" /> {t("nav.hotels")}
           </Link>
           <Link href="/login" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             {t("nav.login")}
@@ -69,25 +69,31 @@ export function Navbar() {
       return (
         <>
           <Link href="/admin" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
-            <LayoutDashboard className="h-4 w-4" /> Dashboard
+            <LayoutDashboard className="h-4 w-4" /> {t("nav.adminDashboard")}
           </Link>
           <Link href="/admin/companies" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            Compagnies
+            {t("nav.adminCompanies")}
+          </Link>
+          <Link href="/admin/stations" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminStations")}
+          </Link>
+          <Link href="/admin/fleet" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminFleet")}
           </Link>
           <Link href="/admin/routes" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            Lignes
+            {t("nav.adminRoutes")}
           </Link>
           <Link href="/admin/trips" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            Voyages
+            {t("nav.adminTrips")}
           </Link>
           <Link href="/admin/reports" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            Rapports
+            {t("nav.adminReports")}
           </Link>
           <Link href="/admin/users" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            Utilisateurs
+            {t("nav.adminUsers")}
           </Link>
           <Link href="/admin/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            Hôtels
+            {t("nav.adminHotels")}
           </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
             <LogOut className="h-4 w-4 mr-2" /> {t("nav.logout")}
@@ -100,10 +106,10 @@ export function Navbar() {
       return (
         <>
           <Link href="/clerk" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
-            <LayoutDashboard className="h-4 w-4" /> Ventes Guichet
+            <LayoutDashboard className="h-4 w-4" /> {t("nav.clerkSales")}
           </Link>
           <Link href="/clerk/validate" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
-            <QrCode className="h-4 w-4" /> Validation
+            <QrCode className="h-4 w-4" /> {t("nav.clerkValidate")}
           </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
             <LogOut className="h-4 w-4 mr-2" /> {t("nav.logout")}
@@ -118,10 +124,10 @@ export function Navbar() {
           <Ticket className="h-4 w-4" /> {t("nav.myTickets")}
         </Link>
         <Link href="/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
-          <Hotel className="h-4 w-4" /> Hôtels
+          <Hotel className="h-4 w-4" /> {t("nav.hotels")}
         </Link>
         <Link href="/hotel-bookings" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-          Mes réservations
+          {t("nav.myBookings")}
         </Link>
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <User className="h-4 w-4" /> {user.name || user.phone}

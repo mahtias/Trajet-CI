@@ -106,6 +106,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthUser"
 
+  # Cities (public, for search forms)
+  /cities:
+    get:
+      operationId: listCities
+      tags: [trips]
+      summary: List all cities
+      responses:
+        "200":
+          description: Cities list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/City"
+
   # Trips
   /trips/search:
     get:
@@ -113,16 +129,16 @@ paths:
       tags: [trips]
       summary: Search available trips
       parameters:
-        - name: origin
+        - name: originCityId
           in: query
           required: true
           schema:
-            type: string
-        - name: destination
+            type: integer
+        - name: destinationCityId
           in: query
           required: true
           schema:
-            type: string
+            type: integer
         - name: date
           in: query
           required: true
@@ -766,6 +782,267 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+
+  # Admin - Cities
+  /admin/cities:
+    get:
+      operationId: getAdminCities
+      tags: [admin]
+      summary: List all cities
+      responses:
+        "200":
+          description: Cities list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/City"
+    post:
+      operationId: createCity
+      tags: [admin]
+      summary: Create a city
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CityInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/City"
+
+  /admin/cities/{cityId}:
+    delete:
+      operationId: deleteCity
+      tags: [admin]
+      summary: Delete a city
+      parameters:
+        - name: cityId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # Admin - Stations
+  /admin/stations:
+    get:
+      operationId: getAdminStations
+      tags: [admin]
+      summary: List all stations
+      responses:
+        "200":
+          description: Stations list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Station"
+    post:
+      operationId: createStation
+      tags: [admin]
+      summary: Create a station
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Station"
+
+  /admin/stations/{stationId}:
+    delete:
+      operationId: deleteStation
+      tags: [admin]
+      summary: Delete a station
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # Admin - Company Stations
+  /admin/companies/{companyId}/stations:
+    get:
+      operationId: getCompanyStations
+      tags: [admin]
+      summary: List stations used by a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Stations for this company
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Station"
+    post:
+      operationId: addCompanyStation
+      tags: [admin]
+      summary: Link a station to a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyStationInput"
+      responses:
+        "201":
+          description: Linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Station"
+
+  /admin/companies/{companyId}/stations/{stationId}:
+    delete:
+      operationId: removeCompanyStation
+      tags: [admin]
+      summary: Unlink a station from a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unlinked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # Admin - Buses
+  /admin/companies/{companyId}/buses:
+    get:
+      operationId: getCompanyBuses
+      tags: [admin]
+      summary: List buses for a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Buses list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Bus"
+    post:
+      operationId: createBus
+      tags: [admin]
+      summary: Create a bus for a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BusInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bus"
+
+  /admin/buses/{busId}:
+    put:
+      operationId: updateBus
+      tags: [admin]
+      summary: Update a bus
+      parameters:
+        - name: busId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BusInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bus"
+    delete:
+      operationId: deleteBus
+      tags: [admin]
+      summary: Delete a bus
+      parameters:
+        - name: busId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   # Admin - Routes
   /admin/routes:
     get:
@@ -1144,15 +1421,94 @@ components:
         pageSize:
           type: integer
 
-    # Route
-    Route:
+    # City
+    City:
       type: object
-      required: [id, origin, destination, durationMinutes, companyId, companyName]
+      required: [id, name]
       properties:
         id:
           type: integer
+        name:
+          type: string
+
+    CityInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    # Station
+    Station:
+      type: object
+      required: [id, name, cityId, cityName]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        cityId:
+          type: integer
+        cityName:
+          type: string
+
+    StationInput:
+      type: object
+      required: [name, cityId]
+      properties:
+        name:
+          type: string
+        cityId:
+          type: integer
+
+    # Company Station
+    CompanyStationInput:
+      type: object
+      required: [stationId]
+      properties:
+        stationId:
+          type: integer
+
+    # Bus
+    Bus:
+      type: object
+      required: [id, companyId, name, capacity, isActive]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        name:
+          type: string
+        capacity:
+          type: integer
+        isActive:
+          type: boolean
+
+    BusInput:
+      type: object
+      required: [name, capacity]
+      properties:
+        name:
+          type: string
+        capacity:
+          type: integer
+        isActive:
+          type: boolean
+
+    # Route
+    Route:
+      type: object
+      required: [id, originStationId, origin, destinationStationId, destination, durationMinutes, companyId, companyName]
+      properties:
+        id:
+          type: integer
+        originStationId:
+          type: integer
         origin:
           type: string
+        destinationStationId:
+          type: integer
         destination:
           type: string
         durationMinutes:
@@ -1164,12 +1520,12 @@ components:
 
     RouteInput:
       type: object
-      required: [origin, destination, durationMinutes, companyId]
+      required: [originStationId, destinationStationId, durationMinutes, companyId]
       properties:
-        origin:
-          type: string
-        destination:
-          type: string
+        originStationId:
+          type: integer
+        destinationStationId:
+          type: integer
         durationMinutes:
           type: integer
         companyId:
@@ -1245,6 +1601,10 @@ components:
         status:
           type: string
           enum: [active, cancelled]
+        busId:
+          type: integer
+        busName:
+          type: string
 
     PaginatedTrips:
       type: object
@@ -1263,9 +1623,11 @@ components:
 
     TripInput:
       type: object
-      required: [routeId, departureDate, departureTime, price]
+      required: [routeId, busId, departureDate, departureTime, price]
       properties:
         routeId:
+          type: integer
+        busId:
           type: integer
         departureDate:
           type: string
@@ -1278,6 +1640,8 @@ components:
     TripUpdate:
       type: object
       properties:
+        busId:
+          type: integer
         departureDate:
           type: string
           format: date

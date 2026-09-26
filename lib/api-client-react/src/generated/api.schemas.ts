@@ -111,9 +111,50 @@ export interface PaginatedUsers {
   pageSize: number;
 }
 
+export interface City {
+  id: number;
+  name: string;
+}
+
+export interface CityInput {
+  name: string;
+}
+
+export interface Station {
+  id: number;
+  name: string;
+  cityId: number;
+  cityName: string;
+}
+
+export interface StationInput {
+  name: string;
+  cityId: number;
+}
+
+export interface CompanyStationInput {
+  stationId: number;
+}
+
+export interface Bus {
+  id: number;
+  companyId: number;
+  name: string;
+  capacity: number;
+  isActive: boolean;
+}
+
+export interface BusInput {
+  name: string;
+  capacity: number;
+  isActive?: boolean;
+}
+
 export interface Route {
   id: number;
+  originStationId: number;
   origin: string;
+  destinationStationId: number;
   destination: string;
   durationMinutes: number;
   companyId: number;
@@ -121,8 +162,8 @@ export interface Route {
 }
 
 export interface RouteInput {
-  origin: string;
-  destination: string;
+  originStationId: number;
+  destinationStationId: number;
   durationMinutes: number;
   companyId: number;
 }
@@ -168,6 +209,8 @@ export interface TripDetail {
   totalSeats: number;
   availableSeats: number;
   status: TripDetailStatus;
+  busId?: number;
+  busName?: string;
 }
 
 export interface PaginatedTrips {
@@ -179,6 +222,7 @@ export interface PaginatedTrips {
 
 export interface TripInput {
   routeId: number;
+  busId: number;
   departureDate: string;
   departureTime: string;
   price: number;
@@ -193,6 +237,7 @@ export const TripUpdateStatus = {
 } as const;
 
 export interface TripUpdate {
+  busId?: number;
   departureDate?: string;
   departureTime?: string;
   price?: number;
@@ -479,8 +524,8 @@ export interface SalesReport {
 }
 
 export type SearchTripsParams = {
-origin: string;
-destination: string;
+originCityId: number;
+destinationCityId: number;
 date: string;
 };
 

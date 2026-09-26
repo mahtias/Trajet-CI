@@ -8,6 +8,7 @@
 import type { TripUpdateStatus } from './tripUpdateStatus';
 
 export interface TripUpdate {
+  busId?: number;
   departureDate?: Date;
   departureTime?: string;
   price?: number;

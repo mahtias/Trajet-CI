@@ -11,7 +11,9 @@ interface RequireRoleProps {
 }
 
 export function RequireRole({ roles, children }: RequireRoleProps) {
-  const { data: user, isLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading } = useGetMe({
+    query: { queryKey: ['/api/auth/me'], retry: false },
+  });
   const [, setLocation] = useLocation();
 
   const authorized = !!user && roles.includes(user.role);

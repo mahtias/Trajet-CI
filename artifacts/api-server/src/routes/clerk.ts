@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, tripsTable, routesTable, companiesTable, seatsTable, ticketsTable, type User } from "@workspace/db";
+import { db, tripsTable, companiesTable, seatsTable, ticketsTable, type User } from "@workspace/db";
 import {
   GetClerkTripSeatsParams,
   ClerkSellSeatParams,
@@ -10,23 +10,13 @@ import {
 } from "@workspace/api-zod";
 import { generateQrCode } from "../lib/qr";
 import { requireRole } from "../middlewares/require-role";
+import { selectTrips, getTripDetails, getTripCompanyId, getSeatCounts, formatTripSummary, routeLabels } from "../lib/trip-queries";
 
 const router: IRouter = Router();
 router.use(requireRole("clerk", "admin"));
 
 function currentUser(req: any): User {
   return req.currentUser;
-}
-
-/** Company id for the given trip, or null if the trip doesn't exist. */
-async function getTripCompanyId(tripId: number): Promise<number | null> {
-  const [result] = await db
-    .select({ companyId: routesTable.companyId })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .where(eq(tripsTable.id, tripId))
-    .limit(1);
-  return result?.companyId ?? null;
 }
 
 /** True if a clerk (scoped to a company) is allowed to act on this trip. Admins are unrestricted. */
@@ -49,35 +39,14 @@ router.get("/clerk/trips", async (req, res): Promise<void> => {
     conditions.push(eq(companiesTable.id, user.companyId));
   }
 
-  const results = await db
-    .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .where(and(...conditions));
+  const results = await selectTrips()
+    .where(and(...conditions))
+    .orderBy(tripsTable.departureTime, tripsTable.id);
 
   const trips = await Promise.all(
-    results.map(async ({ trip, route, company }) => {
-      const seatCounts = await db
-        .select({ status: seatsTable.status, count: sql<number>`count(*)::int` })
-        .from(seatsTable)
-        .where(eq(seatsTable.tripId, trip.id))
-        .groupBy(seatsTable.status);
-
-      const availableSeats = seatCounts.find(r => r.status === "available")?.count ?? 0;
-      const totalSeats = seatCounts.reduce((s, r) => s + r.count, 0);
-
-      return {
-        id: trip.id,
-        origin: route.origin,
-        destination: route.destination,
-        departureDate: trip.departureDate,
-        departureTime: trip.departureTime,
-        price: parseFloat(trip.price),
-        companyName: company.name,
-        availableSeats,
-        durationMinutes: route.durationMinutes,
-      };
+    results.map(async (row) => {
+      const { availableSeats } = await getSeatCounts(row.trip.id);
+      return formatTripSummary(row, availableSeats);
     })
   );
 
@@ -155,13 +124,7 @@ router.post("/clerk/seats/:seatId/sell", async (req, res): Promise<void> => {
     return;
   }
 
-  const [trip] = await db
-    .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .where(eq(tripsTable.id, seat.tripId))
-    .limit(1);
+  const trip = await getTripDetails(seat.tripId);
 
   const paymentId = `CASH-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   const qrCode = await generateQrCode(JSON.stringify({ seatId: seat.id, tripId: seat.tripId, paymentId }));
@@ -192,8 +155,8 @@ router.post("/clerk/seats/:seatId/sell", async (req, res): Promise<void> => {
     seatNumber: seat.seatNumber,
     passengerName: ticket.passengerName,
     passengerPhone: ticket.passengerPhone,
-    origin: trip?.route.origin ?? "",
-    destination: trip?.route.destination ?? "",
+    origin: trip ? routeLabels(trip).origin : "",
+    destination: trip ? routeLabels(trip).destination : "",
     departureDate: trip?.trip.departureDate ?? "",
     departureTime: trip?.trip.departureTime ?? "",
     companyName: trip?.company.name ?? "",
@@ -261,13 +224,7 @@ router.post("/clerk/tickets/:ticketId/validate", async (req, res): Promise<void>
 
   if (ticket.paymentStatus !== "paid" || ticket.validated) {
     const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, ticket.seatId)).limit(1);
-    const [tripData] = await db
-      .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-      .from(tripsTable)
-      .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-      .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-      .where(eq(tripsTable.id, ticket.tripId))
-      .limit(1);
+    const tripData = await getTripDetails(ticket.tripId);
 
     return res.json({
       valid: false,
@@ -276,7 +233,7 @@ router.post("/clerk/tickets/:ticketId/validate", async (req, res): Promise<void>
         id: ticket.id, tripId: ticket.tripId,
         seatNumber: seat?.seatNumber ?? 0,
         passengerName: ticket.passengerName, passengerPhone: ticket.passengerPhone,
-        origin: tripData?.route.origin ?? "", destination: tripData?.route.destination ?? "",
+        origin: tripData ? routeLabels(tripData).origin : "", destination: tripData ? routeLabels(tripData).destination : "",
         departureDate: tripData?.trip.departureDate ?? "", departureTime: tripData?.trip.departureTime ?? "",
         companyName: tripData?.company.name ?? "",
         price: parseFloat(ticket.price), qrCode: ticket.qrCode,
@@ -288,13 +245,7 @@ router.post("/clerk/tickets/:ticketId/validate", async (req, res): Promise<void>
 
   const [updated] = await db.update(ticketsTable).set({ validated: true }).where(eq(ticketsTable.id, params.data.ticketId)).returning();
   const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, updated.seatId)).limit(1);
-  const [tripData] = await db
-    .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .where(eq(tripsTable.id, updated.tripId))
-    .limit(1);
+  const tripData = await getTripDetails(updated.tripId);
 
   res.json({
     valid: true,
@@ -303,7 +254,7 @@ router.post("/clerk/tickets/:ticketId/validate", async (req, res): Promise<void>
       id: updated.id, tripId: updated.tripId,
       seatNumber: seat?.seatNumber ?? 0,
       passengerName: updated.passengerName, passengerPhone: updated.passengerPhone,
-      origin: tripData?.route.origin ?? "", destination: tripData?.route.destination ?? "",
+      origin: tripData ? routeLabels(tripData).origin : "", destination: tripData ? routeLabels(tripData).destination : "",
       departureDate: tripData?.trip.departureDate ?? "", departureTime: tripData?.trip.departureTime ?? "",
       companyName: tripData?.company.name ?? "",
       price: parseFloat(updated.price), qrCode: updated.qrCode,

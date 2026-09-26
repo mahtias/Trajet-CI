@@ -6,9 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RouteInput {
-  originStationId: number;
-  destinationStationId: number;
-  durationMinutes: number;
+export interface Bus {
+  id: number;
   companyId: number;
+  name: string;
+  capacity: number;
+  isActive: boolean;
 }

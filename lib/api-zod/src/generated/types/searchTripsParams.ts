@@ -7,7 +7,7 @@
  */
 
 export type SearchTripsParams = {
-origin: string;
-destination: string;
+originCityId: number;
+destinationCityId: number;
 date: Date;
 };

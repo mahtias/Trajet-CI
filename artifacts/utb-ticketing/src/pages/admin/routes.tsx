@@ -4,7 +4,9 @@ import {
   useGetAdminCompanies,
   useCreateRoute, 
   useUpdateRoute, 
-  useDeleteRoute 
+  useDeleteRoute,
+  useGetCompanyStations,
+  getGetCompanyStationsQueryKey,
 } from "@workspace/api-client-react";
 import { Plus, Edit2, Trash2, MapPin } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,22 +45,32 @@ export default function AdminRoutes() {
   const [editingId, setEditingId] = useState<number | null>(null);
   
   // Form state
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
+  const [originStationId, setOriginStationId] = useState("");
+  const [destinationStationId, setDestinationStationId] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [companyId, setCompanyId] = useState("");
 
+  // Only stations linked to the selected company can be used on its routes
+  const selectedCompanyId = companyId ? parseInt(companyId) : 0;
+  const { data: companyStations } = useGetCompanyStations(selectedCompanyId, {
+    query: { queryKey: getGetCompanyStationsQueryKey(selectedCompanyId), enabled: !!selectedCompanyId },
+  });
+
+  const onErrorToast = (err: any) => {
+    toast({ title: "Erreur", description: err?.data?.error ?? err?.message, variant: "destructive" });
+  };
+
   const resetForm = () => {
-    setOrigin("");
-    setDestination("");
+    setOriginStationId("");
+    setDestinationStationId("");
     setDurationMinutes("");
     setCompanyId("");
     setEditingId(null);
   };
 
   const openEdit = (route: any) => {
-    setOrigin(route.origin);
-    setDestination(route.destination);
+    setOriginStationId(route.originStationId.toString());
+    setDestinationStationId(route.destinationStationId.toString());
     setDurationMinutes(route.durationMinutes.toString());
     setCompanyId(route.companyId.toString());
     setEditingId(route.id);
@@ -67,11 +79,11 @@ export default function AdminRoutes() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!origin || !destination || !durationMinutes || !companyId) return;
+    if (!originStationId || !destinationStationId || !durationMinutes || !companyId) return;
 
     const data = {
-      origin,
-      destination,
+      originStationId: parseInt(originStationId),
+      destinationStationId: parseInt(destinationStationId),
       durationMinutes: parseInt(durationMinutes),
       companyId: parseInt(companyId)
     };
@@ -85,7 +97,8 @@ export default function AdminRoutes() {
             setIsDialogOpen(false);
             resetForm();
             toast({ title: "Ligne modifiée" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     } else {
@@ -97,7 +110,8 @@ export default function AdminRoutes() {
             setIsDialogOpen(false);
             resetForm();
             toast({ title: "Ligne créée" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     }
@@ -111,7 +125,8 @@ export default function AdminRoutes() {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/admin/routes"] });
             toast({ title: "Ligne supprimée" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     }
@@ -136,7 +151,7 @@ export default function AdminRoutes() {
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">Compagnie</label>
-                <Select value={companyId} onValueChange={setCompanyId}>
+                <Select value={companyId} onValueChange={(v) => { setCompanyId(v); setOriginStationId(""); setDestinationStationId(""); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir une compagnie" />
                   </SelectTrigger>
@@ -149,14 +164,37 @@ export default function AdminRoutes() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Départ</label>
-                  <Input value={origin} onChange={e => setOrigin(e.target.value)} placeholder="Ex: Abidjan" />
+                  <label className="text-sm font-medium mb-1 block">Gare de départ</label>
+                  <Select value={originStationId} onValueChange={setOriginStationId} disabled={!companyId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir une gare" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyStations?.map(s => (
+                        <SelectItem key={s.id} value={s.id.toString()}>{s.name}, {s.cityName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Arrivée</label>
-                  <Input value={destination} onChange={e => setDestination(e.target.value)} placeholder="Ex: Bouaké" />
+                  <label className="text-sm font-medium mb-1 block">Gare d'arrivée</label>
+                  <Select value={destinationStationId} onValueChange={setDestinationStationId} disabled={!companyId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir une gare" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyStations?.filter(s => s.id.toString() !== originStationId).map(s => (
+                        <SelectItem key={s.id} value={s.id.toString()}>{s.name}, {s.cityName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+              {companyId && companyStations?.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Aucune gare rattachée à cette compagnie. Rattachez-en depuis la page « Bus & Réseau ».
+                </p>
+              )}
               <div>
                 <label className="text-sm font-medium mb-1 block">Durée estimée (minutes)</label>
                 <Input type="number" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} placeholder="Ex: 240" />

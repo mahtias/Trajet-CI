@@ -1,12 +1,13 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { companiesTable } from "./companies";
+import { stationsTable } from "./stations";
 
 export const routesTable = pgTable("routes", {
   id: serial("id").primaryKey(),
-  origin: text("origin").notNull(),
-  destination: text("destination").notNull(),
+  originStationId: integer("origin_station_id").notNull().references(() => stationsTable.id, { onDelete: "restrict" }),
+  destinationStationId: integer("destination_station_id").notNull().references(() => stationsTable.id, { onDelete: "restrict" }),
   durationMinutes: integer("duration_minutes").notNull(),
   companyId: integer("company_id").notNull().references(() => companiesTable.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

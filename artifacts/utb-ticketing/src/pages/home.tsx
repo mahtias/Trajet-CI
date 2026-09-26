@@ -14,7 +14,7 @@ import { CityCombobox } from "@/components/city-combobox";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/use-language";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
-import { CITIES } from "@/lib/cities";
+import { useListCities, getListCitiesQueryKey } from "@workspace/api-client-react";
 
 const POPULAR_ROUTES = [
   { origin: "Abidjan", destination: "Bouaké", price: "5 000 FCFA" },
@@ -40,6 +40,25 @@ export default function Home() {
 
   const formSchema = useMemo(() => buildFormSchema(t), [t]);
 
+  const { data: cities } = useListCities({ query: { queryKey: getListCitiesQueryKey() } });
+  const cityNames = useMemo(() => cities?.map((c) => c.name) ?? [], [cities]);
+  const cityIdByName = useMemo(() => new Map(cities?.map((c) => [c.name, c.id]) ?? []), [cities]);
+
+  function searchHref(originCityId: number, destinationCityId: number, date: Date) {
+    const searchParams = new URLSearchParams();
+    searchParams.set("originCityId", String(originCityId));
+    searchParams.set("destinationCityId", String(destinationCityId));
+    searchParams.set("date", format(date, "yyyy-MM-dd"));
+    return `/trips?${searchParams.toString()}`;
+  }
+
+  // Only show popular routes whose cities exist in the database
+  const popularRoutes = POPULAR_ROUTES.flatMap((route) => {
+    const originCityId = cityIdByName.get(route.origin);
+    const destinationCityId = cityIdByName.get(route.destination);
+    return originCityId && destinationCityId ? [{ ...route, originCityId, destinationCityId }] : [];
+  });
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -50,12 +69,11 @@ export default function Home() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const searchParams = new URLSearchParams();
-    searchParams.set("origin", values.origin);
-    searchParams.set("destination", values.destination);
-    searchParams.set("date", format(values.date, "yyyy-MM-dd"));
+    const originCityId = cityIdByName.get(values.origin);
+    const destinationCityId = cityIdByName.get(values.destination);
+    if (!originCityId || !destinationCityId) return;
 
-    setLocation(`/trips?${searchParams.toString()}`);
+    setLocation(searchHref(originCityId, destinationCityId, values.date));
   }
 
   return (
@@ -101,7 +119,7 @@ export default function Home() {
                     <FormItem className="md:col-span-1">
                       <FormLabel className="text-foreground">{t("home.origin")}</FormLabel>
                       <CityCombobox
-                        cities={CITIES}
+                        cities={cityNames}
                         value={field.value}
                         onChange={field.onChange}
                         placeholder={t("home.cityPlaceholder")}
@@ -120,7 +138,7 @@ export default function Home() {
                     <FormItem className="md:col-span-1">
                       <FormLabel className="text-foreground">{t("home.destination")}</FormLabel>
                       <CityCombobox
-                        cities={CITIES}
+                        cities={cityNames}
                         value={field.value}
                         onChange={field.onChange}
                         placeholder={t("home.cityPlaceholder")}
@@ -192,10 +210,10 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            {POPULAR_ROUTES.map((route, i) => (
+            {popularRoutes.map((route, i) => (
               <Link
                 key={i}
-                href={`/trips?origin=${route.origin}&destination=${route.destination}&date=${format(new Date(), "yyyy-MM-dd")}`}
+                href={searchHref(route.originCityId, route.destinationCityId, new Date())}
                 className="group block"
               >
                 <div className="bg-card border border-border rounded-xl p-6 transition-all hover:shadow-lg hover:border-primary/50 relative overflow-hidden">

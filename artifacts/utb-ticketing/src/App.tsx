@@ -33,6 +33,8 @@ import AdminTrips from '@/pages/admin/trips';
 import AdminReports from '@/pages/admin/reports';
 import AdminUsers from '@/pages/admin/users';
 import AdminHotels from '@/pages/admin/hotels';
+import AdminStations from '@/pages/admin/stations';
+import AdminFleet from '@/pages/admin/fleet';
 
 const queryClient = new QueryClient();
 
@@ -86,6 +88,12 @@ function Router() {
         </Route>
         <Route path="/admin/users">
           <RequireRole roles={['admin']}><AdminUsers /></RequireRole>
+        </Route>
+        <Route path="/admin/stations">
+          <RequireRole roles={['admin']}><AdminStations /></RequireRole>
+        </Route>
+        <Route path="/admin/fleet">
+          <RequireRole roles={['admin']}><AdminFleet /></RequireRole>
         </Route>
         <Route path="/admin/hotels">
           <RequireRole roles={['admin']}><AdminHotels /></RequireRole>

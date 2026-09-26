@@ -1,6 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql } from "drizzle-orm";
-import { db, companiesTable, routesTable, tripsTable, seatsTable, ticketsTable, usersTable, hotelsTable } from "@workspace/db";
+import { eq, and, or, ne, gt, inArray, sql } from "drizzle-orm";
+import {
+  db, companiesTable, routesTable, tripsTable, seatsTable, usersTable, hotelsTable,
+  citiesTable, stationsTable, companyStationsTable, busesTable,
+} from "@workspace/db";
 import { z } from "zod";
 import {
   CreateCompanyBody,
@@ -25,8 +28,34 @@ import {
   UpdateHotelParams,
   UpdateHotelBody,
   DeleteHotelParams,
+  CreateCityBody,
+  DeleteCityParams,
+  CreateStationBody,
+  DeleteStationParams,
+  GetCompanyStationsParams,
+  AddCompanyStationParams,
+  AddCompanyStationBody,
+  RemoveCompanyStationParams,
+  GetCompanyBusesParams,
+  CreateBusParams,
+  CreateBusBody,
+  UpdateBusParams,
+  UpdateBusBody,
+  DeleteBusParams,
 } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/require-role";
+import {
+  selectRoutes,
+  selectTrips,
+  getTripDetails,
+  getSeatCounts,
+  isBusBusy,
+  routeLabels,
+  formatTripDetail,
+  originStation,
+  originCity,
+  type RouteRow,
+} from "../lib/trip-queries";
 
 const AdminTripsQuery = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -151,7 +180,227 @@ router.put("/admin/users/:userId/role", async (req, res): Promise<void> => {
   });
 });
 
+// ── Cities ─────────────────────────────────────────────────────────────────────
+
+router.get("/admin/cities", async (_req, res): Promise<void> => {
+  const cities = await db.select().from(citiesTable).orderBy(citiesTable.name);
+  res.json(cities.map((c) => ({ id: c.id, name: c.name })));
+});
+
+router.post("/admin/cities", async (req, res): Promise<void> => {
+  const body = CreateCityBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  const name = body.data.name.trim();
+  if (!name) { res.status(400).json({ error: "Le nom de la ville est requis" }); return; }
+
+  const [existing] = await db.select().from(citiesTable).where(sql`lower(${citiesTable.name}) = lower(${name})`).limit(1);
+  if (existing) { res.status(409).json({ error: "Cette ville existe déjà" }); return; }
+
+  const [c] = await db.insert(citiesTable).values({ name }).returning();
+  res.status(201).json({ id: c.id, name: c.name });
+});
+
+router.delete("/admin/cities/:cityId", async (req, res): Promise<void> => {
+  const params = DeleteCityParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [station] = await db.select({ id: stationsTable.id }).from(stationsTable).where(eq(stationsTable.cityId, params.data.cityId)).limit(1);
+  if (station) { res.status(409).json({ error: "Cette ville contient des gares, supprimez-les d'abord" }); return; }
+
+  await db.delete(citiesTable).where(eq(citiesTable.id, params.data.cityId));
+  res.json({ success: true });
+});
+
+// ── Stations ───────────────────────────────────────────────────────────────────
+
+function formatStation(station: typeof stationsTable.$inferSelect, city: typeof citiesTable.$inferSelect) {
+  return { id: station.id, name: station.name, cityId: station.cityId, cityName: city.name };
+}
+
+router.get("/admin/stations", async (_req, res): Promise<void> => {
+  const results = await db
+    .select({ station: stationsTable, city: citiesTable })
+    .from(stationsTable)
+    .innerJoin(citiesTable, eq(stationsTable.cityId, citiesTable.id))
+    .orderBy(citiesTable.name, stationsTable.name, stationsTable.id);
+  res.json(results.map(({ station, city }) => formatStation(station, city)));
+});
+
+router.post("/admin/stations", async (req, res): Promise<void> => {
+  const body = CreateStationBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  const name = body.data.name.trim();
+  if (!name) { res.status(400).json({ error: "Le nom de la gare est requis" }); return; }
+
+  const [city] = await db.select().from(citiesTable).where(eq(citiesTable.id, body.data.cityId)).limit(1);
+  if (!city) { res.status(404).json({ error: "Ville non trouvée" }); return; }
+
+  const [station] = await db.insert(stationsTable).values({ name, cityId: city.id }).returning();
+  res.status(201).json(formatStation(station, city));
+});
+
+router.delete("/admin/stations/:stationId", async (req, res): Promise<void> => {
+  const params = DeleteStationParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [route] = await db
+    .select({ id: routesTable.id })
+    .from(routesTable)
+    .where(or(eq(routesTable.originStationId, params.data.stationId), eq(routesTable.destinationStationId, params.data.stationId)))
+    .limit(1);
+  if (route) { res.status(409).json({ error: "Cette gare est utilisée par des lignes, supprimez-les d'abord" }); return; }
+
+  await db.delete(stationsTable).where(eq(stationsTable.id, params.data.stationId));
+  res.json({ success: true });
+});
+
+// ── Company stations ───────────────────────────────────────────────────────────
+
+router.get("/admin/companies/:companyId/stations", async (req, res): Promise<void> => {
+  const params = GetCompanyStationsParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const results = await db
+    .select({ station: stationsTable, city: citiesTable })
+    .from(companyStationsTable)
+    .innerJoin(stationsTable, eq(companyStationsTable.stationId, stationsTable.id))
+    .innerJoin(citiesTable, eq(stationsTable.cityId, citiesTable.id))
+    .where(eq(companyStationsTable.companyId, params.data.companyId))
+    .orderBy(citiesTable.name, stationsTable.name, stationsTable.id);
+  res.json(results.map(({ station, city }) => formatStation(station, city)));
+});
+
+router.post("/admin/companies/:companyId/stations", async (req, res): Promise<void> => {
+  const params = AddCompanyStationParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = AddCompanyStationBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, params.data.companyId)).limit(1);
+  if (!company) { res.status(404).json({ error: "Compagnie non trouvée" }); return; }
+
+  const [result] = await db
+    .select({ station: stationsTable, city: citiesTable })
+    .from(stationsTable)
+    .innerJoin(citiesTable, eq(stationsTable.cityId, citiesTable.id))
+    .where(eq(stationsTable.id, body.data.stationId))
+    .limit(1);
+  if (!result) { res.status(404).json({ error: "Gare non trouvée" }); return; }
+
+  await db
+    .insert(companyStationsTable)
+    .values({ companyId: company.id, stationId: result.station.id })
+    .onConflictDoNothing();
+  res.status(201).json(formatStation(result.station, result.city));
+});
+
+router.delete("/admin/companies/:companyId/stations/:stationId", async (req, res): Promise<void> => {
+  const params = RemoveCompanyStationParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const { companyId, stationId } = params.data;
+
+  const [route] = await db
+    .select({ id: routesTable.id })
+    .from(routesTable)
+    .where(and(
+      eq(routesTable.companyId, companyId),
+      or(eq(routesTable.originStationId, stationId), eq(routesTable.destinationStationId, stationId)),
+    ))
+    .limit(1);
+  if (route) { res.status(409).json({ error: "Cette gare est utilisée par des lignes de la compagnie" }); return; }
+
+  await db
+    .delete(companyStationsTable)
+    .where(and(eq(companyStationsTable.companyId, companyId), eq(companyStationsTable.stationId, stationId)));
+  res.json({ success: true });
+});
+
+// ── Buses ──────────────────────────────────────────────────────────────────────
+
+function formatBus(b: typeof busesTable.$inferSelect) {
+  return { id: b.id, companyId: b.companyId, name: b.name, capacity: b.capacity, isActive: b.isActive };
+}
+
+function isValidCapacity(capacity: number) {
+  return Number.isInteger(capacity) && capacity >= 1 && capacity <= 100;
+}
+
+router.get("/admin/companies/:companyId/buses", async (req, res): Promise<void> => {
+  const params = GetCompanyBusesParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const buses = await db.select().from(busesTable).where(eq(busesTable.companyId, params.data.companyId)).orderBy(busesTable.name, busesTable.id);
+  res.json(buses.map(formatBus));
+});
+
+router.post("/admin/companies/:companyId/buses", async (req, res): Promise<void> => {
+  const params = CreateBusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = CreateBusBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  if (!isValidCapacity(body.data.capacity)) { res.status(400).json({ error: "La capacité doit être un entier entre 1 et 100" }); return; }
+
+  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, params.data.companyId)).limit(1);
+  if (!company) { res.status(404).json({ error: "Compagnie non trouvée" }); return; }
+
+  const [b] = await db.insert(busesTable).values({
+    companyId: company.id, name: body.data.name, capacity: body.data.capacity, isActive: body.data.isActive ?? true,
+  }).returning();
+  res.status(201).json(formatBus(b));
+});
+
+router.put("/admin/buses/:busId", async (req, res): Promise<void> => {
+  const params = UpdateBusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = UpdateBusBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  if (!isValidCapacity(body.data.capacity)) { res.status(400).json({ error: "La capacité doit être un entier entre 1 et 100" }); return; }
+
+  // Capacity changes only apply to trips created afterwards: existing trips keep their seats.
+  const [b] = await db.update(busesTable).set({
+    name: body.data.name, capacity: body.data.capacity,
+    ...(body.data.isActive !== undefined ? { isActive: body.data.isActive } : {}),
+  }).where(eq(busesTable.id, params.data.busId)).returning();
+  if (!b) { res.status(404).json({ error: "Bus non trouvé" }); return; }
+  res.json(formatBus(b));
+});
+
+router.delete("/admin/buses/:busId", async (req, res): Promise<void> => {
+  const params = DeleteBusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [trip] = await db.select({ id: tripsTable.id }).from(tripsTable).where(eq(tripsTable.busId, params.data.busId)).limit(1);
+  if (trip) { res.status(409).json({ error: "Ce bus est affecté à des voyages, désactivez-le plutôt" }); return; }
+
+  await db.delete(busesTable).where(eq(busesTable.id, params.data.busId));
+  res.json({ success: true });
+});
+
 // ── Routes ─────────────────────────────────────────────────────────────────────
+
+function formatRoute(row: RouteRow) {
+  const { route, company } = row;
+  return {
+    id: route.id,
+    originStationId: route.originStationId, destinationStationId: route.destinationStationId,
+    ...routeLabels(row),
+    durationMinutes: route.durationMinutes, companyId: route.companyId, companyName: company.name,
+  };
+}
+
+/** Error message if the route's stations are invalid for this company, or null if they're fine. */
+async function checkRouteStations(companyId: number, originStationId: number, destinationStationId: number): Promise<string | null> {
+  if (originStationId === destinationStationId) return "La gare de départ et la gare d'arrivée doivent être différentes";
+
+  const linked = await db
+    .select({ stationId: companyStationsTable.stationId })
+    .from(companyStationsTable)
+    .where(and(
+      eq(companyStationsTable.companyId, companyId),
+      inArray(companyStationsTable.stationId, [originStationId, destinationStationId]),
+    ));
+  if (linked.length < 2) return "Les deux gares doivent être rattachées à la compagnie";
+  return null;
+}
 
 router.get("/admin/routes", async (req, res): Promise<void> => {
   const query = GetAdminRoutesQueryParams.safeParse(req.query);
@@ -159,28 +408,23 @@ router.get("/admin/routes", async (req, res): Promise<void> => {
   const { page, pageSize, offset } = parsePagination(query.data.page, query.data.pageSize);
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(routesTable);
-  const results = await db
-    .select({ route: routesTable, company: companiesTable })
-    .from(routesTable)
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .orderBy(routesTable.origin, routesTable.id)
+  const results = await selectRoutes()
+    .orderBy(originCity.name, originStation.name, routesTable.id)
     .limit(pageSize).offset(offset);
 
-  res.json({
-    items: results.map(({ route, company }) => ({
-      id: route.id, origin: route.origin, destination: route.destination,
-      durationMinutes: route.durationMinutes, companyId: route.companyId, companyName: company.name,
-    })),
-    total: count, page, pageSize,
-  });
+  res.json({ items: results.map(formatRoute), total: count, page, pageSize });
 });
 
 router.post("/admin/routes", async (req, res): Promise<void> => {
   const body = CreateRouteBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const stationError = await checkRouteStations(body.data.companyId, body.data.originStationId, body.data.destinationStationId);
+  if (stationError) { res.status(400).json({ error: stationError }); return; }
+
   const [route] = await db.insert(routesTable).values(body.data).returning();
-  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, route.companyId)).limit(1);
-  res.status(201).json({ id: route.id, origin: route.origin, destination: route.destination, durationMinutes: route.durationMinutes, companyId: route.companyId, companyName: company?.name ?? "" });
+  const [row] = await selectRoutes().where(eq(routesTable.id, route.id)).limit(1);
+  res.status(201).json(formatRoute(row));
 });
 
 router.put("/admin/routes/:routeId", async (req, res): Promise<void> => {
@@ -188,10 +432,14 @@ router.put("/admin/routes/:routeId", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const body = UpdateRouteBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const stationError = await checkRouteStations(body.data.companyId, body.data.originStationId, body.data.destinationStationId);
+  if (stationError) { res.status(400).json({ error: stationError }); return; }
+
   const [route] = await db.update(routesTable).set(body.data).where(eq(routesTable.id, params.data.routeId)).returning();
   if (!route) { res.status(404).json({ error: "Route non trouvée" }); return; }
-  const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, route.companyId)).limit(1);
-  res.json({ id: route.id, origin: route.origin, destination: route.destination, durationMinutes: route.durationMinutes, companyId: route.companyId, companyName: company?.name ?? "" });
+  const [row] = await selectRoutes().where(eq(routesTable.id, route.id)).limit(1);
+  res.json(formatRoute(row));
 });
 
 router.delete("/admin/routes/:routeId", async (req, res): Promise<void> => {
@@ -202,6 +450,14 @@ router.delete("/admin/routes/:routeId", async (req, res): Promise<void> => {
 });
 
 // ── Trips ──────────────────────────────────────────────────────────────────────
+
+/** Error message if the bus can't be used on this route, or null if it can. */
+function checkBusForRoute(bus: typeof busesTable.$inferSelect | undefined, route: typeof routesTable.$inferSelect): string | null {
+  if (!bus) return "Bus non trouvé";
+  if (bus.companyId !== route.companyId) return "Ce bus n'appartient pas à la compagnie de la ligne";
+  if (!bus.isActive) return "Ce bus est désactivé";
+  return null;
+}
 
 router.get("/admin/trips", async (req, res): Promise<void> => {
   const query = AdminTripsQuery.safeParse(req.query);
@@ -215,33 +471,14 @@ router.get("/admin/trips", async (req, res): Promise<void> => {
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(tripsTable).where(whereClause);
 
-  const results = await db
-    .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
+  const results = await selectTrips()
     .where(whereClause)
     .orderBy(tripsTable.departureDate, tripsTable.departureTime, tripsTable.id)
     .limit(pageSize).offset(offset);
 
-  const trips = await Promise.all(results.map(async ({ trip, route, company }) => {
-    const seatCounts = await db
-      .select({ status: seatsTable.status, count: sql<number>`count(*)::int` })
-      .from(seatsTable)
-      .where(eq(seatsTable.tripId, trip.id))
-      .groupBy(seatsTable.status);
-
-    const totalSeats = seatCounts.reduce((s, r) => s + r.count, 0);
-    const availableSeats = seatCounts.find(r => r.status === "available")?.count ?? 0;
-
-    return {
-      id: trip.id, origin: route.origin, destination: route.destination,
-      departureDate: trip.departureDate, departureTime: trip.departureTime,
-      price: parseFloat(trip.price), companyName: company.name,
-      companyId: company.id, routeId: route.id,
-      durationMinutes: route.durationMinutes, totalSeats, availableSeats,
-      status: trip.status,
-    };
+  const trips = await Promise.all(results.map(async (row) => {
+    const { totalSeats, availableSeats } = await getSeatCounts(row.trip.id);
+    return formatTripDetail(row, availableSeats, totalSeats);
   }));
 
   res.json({ items: trips, total: count, page, pageSize });
@@ -251,37 +488,41 @@ router.post("/admin/trips", async (req, res): Promise<void> => {
   const body = CreateTripBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
-  const [trip] = await db.insert(tripsTable).values({
-    routeId: body.data.routeId,
-    departureDate: body.data.departureDate.toISOString().split("T")[0],
-    departureTime: body.data.departureTime,
-    price: String(body.data.price),
-  }).returning();
+  const departureDate = body.data.departureDate.toISOString().split("T")[0];
 
-  // Create 40 seats for this trip
-  const seats = Array.from({ length: 40 }, (_, i) => ({
-    tripId: trip.id,
-    seatNumber: i + 1,
-    status: "available" as const,
-  }));
-  await db.insert(seatsTable).values(seats);
+  const [route] = await db.select().from(routesTable).where(eq(routesTable.id, body.data.routeId)).limit(1);
+  if (!route) { res.status(404).json({ error: "Route non trouvée" }); return; }
 
-  const [result] = await db
-    .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .where(eq(tripsTable.id, trip.id))
-    .limit(1);
+  const [bus] = await db.select().from(busesTable).where(eq(busesTable.id, body.data.busId)).limit(1);
+  const busError = checkBusForRoute(bus, route);
+  if (busError) { res.status(400).json({ error: busError }); return; }
 
-  res.status(201).json({
-    id: result.trip.id, origin: result.route.origin, destination: result.route.destination,
-    departureDate: result.trip.departureDate, departureTime: result.trip.departureTime,
-    price: parseFloat(result.trip.price), companyName: result.company.name,
-    companyId: result.company.id, routeId: result.route.id,
-    durationMinutes: result.route.durationMinutes, totalSeats: 40, availableSeats: 40,
-    status: result.trip.status,
+  if (await isBusBusy(bus.id, departureDate, body.data.departureTime)) {
+    res.status(409).json({ error: "Ce bus est déjà affecté à un autre voyage sur ce créneau" });
+    return;
+  }
+
+  const trip = await db.transaction(async (tx) => {
+    const [trip] = await tx.insert(tripsTable).values({
+      routeId: route.id,
+      busId: bus.id,
+      departureDate,
+      departureTime: body.data.departureTime,
+      price: String(body.data.price),
+    }).returning();
+
+    // One seat per place in the bus
+    await tx.insert(seatsTable).values(Array.from({ length: bus.capacity }, (_, i) => ({
+      tripId: trip.id,
+      seatNumber: i + 1,
+      status: "available" as const,
+    })));
+
+    return trip;
   });
+
+  const row = await getTripDetails(trip.id);
+  res.status(201).json(formatTripDetail(row!, bus.capacity, bus.capacity));
 });
 
 router.put("/admin/trips/:tripId", async (req, res): Promise<void> => {
@@ -290,37 +531,62 @@ router.put("/admin/trips/:tripId", async (req, res): Promise<void> => {
   const body = UpdateTripBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
+  const existing = await getTripDetails(params.data.tripId);
+  if (!existing) { res.status(404).json({ error: "Trajet non trouvé" }); return; }
+
   const updateData: any = {};
   if (body.data.departureDate !== undefined) updateData.departureDate = body.data.departureDate.toISOString().split("T")[0];
   if (body.data.departureTime !== undefined) updateData.departureTime = body.data.departureTime;
   if (body.data.price !== undefined) updateData.price = String(body.data.price);
   if (body.data.status !== undefined) updateData.status = body.data.status;
 
-  const [trip] = await db.update(tripsTable).set(updateData).where(eq(tripsTable.id, params.data.tripId)).returning();
-  if (!trip) { res.status(404).json({ error: "Trajet non trouvé" }); return; }
+  let newBus: typeof busesTable.$inferSelect | undefined;
+  if (body.data.busId !== undefined && body.data.busId !== existing.trip.busId) {
+    [newBus] = await db.select().from(busesTable).where(eq(busesTable.id, body.data.busId)).limit(1);
+    const busError = checkBusForRoute(newBus, existing.route);
+    if (busError) { res.status(400).json({ error: busError }); return; }
 
-  const [result] = await db
-    .select({ trip: tripsTable, route: routesTable, company: companiesTable })
-    .from(tripsTable)
-    .innerJoin(routesTable, eq(tripsTable.routeId, routesTable.id))
-    .innerJoin(companiesTable, eq(routesTable.companyId, companiesTable.id))
-    .where(eq(tripsTable.id, trip.id))
-    .limit(1);
+    // Seats above the new capacity can only be dropped if nobody holds them.
+    const [taken] = await db
+      .select({ id: seatsTable.id })
+      .from(seatsTable)
+      .where(and(eq(seatsTable.tripId, existing.trip.id), gt(seatsTable.seatNumber, newBus!.capacity), ne(seatsTable.status, "available")))
+      .limit(1);
+    if (taken) { res.status(409).json({ error: "Des sièges au-delà de la capacité du nouveau bus sont déjà réservés ou vendus" }); return; }
 
-  const seatCounts = await db
-    .select({ status: seatsTable.status, count: sql<number>`count(*)::int` })
-    .from(seatsTable).where(eq(seatsTable.tripId, trip.id)).groupBy(seatsTable.status);
-  const totalSeats = seatCounts.reduce((s, r) => s + r.count, 0);
-  const availableSeats = seatCounts.find(r => r.status === "available")?.count ?? 0;
+    updateData.busId = newBus!.id;
+  }
 
-  res.json({
-    id: result.trip.id, origin: result.route.origin, destination: result.route.destination,
-    departureDate: result.trip.departureDate, departureTime: result.trip.departureTime,
-    price: parseFloat(result.trip.price), companyName: result.company.name,
-    companyId: result.company.id, routeId: result.route.id,
-    durationMinutes: result.route.durationMinutes, totalSeats, availableSeats,
-    status: result.trip.status,
+  const busId = updateData.busId ?? existing.trip.busId;
+  const departureDate = updateData.departureDate ?? existing.trip.departureDate;
+  const departureTime = updateData.departureTime ?? existing.trip.departureTime;
+  const status = updateData.status ?? existing.trip.status;
+  if (status === "active" && await isBusBusy(busId, departureDate, departureTime, existing.trip.id)) {
+    res.status(409).json({ error: "Ce bus est déjà affecté à un autre voyage sur ce créneau" });
+    return;
+  }
+
+  const { totalSeats: currentSeats } = await getSeatCounts(existing.trip.id);
+  await db.transaction(async (tx) => {
+    if (Object.keys(updateData).length > 0) {
+      await tx.update(tripsTable).set(updateData).where(eq(tripsTable.id, existing.trip.id));
+    }
+
+    // Resize the seat map to the new bus
+    if (newBus && newBus.capacity < currentSeats) {
+      await tx.delete(seatsTable).where(and(eq(seatsTable.tripId, existing.trip.id), gt(seatsTable.seatNumber, newBus.capacity)));
+    } else if (newBus && newBus.capacity > currentSeats) {
+      await tx.insert(seatsTable).values(Array.from({ length: newBus.capacity - currentSeats }, (_, i) => ({
+        tripId: existing.trip.id,
+        seatNumber: currentSeats + i + 1,
+        status: "available" as const,
+      })));
+    }
   });
+
+  const row = await getTripDetails(existing.trip.id);
+  const { totalSeats, availableSeats } = await getSeatCounts(existing.trip.id);
+  res.json(formatTripDetail(row!, availableSeats, totalSeats));
 });
 
 router.delete("/admin/trips/:tripId", async (req, res): Promise<void> => {
@@ -396,6 +662,10 @@ router.get("/admin/reports/sales", async (req, res): Promise<void> => {
     JOIN trips tr ON tk.trip_id = tr.id
     JOIN routes r ON tr.route_id = r.id
     JOIN companies c ON r.company_id = c.id
+    JOIN stations os ON r.origin_station_id = os.id
+    JOIN cities oc ON os.city_id = oc.id
+    JOIN stations ds ON r.destination_station_id = ds.id
+    JOIN cities dc ON ds.city_id = dc.id
     WHERE tk.payment_status = 'paid' AND tk.cancelled_at IS NULL
       AND DATE(tk.created_at) >= ${from}
       AND DATE(tk.created_at) <= ${to}
@@ -414,17 +684,17 @@ router.get("/admin/reports/sales", async (req, res): Promise<void> => {
   // Number of grouped rows, for pagination.
   const { rows: [countRow] } = await db.execute(sql`
     SELECT COUNT(*)::int as count FROM (
-      SELECT 1 ${fromWhere} GROUP BY DATE(tk.created_at), c.name, r.origin, r.destination
+      SELECT 1 ${fromWhere} GROUP BY DATE(tk.created_at), c.name, os.name, oc.name, ds.name, dc.name
     ) sub
   `) as any;
 
   const { rows: rowsArray } = await db.execute(sql`
     SELECT DATE(tk.created_at)::text as date, c.name as company_name,
-           r.origin, r.destination,
+           os.name || ', ' || oc.name as origin, ds.name || ', ' || dc.name as destination,
            COUNT(tk.id)::int as ticket_count, COALESCE(SUM(tk.price::numeric), 0)::float as revenue
     ${fromWhere}
-    GROUP BY DATE(tk.created_at), c.name, r.origin, r.destination
-    ORDER BY date DESC, c.name, r.origin, r.destination
+    GROUP BY DATE(tk.created_at), c.name, os.name, oc.name, ds.name, dc.name
+    ORDER BY date DESC, c.name, origin, destination
     LIMIT ${pageSize} OFFSET ${offset}
   `) as any;
 

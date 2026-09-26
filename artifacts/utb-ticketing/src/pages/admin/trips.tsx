@@ -6,7 +6,9 @@ import {
   useGetAdminRoutes,
   useCreateTrip, 
   useUpdateTrip, 
-  useDeleteTrip 
+  useDeleteTrip,
+  useGetCompanyBuses,
+  getGetCompanyBusesQueryKey,
 } from "@workspace/api-client-react";
 import { Plus, Edit2, Trash2, CalendarIcon, Ban } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -52,12 +54,25 @@ export default function AdminTrips() {
   const [departureDate, setDepartureDate] = useState("");
   const [departureTime, setDepartureTime] = useState("");
   const [price, setPrice] = useState("");
+  const [busId, setBusId] = useState("");
+
+  // Buses available for the selected route's company
+  const routeCompanyId = routes?.find(r => r.id.toString() === routeId)?.companyId ?? 0;
+  const { data: companyBuses } = useGetCompanyBuses(routeCompanyId, {
+    query: { queryKey: getGetCompanyBusesQueryKey(routeCompanyId), enabled: !!routeCompanyId },
+  });
+  const activeBuses = companyBuses?.filter(b => b.isActive || b.id.toString() === busId);
+
+  const onErrorToast = (err: any) => {
+    toast({ title: "Erreur", description: err?.data?.error ?? err?.message, variant: "destructive" });
+  };
 
   const resetForm = () => {
     setRouteId("");
     setDepartureDate(format(new Date(), "yyyy-MM-dd"));
     setDepartureTime("08:00");
     setPrice("5000");
+    setBusId("");
     setEditingId(null);
   };
 
@@ -66,36 +81,39 @@ export default function AdminTrips() {
     setDepartureDate(trip.departureDate);
     setDepartureTime(trip.departureTime.slice(0, 5));
     setPrice(trip.price.toString());
+    setBusId(trip.busId?.toString() ?? "");
     setEditingId(trip.id);
     setIsDialogOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!routeId || !departureDate || !departureTime || !price) return;
+    if (!routeId || !busId || !departureDate || !departureTime || !price) return;
 
     if (editingId) {
       updateTrip.mutate(
-        { tripId: editingId, data: { departureDate, departureTime, price: parseInt(price) } },
+        { tripId: editingId, data: { busId: parseInt(busId), departureDate, departureTime, price: parseInt(price) } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/admin/trips"] });
             setIsDialogOpen(false);
             resetForm();
             toast({ title: "Voyage modifié" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     } else {
       createTrip.mutate(
-        { data: { routeId: parseInt(routeId), departureDate, departureTime, price: parseInt(price) } },
+        { data: { routeId: parseInt(routeId), busId: parseInt(busId), departureDate, departureTime, price: parseInt(price) } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/admin/trips"] });
             setIsDialogOpen(false);
             resetForm();
             toast({ title: "Voyage planifié" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     }
@@ -109,7 +127,8 @@ export default function AdminTrips() {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/admin/trips"] });
             toast({ title: "Voyage annulé" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     }
@@ -146,7 +165,7 @@ export default function AdminTrips() {
                 {!editingId && (
                   <div>
                     <label className="text-sm font-medium mb-1 block">Ligne</label>
-                    <Select value={routeId} onValueChange={setRouteId}>
+                    <Select value={routeId} onValueChange={(v) => { setRouteId(v); setBusId(""); }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choisir une ligne" />
                       </SelectTrigger>
@@ -160,7 +179,28 @@ export default function AdminTrips() {
                     </Select>
                   </div>
                 )}
-                
+
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Bus</label>
+                  <Select value={busId} onValueChange={setBusId} disabled={!routeId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir un bus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeBuses?.map(b => (
+                        <SelectItem key={b.id} value={b.id.toString()}>
+                          {b.name} ({b.capacity} places)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {routeId && activeBuses?.length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Aucun bus actif pour cette compagnie. Ajoutez-en depuis la page « Bus & Réseau ».
+                    </p>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium mb-1 block">Date</label>
@@ -193,6 +233,7 @@ export default function AdminTrips() {
               <TableHead>Compagnie</TableHead>
               <TableHead>Trajet</TableHead>
               <TableHead>Départ</TableHead>
+              <TableHead>Bus</TableHead>
               <TableHead>Prix</TableHead>
               <TableHead>Places</TableHead>
               <TableHead>Statut</TableHead>
@@ -202,11 +243,11 @@ export default function AdminTrips() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
               </TableRow>
             ) : trips?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Aucun voyage pour cette date.</TableCell>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Aucun voyage pour cette date.</TableCell>
               </TableRow>
             ) : (
               trips?.map((trip) => (
@@ -216,6 +257,7 @@ export default function AdminTrips() {
                   <TableCell>
                     <div className="font-medium">{trip.departureTime.slice(0, 5)}</div>
                   </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{trip.busName ?? "—"}</TableCell>
                   <TableCell className="font-mono">{trip.price.toLocaleString("fr-CI")} F</TableCell>
                   <TableCell>
                     <span className="text-green-600 font-bold">{trip.availableSeats}</span>

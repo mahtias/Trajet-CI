@@ -8,7 +8,9 @@
 
 export interface Route {
   id: number;
+  originStationId: number;
   origin: string;
+  destinationStationId: number;
   destination: string;
   durationMinutes: number;
   companyId: number;
