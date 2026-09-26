@@ -5,6 +5,7 @@
  * UTB Bus Ticketing API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserAgencyType } from './userAgencyType';
 import type { UserRole } from './userRole';
 
 export interface User {
@@ -17,5 +18,11 @@ export interface User {
   companyId?: number | null;
   /** @nullable */
   companyName?: string | null;
+  /** @nullable */
+  agencyId?: number | null;
+  /** @nullable */
+  agencyName?: string | null;
+  /** @nullable */
+  agencyType?: UserAgencyType;
   createdAt: Date;
 }

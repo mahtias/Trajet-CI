@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
+import { AgencySelect } from "@/components/agency-select";
+import { ImageUploader } from "@/components/image-uploader";
 
 const PAGE_SIZE = 20;
 
@@ -37,6 +39,7 @@ export default function AdminHotels() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
+  const [agencyId, setAgencyId] = useState("");
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
@@ -44,14 +47,20 @@ export default function AdminHotels() {
   const [pricePerNight, setPricePerNight] = useState("");
   const [totalRooms, setTotalRooms] = useState("");
   const [rating, setRating] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+
+  const onErrorToast = (err: any) => {
+    toast({ title: "Erreur", description: err?.data?.error ?? err?.message, variant: "destructive" });
+  };
 
   const resetForm = () => {
-    setName(""); setCity(""); setAddress(""); setDescription("");
-    setPricePerNight(""); setTotalRooms(""); setRating("");
+    setAgencyId(""); setName(""); setCity(""); setAddress(""); setDescription("");
+    setPricePerNight(""); setTotalRooms(""); setRating(""); setImages([]);
     setEditingId(null);
   };
 
   const openEdit = (hotel: any) => {
+    setAgencyId(hotel.agencyId.toString());
     setName(hotel.name);
     setCity(hotel.city);
     setAddress(hotel.address);
@@ -59,20 +68,23 @@ export default function AdminHotels() {
     setPricePerNight(hotel.pricePerNight.toString());
     setTotalRooms(hotel.totalRooms.toString());
     setRating(hotel.rating?.toString() || "");
+    setImages(hotel.images ?? []);
     setEditingId(hotel.id);
     setIsDialogOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !city || !address || !pricePerNight || !totalRooms) return;
+    if (!agencyId || !name || !city || !address || !pricePerNight || !totalRooms) return;
 
     const data = {
+      agencyId: parseInt(agencyId, 10),
       name, city, address,
       description: description || null,
       pricePerNight: parseFloat(pricePerNight),
       totalRooms: parseInt(totalRooms, 10),
       rating: rating ? parseFloat(rating) : null,
+      images: images.length > 0 ? images : null,
     };
 
     if (editingId) {
@@ -84,7 +96,8 @@ export default function AdminHotels() {
             setIsDialogOpen(false);
             resetForm();
             toast({ title: "Hôtel modifié" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     } else {
@@ -96,7 +109,8 @@ export default function AdminHotels() {
             setIsDialogOpen(false);
             resetForm();
             toast({ title: "Hôtel créé" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     }
@@ -110,7 +124,8 @@ export default function AdminHotels() {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/admin/hotels"] });
             toast({ title: "Hôtel supprimé" });
-          }
+          },
+          onError: onErrorToast,
         }
       );
     }
@@ -128,11 +143,15 @@ export default function AdminHotels() {
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="w-4 h-4" /> Nouvel Hôtel</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? "Modifier" : "Ajouter"} un hôtel</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Agence (hôtel)</label>
+                <AgencySelect type="hotel" value={agencyId} onChange={setAgencyId} />
+              </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">Nom</label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Hôtel Wafou" autoFocus />
@@ -165,7 +184,11 @@ export default function AdminHotels() {
                   <Input type="number" min={0} max={5} step={0.1} value={rating} onChange={(e) => setRating(e.target.value)} />
                 </div>
               </div>
-              <Button type="submit" className="w-full" disabled={createHotel.isPending || updateHotel.isPending}>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Photos (optionnel)</label>
+                <ImageUploader value={images} onChange={setImages} />
+              </div>
+              <Button type="submit" className="w-full" disabled={!agencyId || createHotel.isPending || updateHotel.isPending}>
                 Enregistrer
               </Button>
             </form>
@@ -178,6 +201,7 @@ export default function AdminHotels() {
           <TableHeader className="bg-muted/50">
             <TableRow>
               <TableHead>Nom</TableHead>
+              <TableHead>Agence</TableHead>
               <TableHead>Ville</TableHead>
               <TableHead>Prix/nuit</TableHead>
               <TableHead>Chambres</TableHead>
@@ -187,16 +211,17 @@ export default function AdminHotels() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
               </TableRow>
             ) : hotels?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Aucun hôtel configuré.</TableCell>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Aucun hôtel configuré.</TableCell>
               </TableRow>
             ) : (
               hotels?.map((hotel) => (
                 <TableRow key={hotel.id}>
                   <TableCell className="font-bold">{hotel.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{hotel.agencyName}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-primary" /> {hotel.city}

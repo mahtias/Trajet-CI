@@ -5,7 +5,9 @@
     "declarationMap": true,
     "emitDeclarationOnly": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // Generated upload schemas reference File / Blob (multipart endpoints)
+    "lib": ["es2022", "dom"]
   },
   "include": ["src"]
 }

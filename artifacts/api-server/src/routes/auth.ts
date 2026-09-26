@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, usersTable, companiesTable } from "@workspace/db";
+import { db, usersTable, companiesTable, agenciesTable } from "@workspace/db";
 import {
   RequestOtpBody,
   VerifyOtpBody,
@@ -23,6 +23,9 @@ async function formatAuthUser(user: typeof usersTable.$inferSelect) {
   const [company] = user.companyId
     ? await db.select().from(companiesTable).where(eq(companiesTable.id, user.companyId)).limit(1)
     : [undefined];
+  const [agency] = user.agencyId
+    ? await db.select().from(agenciesTable).where(eq(agenciesTable.id, user.agencyId)).limit(1)
+    : [undefined];
 
   return {
     id: user.id,
@@ -31,6 +34,9 @@ async function formatAuthUser(user: typeof usersTable.$inferSelect) {
     role: user.role,
     companyId: user.companyId,
     companyName: company?.name ?? null,
+    agencyId: user.agencyId,
+    agencyName: agency?.name ?? null,
+    agencyType: agency?.type ?? null,
   };
 }
 

@@ -1,8 +1,11 @@
 import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
-import { BusFront, User, LogOut, Ticket, Menu, X, LayoutDashboard, QrCode, Hotel } from "lucide-react";
+import { BusFront, User, LogOut, Ticket, Menu, X, LayoutDashboard, QrCode, Hotel, Landmark, Car, ChevronDown, ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { useLanguage } from "@/hooks/use-language";
 import { cn } from "@/lib/utils";
 import type { Language } from "@/lib/i18n/translations";
@@ -55,6 +58,12 @@ export function Navbar() {
           <Link href="/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
             <Hotel className="h-4 w-4" /> {t("nav.hotels")}
           </Link>
+          <Link href="/tourism" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
+            <Landmark className="h-4 w-4" /> {t("nav.tourism")}
+          </Link>
+          <Link href="/vehicles" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
+            <Car className="h-4 w-4" /> {t("nav.vehicles")}
+          </Link>
           <Link href="/login" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             {t("nav.login")}
           </Link>
@@ -92,8 +101,30 @@ export function Navbar() {
           <Link href="/admin/users" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             {t("nav.adminUsers")}
           </Link>
-          <Link href="/admin/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            {t("nav.adminHotels")}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1 outline-none">
+              {t("nav.adminCatalog")} <ChevronDown className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setLocation("/admin/agencies")}>{t("nav.adminAgencies")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/admin/hotels")}>{t("nav.adminHotels")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/admin/tourism-spots")}>{t("nav.adminTourismSpots")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/admin/vehicles")}>{t("nav.adminVehicles")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/clerk/agency")}>{t("nav.adminAgencyBookings")}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
+            <LogOut className="h-4 w-4 mr-2" /> {t("nav.logout")}
+          </Button>
+        </>
+      );
+    }
+
+    if (user.role === "clerk" && user.agencyId) {
+      return (
+        <>
+          <Link href="/clerk/agency" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
+            <ClipboardList className="h-4 w-4" /> {t("nav.clerkAgencyBookings")}
           </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
             <LogOut className="h-4 w-4 mr-2" /> {t("nav.logout")}
@@ -126,8 +157,17 @@ export function Navbar() {
         <Link href="/hotels" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
           <Hotel className="h-4 w-4" /> {t("nav.hotels")}
         </Link>
+        <Link href="/tourism" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
+          <Landmark className="h-4 w-4" /> {t("nav.tourism")}
+        </Link>
+        <Link href="/vehicles" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
+          <Car className="h-4 w-4" /> {t("nav.vehicles")}
+        </Link>
         <Link href="/hotel-bookings" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
           {t("nav.myBookings")}
+        </Link>
+        <Link href="/my-bookings" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+          {t("nav.myAgencyBookings")}
         </Link>
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <User className="h-4 w-4" /> {user.name || user.phone}

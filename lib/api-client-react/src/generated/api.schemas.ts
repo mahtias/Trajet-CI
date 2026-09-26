@@ -38,6 +38,18 @@ export const AuthUserRole = {
   admin: 'admin',
 } as const;
 
+/**
+ * @nullable
+ */
+export type AuthUserAgencyType = typeof AuthUserAgencyType[keyof typeof AuthUserAgencyType] | null;
+
+
+export const AuthUserAgencyType = {
+  hotel: 'hotel',
+  tourism: 'tourism',
+  vehicle_rental: 'vehicle_rental',
+} as const;
+
 export interface AuthUser {
   id: number;
   phone: string;
@@ -48,6 +60,12 @@ export interface AuthUser {
   companyId?: number | null;
   /** @nullable */
   companyName?: string | null;
+  /** @nullable */
+  agencyId?: number | null;
+  /** @nullable */
+  agencyName?: string | null;
+  /** @nullable */
+  agencyType?: AuthUserAgencyType;
 }
 
 export interface Company {
@@ -76,6 +94,18 @@ export const UserRole = {
   admin: 'admin',
 } as const;
 
+/**
+ * @nullable
+ */
+export type UserAgencyType = typeof UserAgencyType[keyof typeof UserAgencyType] | null;
+
+
+export const UserAgencyType = {
+  hotel: 'hotel',
+  tourism: 'tourism',
+  vehicle_rental: 'vehicle_rental',
+} as const;
+
 export interface User {
   id: number;
   phone: string;
@@ -86,6 +116,12 @@ export interface User {
   companyId?: number | null;
   /** @nullable */
   companyName?: string | null;
+  /** @nullable */
+  agencyId?: number | null;
+  /** @nullable */
+  agencyName?: string | null;
+  /** @nullable */
+  agencyType?: UserAgencyType;
   createdAt: string;
 }
 
@@ -102,6 +138,8 @@ export interface UserRoleInput {
   role: UserRoleInputRole;
   /** @nullable */
   companyId?: number | null;
+  /** @nullable */
+  agencyId?: number | null;
 }
 
 export interface PaginatedUsers {
@@ -350,6 +388,8 @@ export interface TicketCancellation {
 
 export interface Hotel {
   id: number;
+  agencyId: number;
+  agencyName?: string;
   name: string;
   city: string;
   address: string;
@@ -359,10 +399,13 @@ export interface Hotel {
   totalRooms: number;
   /** @nullable */
   rating?: number | null;
+  /** @nullable */
+  images?: string[] | null;
   createdAt: string;
 }
 
 export interface HotelInput {
+  agencyId: number;
   name: string;
   city: string;
   address: string;
@@ -372,6 +415,8 @@ export interface HotelInput {
   totalRooms: number;
   /** @nullable */
   rating?: number | null;
+  /** @nullable */
+  images?: string[] | null;
 }
 
 export interface PaginatedHotels {
@@ -392,6 +437,8 @@ export interface HotelSearchResult {
   totalRooms: number;
   /** @nullable */
   rating?: number | null;
+  /** @nullable */
+  images?: string[] | null;
   availableRooms: number;
 }
 
@@ -444,6 +491,15 @@ export const HotelBookingPaymentStatus = {
   paid: 'paid',
 } as const;
 
+export type HotelBookingStatus = typeof HotelBookingStatus[keyof typeof HotelBookingStatus];
+
+
+export const HotelBookingStatus = {
+  pending: 'pending',
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+} as const;
+
 export interface HotelBooking {
   id: number;
   hotelId: number;
@@ -458,6 +514,7 @@ export interface HotelBooking {
   qrCode: string;
   paymentMethod: HotelBookingPaymentMethod;
   paymentStatus: HotelBookingPaymentStatus;
+  status: HotelBookingStatus;
   createdAt: string;
 }
 
@@ -523,6 +580,198 @@ export interface SalesReport {
   pageSize: number;
 }
 
+export type AgencyType = typeof AgencyType[keyof typeof AgencyType];
+
+
+export const AgencyType = {
+  hotel: 'hotel',
+  tourism: 'tourism',
+  vehicle_rental: 'vehicle_rental',
+} as const;
+
+export interface Agency {
+  id: number;
+  type: AgencyType;
+  name: string;
+  city: string;
+  /** @nullable */
+  phone?: string | null;
+  createdAt: string;
+}
+
+export type AgencyInputType = typeof AgencyInputType[keyof typeof AgencyInputType];
+
+
+export const AgencyInputType = {
+  hotel: 'hotel',
+  tourism: 'tourism',
+  vehicle_rental: 'vehicle_rental',
+} as const;
+
+export interface AgencyInput {
+  type: AgencyInputType;
+  name: string;
+  city: string;
+  /** @nullable */
+  phone?: string | null;
+}
+
+export interface TourismSpot {
+  id: number;
+  agencyId: number;
+  agencyName: string;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  location: string;
+  price: number;
+  capacityPerDay: number;
+  /** @nullable */
+  images?: string[] | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface TourismSpotInput {
+  agencyId: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  location: string;
+  price: number;
+  capacityPerDay: number;
+  /** @nullable */
+  images?: string[] | null;
+  isActive?: boolean;
+}
+
+export interface PaginatedTourismSpots {
+  items: TourismSpot[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type TourismBookingStatus = typeof TourismBookingStatus[keyof typeof TourismBookingStatus];
+
+
+export const TourismBookingStatus = {
+  pending: 'pending',
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface TourismBooking {
+  id: number;
+  spotId: number;
+  spotName: string;
+  userId: number;
+  /** @nullable */
+  userName?: string | null;
+  /** @nullable */
+  userPhone?: string | null;
+  visitDate: string;
+  nbPeople: number;
+  totalPrice: number;
+  status: TourismBookingStatus;
+  createdAt: string;
+}
+
+export interface TourismBookingInput {
+  spotId: number;
+  visitDate: string;
+  nbPeople: number;
+}
+
+export interface Vehicle {
+  id: number;
+  agencyId: number;
+  agencyName: string;
+  brand: string;
+  model: string;
+  category: string;
+  seats: number;
+  pricePerDay: number;
+  /** @nullable */
+  images?: string[] | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface VehicleInput {
+  agencyId: number;
+  brand: string;
+  model: string;
+  category: string;
+  seats: number;
+  pricePerDay: number;
+  /** @nullable */
+  images?: string[] | null;
+  isActive?: boolean;
+}
+
+export interface PaginatedVehicles {
+  items: Vehicle[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface VehicleAvailability {
+  available: boolean;
+}
+
+export type VehicleBookingStatus = typeof VehicleBookingStatus[keyof typeof VehicleBookingStatus];
+
+
+export const VehicleBookingStatus = {
+  pending: 'pending',
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface VehicleBooking {
+  id: number;
+  vehicleId: number;
+  vehicleLabel: string;
+  userId: number;
+  /** @nullable */
+  userName?: string | null;
+  /** @nullable */
+  userPhone?: string | null;
+  startDate: string;
+  endDate: string;
+  totalPrice: number;
+  status: VehicleBookingStatus;
+  createdAt: string;
+}
+
+export interface VehicleBookingInput {
+  vehicleId: number;
+  startDate: string;
+  endDate: string;
+}
+
+export type BookingStatusUpdateStatus = typeof BookingStatusUpdateStatus[keyof typeof BookingStatusUpdateStatus];
+
+
+export const BookingStatusUpdateStatus = {
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface BookingStatusUpdate {
+  status: BookingStatusUpdateStatus;
+}
+
+export interface UploadInput {
+  file: Blob;
+}
+
+export interface UploadResponse {
+  url: string;
+}
+
 export type SearchTripsParams = {
 originCityId: number;
 destinationCityId: number;
@@ -567,6 +816,43 @@ export type GetSalesReportParams = {
 from?: string;
 to?: string;
 companyId?: number;
+page?: number;
+pageSize?: number;
+};
+
+export type ListTourismSpotsParams = {
+location?: string;
+};
+
+export type ListVehiclesParams = {
+category?: string;
+};
+
+export type GetVehicleAvailabilityParams = {
+vehicleId: number;
+startDate: string;
+endDate: string;
+};
+
+export type GetAdminAgenciesParams = {
+type?: GetAdminAgenciesType;
+};
+
+export type GetAdminAgenciesType = typeof GetAdminAgenciesType[keyof typeof GetAdminAgenciesType];
+
+
+export const GetAdminAgenciesType = {
+  hotel: 'hotel',
+  tourism: 'tourism',
+  vehicle_rental: 'vehicle_rental',
+} as const;
+
+export type GetAdminTourismSpotsParams = {
+page?: number;
+pageSize?: number;
+};
+
+export type GetAdminVehiclesParams = {
 page?: number;
 pageSize?: number;
 };

@@ -11,4 +11,6 @@ export interface UserRoleInput {
   role: UserRoleInputRole;
   /** @nullable */
   companyId?: number | null;
+  /** @nullable */
+  agencyId?: number | null;
 }

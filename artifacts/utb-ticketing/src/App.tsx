@@ -20,11 +20,17 @@ import HotelDetail from '@/pages/passenger/hotel-detail';
 import HotelCheckout from '@/pages/passenger/hotel-checkout';
 import HotelBookings from '@/pages/passenger/hotel-bookings';
 import HotelBookingDetail from '@/pages/passenger/hotel-booking-detail';
+import Tourism from '@/pages/passenger/tourism';
+import TourismDetail from '@/pages/passenger/tourism-detail';
+import Vehicles from '@/pages/passenger/vehicles';
+import VehicleDetail from '@/pages/passenger/vehicle-detail';
+import MyBookings from '@/pages/passenger/my-bookings';
 
 import ClerkDashboard from '@/pages/clerk/dashboard';
 import ClerkTripDetail from '@/pages/clerk/trip-detail';
 import ClerkSell from '@/pages/clerk/sell';
 import ClerkValidate from '@/pages/clerk/validate';
+import ClerkAgencyBookings from '@/pages/clerk/agency-bookings';
 
 import AdminDashboard from '@/pages/admin/dashboard';
 import AdminCompanies from '@/pages/admin/companies';
@@ -35,6 +41,9 @@ import AdminUsers from '@/pages/admin/users';
 import AdminHotels from '@/pages/admin/hotels';
 import AdminStations from '@/pages/admin/stations';
 import AdminFleet from '@/pages/admin/fleet';
+import AdminAgencies from '@/pages/admin/agencies';
+import AdminTourismSpots from '@/pages/admin/tourism-spots';
+import AdminVehicles from '@/pages/admin/vehicles';
 
 const queryClient = new QueryClient();
 
@@ -55,6 +64,11 @@ function Router() {
         <Route path="/hotels/:id/checkout" component={HotelCheckout} />
         <Route path="/hotel-bookings" component={HotelBookings} />
         <Route path="/hotel-bookings/:id" component={HotelBookingDetail} />
+        <Route path="/tourism" component={Tourism} />
+        <Route path="/tourism/:id" component={TourismDetail} />
+        <Route path="/vehicles" component={Vehicles} />
+        <Route path="/vehicles/:id" component={VehicleDetail} />
+        <Route path="/my-bookings" component={MyBookings} />
 
         {/* Clerk */}
         <Route path="/clerk">
@@ -97,6 +111,18 @@ function Router() {
         </Route>
         <Route path="/admin/hotels">
           <RequireRole roles={['admin']}><AdminHotels /></RequireRole>
+        </Route>
+        <Route path="/admin/agencies">
+          <RequireRole roles={['admin']}><AdminAgencies /></RequireRole>
+        </Route>
+        <Route path="/admin/tourism-spots">
+          <RequireRole roles={['admin']}><AdminTourismSpots /></RequireRole>
+        </Route>
+        <Route path="/admin/vehicles">
+          <RequireRole roles={['admin']}><AdminVehicles /></RequireRole>
+        </Route>
+        <Route path="/clerk/agency">
+          <RequireRole roles={['clerk', 'admin']}><ClerkAgencyBookings /></RequireRole>
         </Route>
 
         <Route component={NotFound} />

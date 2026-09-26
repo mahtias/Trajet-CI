@@ -22,6 +22,10 @@ tags:
     description: Ticket management
   - name: hotels
     description: Hotel search and booking
+  - name: tourism
+    description: Tourism spots and bookings
+  - name: vehicles
+    description: Vehicle rental and bookings
   - name: clerk
     description: Station clerk operations
   - name: admin
@@ -1277,6 +1281,572 @@ paths:
               schema:
                 $ref: "#/components/schemas/SalesReport"
 
+  # Admin - Image uploads (hotels, tourism spots, vehicles)
+  /admin/uploads:
+    post:
+      operationId: uploadImage
+      tags: [admin]
+      summary: Upload an image (jpg, png, webp, max 5 MB)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UploadInput"
+      responses:
+        "201":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+
+  # Tourism, vehicle rental, agencies
+  /tourism-spots:
+    get:
+      operationId: listTourismSpots
+      tags: [tourism]
+      summary: List active tourism spots
+      parameters:
+        - name: location
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tourism spots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TourismSpot"
+
+  /tourism-spots/{spotId}:
+    get:
+      operationId: getTourismSpot
+      tags: [tourism]
+      summary: Get a tourism spot
+      parameters:
+        - name: spotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tourism spot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourismSpot"
+
+  /tourism-bookings:
+    get:
+      operationId: getMyTourismBookings
+      tags: [tourism]
+      summary: List my tourism bookings
+      responses:
+        "200":
+          description: My tourism bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TourismBooking"
+    post:
+      operationId: createTourismBooking
+      tags: [tourism]
+      summary: Book a tourism spot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourismBookingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourismBooking"
+
+  /vehicles:
+    get:
+      operationId: listVehicles
+      tags: [vehicles]
+      summary: List active rental vehicles
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vehicle"
+
+  /vehicles/{vehicleId}:
+    get:
+      operationId: getVehicle
+      tags: [vehicles]
+      summary: Get a rental vehicle
+      parameters:
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+
+  /vehicle-availability:
+    get:
+      operationId: getVehicleAvailability
+      tags: [vehicles]
+      summary: Check whether a vehicle is free on a date range
+      parameters:
+        - name: vehicleId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleAvailability"
+
+  /vehicle-bookings:
+    get:
+      operationId: getMyVehicleBookings
+      tags: [vehicles]
+      summary: List my vehicle bookings
+      responses:
+        "200":
+          description: My vehicle bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleBooking"
+    post:
+      operationId: createVehicleBooking
+      tags: [vehicles]
+      summary: Book a rental vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleBookingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleBooking"
+
+  /clerk/agency/tourism-bookings:
+    get:
+      operationId: getClerkAgencyTourismBookings
+      tags: [clerk]
+      summary: List tourism bookings of the clerk"s agency
+      responses:
+        "200":
+          description: Bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TourismBooking"
+
+  /clerk/agency/tourism-bookings/{bookingId}/status:
+    put:
+      operationId: updateClerkAgencyTourismBookingStatus
+      tags: [clerk]
+      summary: Confirm or cancel a tourism booking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingStatusUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourismBooking"
+
+  /clerk/agency/vehicle-bookings:
+    get:
+      operationId: getClerkAgencyVehicleBookings
+      tags: [clerk]
+      summary: List vehicle bookings of the clerk"s agency
+      responses:
+        "200":
+          description: Bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleBooking"
+
+  /clerk/agency/vehicle-bookings/{bookingId}/status:
+    put:
+      operationId: updateClerkAgencyVehicleBookingStatus
+      tags: [clerk]
+      summary: Confirm or cancel a vehicle booking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingStatusUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleBooking"
+
+  /clerk/agency/hotel-bookings:
+    get:
+      operationId: getClerkAgencyHotelBookings
+      tags: [clerk]
+      summary: List hotel bookings of the clerk"s agency
+      responses:
+        "200":
+          description: Bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HotelBooking"
+
+  /clerk/agency/hotel-bookings/{bookingId}/status:
+    put:
+      operationId: updateClerkAgencyHotelBookingStatus
+      tags: [clerk]
+      summary: Confirm or cancel a hotel booking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingStatusUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HotelBooking"
+
+  /admin/agencies:
+    get:
+      operationId: getAdminAgencies
+      tags: [admin]
+      summary: List agencies
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - hotel
+              - tourism
+              - vehicle_rental
+      responses:
+        "200":
+          description: Agencies list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Agency"
+    post:
+      operationId: createAgency
+      tags: [admin]
+      summary: Create a agency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgencyInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+
+  /admin/agencies/{agencyId}:
+    put:
+      operationId: updateAgency
+      tags: [admin]
+      summary: Update a agency
+      parameters:
+        - name: agencyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgencyInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+    delete:
+      operationId: deleteAgency
+      tags: [admin]
+      summary: Delete a agency
+      parameters:
+        - name: agencyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/tourism-spots:
+    get:
+      operationId: getAdminTourismSpots
+      tags: [admin]
+      summary: List tourism spots
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tourism spots list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedTourismSpots"
+    post:
+      operationId: createTourismSpot
+      tags: [admin]
+      summary: Create a tourism spot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourismSpotInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourismSpot"
+
+  /admin/tourism-spots/{spotId}:
+    put:
+      operationId: updateTourismSpot
+      tags: [admin]
+      summary: Update a tourism spot
+      parameters:
+        - name: spotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourismSpotInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourismSpot"
+    delete:
+      operationId: deleteTourismSpot
+      tags: [admin]
+      summary: Delete a tourism spot
+      parameters:
+        - name: spotId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/vehicles:
+    get:
+      operationId: getAdminVehicles
+      tags: [admin]
+      summary: List vehicles
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vehicles list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedVehicles"
+    post:
+      operationId: createVehicle
+      tags: [admin]
+      summary: Create a vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+
+  /admin/vehicles/{vehicleId}:
+    put:
+      operationId: updateVehicle
+      tags: [admin]
+      summary: Update a vehicle
+      parameters:
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+    delete:
+      operationId: deleteVehicle
+      tags: [admin]
+      summary: Delete a vehicle
+      parameters:
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -1338,6 +1908,13 @@ components:
           type: ["integer", "null"]
         companyName:
           type: ["string", "null"]
+        agencyId:
+          type: ["integer", "null"]
+        agencyName:
+          type: ["string", "null"]
+        agencyType:
+          type: ["string", "null"]
+          enum: [hotel, tourism, vehicle_rental, null]
 
     # Company
     Company:
@@ -1392,6 +1969,13 @@ components:
           type: ["integer", "null"]
         companyName:
           type: ["string", "null"]
+        agencyId:
+          type: ["integer", "null"]
+        agencyName:
+          type: ["string", "null"]
+        agencyType:
+          type: ["string", "null"]
+          enum: [hotel, tourism, vehicle_rental, null]
         createdAt:
           type: string
           format: date-time
@@ -1404,6 +1988,8 @@ components:
           type: string
           enum: [passenger, clerk, admin]
         companyId:
+          type: ["integer", "null"]
+        agencyId:
           type: ["integer", "null"]
 
     PaginatedUsers:
@@ -1782,10 +2368,14 @@ components:
     # Hotel
     Hotel:
       type: object
-      required: [id, name, city, address, pricePerNight, totalRooms, createdAt]
+      required: [id, agencyId, name, city, address, pricePerNight, totalRooms, createdAt]
       properties:
         id:
           type: integer
+        agencyId:
+          type: integer
+        agencyName:
+          type: string
         name:
           type: string
         city:
@@ -1800,14 +2390,20 @@ components:
           type: integer
         rating:
           type: ["number", "null"]
+        images:
+          type: ["array", "null"]
+          items:
+            type: string
         createdAt:
           type: string
           format: date-time
 
     HotelInput:
       type: object
-      required: [name, city, address, pricePerNight, totalRooms]
+      required: [agencyId, name, city, address, pricePerNight, totalRooms]
       properties:
+        agencyId:
+          type: integer
         name:
           type: string
         city:
@@ -1822,6 +2418,10 @@ components:
           type: integer
         rating:
           type: ["number", "null"]
+        images:
+          type: ["array", "null"]
+          items:
+            type: string
 
     PaginatedHotels:
       type: object
@@ -1858,6 +2458,10 @@ components:
           type: integer
         rating:
           type: ["number", "null"]
+        images:
+          type: ["array", "null"]
+          items:
+            type: string
         availableRooms:
           type: integer
 
@@ -1907,7 +2511,7 @@ components:
 
     HotelBooking:
       type: object
-      required: [id, hotelId, hotelName, city, guestName, guestPhone, checkInDate, checkOutDate, rooms, totalPrice, qrCode, paymentMethod, paymentStatus, createdAt]
+      required: [id, hotelId, hotelName, city, guestName, guestPhone, checkInDate, checkOutDate, rooms, totalPrice, qrCode, paymentMethod, paymentStatus, status, createdAt]
       properties:
         id:
           type: integer
@@ -1937,6 +2541,9 @@ components:
         paymentStatus:
           type: string
           enum: [pending, paid]
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
         createdAt:
           type: string
           format: date-time
@@ -2062,3 +2669,325 @@ components:
           type: integer
         revenue:
           type: number
+
+    # Agencies, tourism, vehicle rental
+    Agency:
+      type: object
+      required: [id, type, name, city, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum:
+            - hotel
+            - tourism
+            - vehicle_rental
+        name:
+          type: string
+        city:
+          type: string
+        phone:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+          format: date-time
+
+    AgencyInput:
+      type: object
+      required: [type, name, city]
+      properties:
+        type:
+          type: string
+          enum:
+            - hotel
+            - tourism
+            - vehicle_rental
+        name:
+          type: string
+        city:
+          type: string
+        phone:
+          type:
+            - string
+            - "null"
+
+    TourismSpot:
+      type: object
+      required: [id, agencyId, agencyName, name, location, price, capacityPerDay, isActive, createdAt]
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: integer
+        agencyName:
+          type: string
+        name:
+          type: string
+        description:
+          type:
+            - string
+            - "null"
+        location:
+          type: string
+        price:
+          type: number
+        capacityPerDay:
+          type: integer
+        images:
+          type:
+            - array
+            - "null"
+          items:
+            type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    TourismSpotInput:
+      type: object
+      required: [agencyId, name, location, price, capacityPerDay]
+      properties:
+        agencyId:
+          type: integer
+        name:
+          type: string
+        description:
+          type:
+            - string
+            - "null"
+        location:
+          type: string
+        price:
+          type: number
+        capacityPerDay:
+          type: integer
+        images:
+          type:
+            - array
+            - "null"
+          items:
+            type: string
+        isActive:
+          type: boolean
+
+    PaginatedTourismSpots:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TourismSpot"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    TourismBooking:
+      type: object
+      required: [id, spotId, spotName, userId, visitDate, nbPeople, totalPrice, status, createdAt]
+      properties:
+        id:
+          type: integer
+        spotId:
+          type: integer
+        spotName:
+          type: string
+        userId:
+          type: integer
+        userName:
+          type:
+            - string
+            - "null"
+        userPhone:
+          type:
+            - string
+            - "null"
+        visitDate:
+          type: string
+        nbPeople:
+          type: integer
+        totalPrice:
+          type: number
+        status:
+          type: string
+          enum:
+            - pending
+            - confirmed
+            - cancelled
+        createdAt:
+          type: string
+          format: date-time
+
+    TourismBookingInput:
+      type: object
+      required: [spotId, visitDate, nbPeople]
+      properties:
+        spotId:
+          type: integer
+        visitDate:
+          type: string
+          format: date
+        nbPeople:
+          type: integer
+
+    Vehicle:
+      type: object
+      required: [id, agencyId, agencyName, brand, model, category, seats, pricePerDay, isActive, createdAt]
+      properties:
+        id:
+          type: integer
+        agencyId:
+          type: integer
+        agencyName:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        category:
+          type: string
+        seats:
+          type: integer
+        pricePerDay:
+          type: number
+        images:
+          type:
+            - array
+            - "null"
+          items:
+            type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    VehicleInput:
+      type: object
+      required: [agencyId, brand, model, category, seats, pricePerDay]
+      properties:
+        agencyId:
+          type: integer
+        brand:
+          type: string
+        model:
+          type: string
+        category:
+          type: string
+        seats:
+          type: integer
+        pricePerDay:
+          type: number
+        images:
+          type:
+            - array
+            - "null"
+          items:
+            type: string
+        isActive:
+          type: boolean
+
+    PaginatedVehicles:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vehicle"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    VehicleAvailability:
+      type: object
+      required: [available]
+      properties:
+        available:
+          type: boolean
+
+    VehicleBooking:
+      type: object
+      required: [id, vehicleId, vehicleLabel, userId, startDate, endDate, totalPrice, status, createdAt]
+      properties:
+        id:
+          type: integer
+        vehicleId:
+          type: integer
+        vehicleLabel:
+          type: string
+        userId:
+          type: integer
+        userName:
+          type:
+            - string
+            - "null"
+        userPhone:
+          type:
+            - string
+            - "null"
+        startDate:
+          type: string
+        endDate:
+          type: string
+        totalPrice:
+          type: number
+        status:
+          type: string
+          enum:
+            - pending
+            - confirmed
+            - cancelled
+        createdAt:
+          type: string
+          format: date-time
+
+    VehicleBookingInput:
+      type: object
+      required: [vehicleId, startDate, endDate]
+      properties:
+        vehicleId:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+
+    BookingStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum:
+            - confirmed
+            - cancelled
+
+    # Uploads
+    UploadInput:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+
+    UploadResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string

@@ -1,4 +1,5 @@
 export * from "./companies";
+export * from "./agencies";
 export * from "./cities";
 export * from "./stations";
 export * from "./company-stations";
@@ -10,3 +11,8 @@ export * from "./seats";
 export * from "./tickets";
 export * from "./hotels";
 export * from "./hotel-bookings";
+export * from "./tourism-spots";
+export * from "./tourism-bookings";
+export * from "./vehicles";
+export * from "./vehicle-bookings";
+export * from "./payments";

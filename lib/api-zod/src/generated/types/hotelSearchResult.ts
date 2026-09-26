@@ -17,5 +17,7 @@ export interface HotelSearchResult {
   totalRooms: number;
   /** @nullable */
   rating?: number | null;
+  /** @nullable */
+  images?: string[] | null;
   availableRooms: number;
 }

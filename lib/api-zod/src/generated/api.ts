@@ -44,7 +44,10 @@ export const VerifyOtpResponse = zod.object({
   "name": zod.string().nullish(),
   "role": zod.enum(['passenger', 'clerk', 'admin']),
   "companyId": zod.number().nullish(),
-  "companyName": zod.string().nullish()
+  "companyName": zod.string().nullish(),
+  "agencyId": zod.number().nullish(),
+  "agencyName": zod.string().nullish(),
+  "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish()
 })
 
 
@@ -65,7 +68,10 @@ export const GetMeResponse = zod.object({
   "name": zod.string().nullish(),
   "role": zod.enum(['passenger', 'clerk', 'admin']),
   "companyId": zod.number().nullish(),
-  "companyName": zod.string().nullish()
+  "companyName": zod.string().nullish(),
+  "agencyId": zod.number().nullish(),
+  "agencyName": zod.string().nullish(),
+  "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish()
 })
 
 
@@ -306,6 +312,7 @@ export const SearchHotelsResponseItem = zod.object({
   "pricePerNight": zod.number(),
   "totalRooms": zod.number(),
   "rating": zod.number().nullish(),
+  "images": zod.array(zod.string()).nullish(),
   "availableRooms": zod.number()
 })
 export const SearchHotelsResponse = zod.array(SearchHotelsResponseItem)
@@ -320,6 +327,8 @@ export const GetHotelParams = zod.object({
 
 export const GetHotelResponse = zod.object({
   "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string().optional(),
   "name": zod.string(),
   "city": zod.string(),
   "address": zod.string(),
@@ -327,6 +336,7 @@ export const GetHotelResponse = zod.object({
   "pricePerNight": zod.number(),
   "totalRooms": zod.number(),
   "rating": zod.number().nullish(),
+  "images": zod.array(zod.string()).nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -382,6 +392,7 @@ export const GetMyHotelBookingsResponseItem = zod.object({
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })
 export const GetMyHotelBookingsResponse = zod.array(GetMyHotelBookingsResponseItem)
@@ -408,6 +419,7 @@ export const GetHotelBookingResponse = zod.object({
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
   "paymentStatus": zod.enum(['pending', 'paid']),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })
 
@@ -423,6 +435,8 @@ export const GetAdminHotelsQueryParams = zod.object({
 export const GetAdminHotelsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string().optional(),
   "name": zod.string(),
   "city": zod.string(),
   "address": zod.string(),
@@ -430,6 +444,7 @@ export const GetAdminHotelsResponse = zod.object({
   "pricePerNight": zod.number(),
   "totalRooms": zod.number(),
   "rating": zod.number().nullish(),
+  "images": zod.array(zod.string()).nullish(),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -442,17 +457,7 @@ export const GetAdminHotelsResponse = zod.object({
  * @summary Create a hotel
  */
 export const CreateHotelBody = zod.object({
-  "name": zod.string(),
-  "city": zod.string(),
-  "address": zod.string(),
-  "description": zod.string().nullish(),
-  "pricePerNight": zod.number(),
-  "totalRooms": zod.number(),
-  "rating": zod.number().nullish()
-})
-
-export const CreateHotelResponse = zod.object({
-  "id": zod.number(),
+  "agencyId": zod.number(),
   "name": zod.string(),
   "city": zod.string(),
   "address": zod.string(),
@@ -460,6 +465,21 @@ export const CreateHotelResponse = zod.object({
   "pricePerNight": zod.number(),
   "totalRooms": zod.number(),
   "rating": zod.number().nullish(),
+  "images": zod.array(zod.string()).nullish()
+})
+
+export const CreateHotelResponse = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string().optional(),
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish(),
+  "images": zod.array(zod.string()).nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -472,17 +492,7 @@ export const UpdateHotelParams = zod.object({
 })
 
 export const UpdateHotelBody = zod.object({
-  "name": zod.string(),
-  "city": zod.string(),
-  "address": zod.string(),
-  "description": zod.string().nullish(),
-  "pricePerNight": zod.number(),
-  "totalRooms": zod.number(),
-  "rating": zod.number().nullish()
-})
-
-export const UpdateHotelResponse = zod.object({
-  "id": zod.number(),
+  "agencyId": zod.number(),
   "name": zod.string(),
   "city": zod.string(),
   "address": zod.string(),
@@ -490,6 +500,21 @@ export const UpdateHotelResponse = zod.object({
   "pricePerNight": zod.number(),
   "totalRooms": zod.number(),
   "rating": zod.number().nullish(),
+  "images": zod.array(zod.string()).nullish()
+})
+
+export const UpdateHotelResponse = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string().optional(),
+  "name": zod.string(),
+  "city": zod.string(),
+  "address": zod.string(),
+  "description": zod.string().nullish(),
+  "pricePerNight": zod.number(),
+  "totalRooms": zod.number(),
+  "rating": zod.number().nullish(),
+  "images": zod.array(zod.string()).nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -706,6 +731,9 @@ export const GetAdminUsersResponse = zod.object({
   "role": zod.enum(['passenger', 'clerk', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
+  "agencyId": zod.number().nullish(),
+  "agencyName": zod.string().nullish(),
+  "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish(),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -723,7 +751,8 @@ export const UpdateUserRoleParams = zod.object({
 
 export const UpdateUserRoleBody = zod.object({
   "role": zod.enum(['passenger', 'clerk', 'admin']),
-  "companyId": zod.number().nullish()
+  "companyId": zod.number().nullish(),
+  "agencyId": zod.number().nullish()
 })
 
 export const UpdateUserRoleResponse = zod.object({
@@ -733,6 +762,9 @@ export const UpdateUserRoleResponse = zod.object({
   "role": zod.enum(['passenger', 'clerk', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
+  "agencyId": zod.number().nullish(),
+  "agencyName": zod.string().nullish(),
+  "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -1176,6 +1208,629 @@ export const GetSalesReportResponse = zod.object({
   "total": zod.number(),
   "page": zod.number(),
   "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Upload an image (jpg, png, webp, max 5 MB)
+ */
+export const UploadImageBody = zod.object({
+  "file": zod.instanceof(File)
+})
+
+export const UploadImageResponse = zod.object({
+  "url": zod.string()
+})
+
+
+/**
+ * @summary List active tourism spots
+ */
+export const ListTourismSpotsQueryParams = zod.object({
+  "location": zod.coerce.string().optional()
+})
+
+export const ListTourismSpotsResponseItem = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "location": zod.string(),
+  "price": zod.number(),
+  "capacityPerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListTourismSpotsResponse = zod.array(ListTourismSpotsResponseItem)
+
+
+/**
+ * @summary Get a tourism spot
+ */
+export const GetTourismSpotParams = zod.object({
+  "spotId": zod.coerce.number()
+})
+
+export const GetTourismSpotResponse = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "location": zod.string(),
+  "price": zod.number(),
+  "capacityPerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List my tourism bookings
+ */
+export const GetMyTourismBookingsResponseItem = zod.object({
+  "id": zod.number(),
+  "spotId": zod.number(),
+  "spotName": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string().nullish(),
+  "userPhone": zod.string().nullish(),
+  "visitDate": zod.string(),
+  "nbPeople": zod.number(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+export const GetMyTourismBookingsResponse = zod.array(GetMyTourismBookingsResponseItem)
+
+
+/**
+ * @summary Book a tourism spot
+ */
+export const CreateTourismBookingBody = zod.object({
+  "spotId": zod.number(),
+  "visitDate": zod.coerce.date(),
+  "nbPeople": zod.number()
+})
+
+export const CreateTourismBookingResponse = zod.object({
+  "id": zod.number(),
+  "spotId": zod.number(),
+  "spotName": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string().nullish(),
+  "userPhone": zod.string().nullish(),
+  "visitDate": zod.string(),
+  "nbPeople": zod.number(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List active rental vehicles
+ */
+export const ListVehiclesQueryParams = zod.object({
+  "category": zod.coerce.string().optional()
+})
+
+export const ListVehiclesResponseItem = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "category": zod.string(),
+  "seats": zod.number(),
+  "pricePerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListVehiclesResponse = zod.array(ListVehiclesResponseItem)
+
+
+/**
+ * @summary Get a rental vehicle
+ */
+export const GetVehicleParams = zod.object({
+  "vehicleId": zod.coerce.number()
+})
+
+export const GetVehicleResponse = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "category": zod.string(),
+  "seats": zod.number(),
+  "pricePerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Check whether a vehicle is free on a date range
+ */
+export const GetVehicleAvailabilityQueryParams = zod.object({
+  "vehicleId": zod.coerce.number(),
+  "startDate": zod.date(),
+  "endDate": zod.date()
+})
+
+export const GetVehicleAvailabilityResponse = zod.object({
+  "available": zod.boolean()
+})
+
+
+/**
+ * @summary List my vehicle bookings
+ */
+export const GetMyVehicleBookingsResponseItem = zod.object({
+  "id": zod.number(),
+  "vehicleId": zod.number(),
+  "vehicleLabel": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string().nullish(),
+  "userPhone": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+export const GetMyVehicleBookingsResponse = zod.array(GetMyVehicleBookingsResponseItem)
+
+
+/**
+ * @summary Book a rental vehicle
+ */
+export const CreateVehicleBookingBody = zod.object({
+  "vehicleId": zod.number(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date()
+})
+
+export const CreateVehicleBookingResponse = zod.object({
+  "id": zod.number(),
+  "vehicleId": zod.number(),
+  "vehicleLabel": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string().nullish(),
+  "userPhone": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List tourism bookings of the clerk"s agency
+ */
+export const GetClerkAgencyTourismBookingsResponseItem = zod.object({
+  "id": zod.number(),
+  "spotId": zod.number(),
+  "spotName": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string().nullish(),
+  "userPhone": zod.string().nullish(),
+  "visitDate": zod.string(),
+  "nbPeople": zod.number(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+export const GetClerkAgencyTourismBookingsResponse = zod.array(GetClerkAgencyTourismBookingsResponseItem)
+
+
+/**
+ * @summary Confirm or cancel a tourism booking
+ */
+export const UpdateClerkAgencyTourismBookingStatusParams = zod.object({
+  "bookingId": zod.coerce.number()
+})
+
+export const UpdateClerkAgencyTourismBookingStatusBody = zod.object({
+  "status": zod.enum(['confirmed', 'cancelled'])
+})
+
+export const UpdateClerkAgencyTourismBookingStatusResponse = zod.object({
+  "id": zod.number(),
+  "spotId": zod.number(),
+  "spotName": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string().nullish(),
+  "userPhone": zod.string().nullish(),
+  "visitDate": zod.string(),
+  "nbPeople": zod.number(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List vehicle bookings of the clerk"s agency
+ */
+export const GetClerkAgencyVehicleBookingsResponseItem = zod.object({
+  "id": zod.number(),
+  "vehicleId": zod.number(),
+  "vehicleLabel": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string().nullish(),
+  "userPhone": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+export const GetClerkAgencyVehicleBookingsResponse = zod.array(GetClerkAgencyVehicleBookingsResponseItem)
+
+
+/**
+ * @summary Confirm or cancel a vehicle booking
+ */
+export const UpdateClerkAgencyVehicleBookingStatusParams = zod.object({
+  "bookingId": zod.coerce.number()
+})
+
+export const UpdateClerkAgencyVehicleBookingStatusBody = zod.object({
+  "status": zod.enum(['confirmed', 'cancelled'])
+})
+
+export const UpdateClerkAgencyVehicleBookingStatusResponse = zod.object({
+  "id": zod.number(),
+  "vehicleId": zod.number(),
+  "vehicleLabel": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string().nullish(),
+  "userPhone": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "totalPrice": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List hotel bookings of the clerk"s agency
+ */
+export const GetClerkAgencyHotelBookingsResponseItem = zod.object({
+  "id": zod.number(),
+  "hotelId": zod.number(),
+  "hotelName": zod.string(),
+  "city": zod.string(),
+  "guestName": zod.string(),
+  "guestPhone": zod.string(),
+  "checkInDate": zod.string(),
+  "checkOutDate": zod.string(),
+  "rooms": zod.number(),
+  "totalPrice": zod.number(),
+  "qrCode": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentStatus": zod.enum(['pending', 'paid']),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+export const GetClerkAgencyHotelBookingsResponse = zod.array(GetClerkAgencyHotelBookingsResponseItem)
+
+
+/**
+ * @summary Confirm or cancel a hotel booking
+ */
+export const UpdateClerkAgencyHotelBookingStatusParams = zod.object({
+  "bookingId": zod.coerce.number()
+})
+
+export const UpdateClerkAgencyHotelBookingStatusBody = zod.object({
+  "status": zod.enum(['confirmed', 'cancelled'])
+})
+
+export const UpdateClerkAgencyHotelBookingStatusResponse = zod.object({
+  "id": zod.number(),
+  "hotelId": zod.number(),
+  "hotelName": zod.string(),
+  "city": zod.string(),
+  "guestName": zod.string(),
+  "guestPhone": zod.string(),
+  "checkInDate": zod.string(),
+  "checkOutDate": zod.string(),
+  "rooms": zod.number(),
+  "totalPrice": zod.number(),
+  "qrCode": zod.string(),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentStatus": zod.enum(['pending', 'paid']),
+  "status": zod.enum(['pending', 'confirmed', 'cancelled']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List agencies
+ */
+export const GetAdminAgenciesQueryParams = zod.object({
+  "type": zod.enum(['hotel', 'tourism', 'vehicle_rental']).optional()
+})
+
+export const GetAdminAgenciesResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['hotel', 'tourism', 'vehicle_rental']),
+  "name": zod.string(),
+  "city": zod.string(),
+  "phone": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const GetAdminAgenciesResponse = zod.array(GetAdminAgenciesResponseItem)
+
+
+/**
+ * @summary Create a agency
+ */
+export const CreateAgencyBody = zod.object({
+  "type": zod.enum(['hotel', 'tourism', 'vehicle_rental']),
+  "name": zod.string(),
+  "city": zod.string(),
+  "phone": zod.string().nullish()
+})
+
+export const CreateAgencyResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['hotel', 'tourism', 'vehicle_rental']),
+  "name": zod.string(),
+  "city": zod.string(),
+  "phone": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a agency
+ */
+export const UpdateAgencyParams = zod.object({
+  "agencyId": zod.coerce.number()
+})
+
+export const UpdateAgencyBody = zod.object({
+  "type": zod.enum(['hotel', 'tourism', 'vehicle_rental']),
+  "name": zod.string(),
+  "city": zod.string(),
+  "phone": zod.string().nullish()
+})
+
+export const UpdateAgencyResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['hotel', 'tourism', 'vehicle_rental']),
+  "name": zod.string(),
+  "city": zod.string(),
+  "phone": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a agency
+ */
+export const DeleteAgencyParams = zod.object({
+  "agencyId": zod.coerce.number()
+})
+
+export const DeleteAgencyResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List tourism spots
+ */
+export const GetAdminTourismSpotsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetAdminTourismSpotsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "location": zod.string(),
+  "price": zod.number(),
+  "capacityPerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Create a tourism spot
+ */
+export const CreateTourismSpotBody = zod.object({
+  "agencyId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "location": zod.string(),
+  "price": zod.number(),
+  "capacityPerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateTourismSpotResponse = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "location": zod.string(),
+  "price": zod.number(),
+  "capacityPerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a tourism spot
+ */
+export const UpdateTourismSpotParams = zod.object({
+  "spotId": zod.coerce.number()
+})
+
+export const UpdateTourismSpotBody = zod.object({
+  "agencyId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "location": zod.string(),
+  "price": zod.number(),
+  "capacityPerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateTourismSpotResponse = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "location": zod.string(),
+  "price": zod.number(),
+  "capacityPerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a tourism spot
+ */
+export const DeleteTourismSpotParams = zod.object({
+  "spotId": zod.coerce.number()
+})
+
+export const DeleteTourismSpotResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary List vehicles
+ */
+export const GetAdminVehiclesQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetAdminVehiclesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "category": zod.string(),
+  "seats": zod.number(),
+  "pricePerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Create a vehicle
+ */
+export const CreateVehicleBody = zod.object({
+  "agencyId": zod.number(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "category": zod.string(),
+  "seats": zod.number(),
+  "pricePerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateVehicleResponse = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "category": zod.string(),
+  "seats": zod.number(),
+  "pricePerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a vehicle
+ */
+export const UpdateVehicleParams = zod.object({
+  "vehicleId": zod.coerce.number()
+})
+
+export const UpdateVehicleBody = zod.object({
+  "agencyId": zod.number(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "category": zod.string(),
+  "seats": zod.number(),
+  "pricePerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateVehicleResponse = zod.object({
+  "id": zod.number(),
+  "agencyId": zod.number(),
+  "agencyName": zod.string(),
+  "brand": zod.string(),
+  "model": zod.string(),
+  "category": zod.string(),
+  "seats": zod.number(),
+  "pricePerDay": zod.number(),
+  "images": zod.array(zod.string()).nullish(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a vehicle
+ */
+export const DeleteVehicleParams = zod.object({
+  "vehicleId": zod.coerce.number()
+})
+
+export const DeleteVehicleResponse = zod.object({
+  "success": zod.boolean()
 })
 
 

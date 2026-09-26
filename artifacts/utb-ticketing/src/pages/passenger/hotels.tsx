@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CityCombobox } from "@/components/city-combobox";
+import { ImageThumb } from "@/components/image-gallery";
 import { CITIES } from "@/lib/cities";
 
 export default function Hotels() {
@@ -106,7 +107,13 @@ export default function Hotels() {
         <div className="space-y-4">
           {hotels.map((hotel) => (
             <Card key={hotel.id} className="overflow-hidden hover:shadow-md transition-shadow hover:border-primary/40">
-              <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <CardContent className="p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <ImageThumb
+                  src={hotel.images?.[0]}
+                  alt={hotel.name}
+                  icon={Hotel}
+                  className="w-full md:w-40 aspect-video md:aspect-[4/3] rounded-lg shrink-0"
+                />
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
                     <h3 className="text-lg font-bold text-foreground">{hotel.name}</h3>

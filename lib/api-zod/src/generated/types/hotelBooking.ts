@@ -7,6 +7,7 @@
  */
 import type { HotelBookingPaymentMethod } from './hotelBookingPaymentMethod';
 import type { HotelBookingPaymentStatus } from './hotelBookingPaymentStatus';
+import type { HotelBookingStatus } from './hotelBookingStatus';
 
 export interface HotelBooking {
   id: number;
@@ -22,5 +23,6 @@ export interface HotelBooking {
   qrCode: string;
   paymentMethod: HotelBookingPaymentMethod;
   paymentStatus: HotelBookingPaymentStatus;
+  status: HotelBookingStatus;
   createdAt: Date;
 }

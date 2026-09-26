@@ -9,6 +9,7 @@ import {
   GetHotelBookingParams,
 } from "@workspace/api-zod";
 import { generateQrCode } from "../lib/qr";
+import { formatHotelBooking } from "../lib/agency-queries";
 
 const router: IRouter = Router();
 
@@ -44,6 +45,7 @@ async function computeAvailableRooms(hotelId: number, totalRooms: number, checkI
 function formatHotel(h: typeof hotelsTable.$inferSelect) {
   return {
     id: h.id,
+    agencyId: h.agencyId,
     name: h.name,
     city: h.city,
     address: h.address,
@@ -51,28 +53,14 @@ function formatHotel(h: typeof hotelsTable.$inferSelect) {
     pricePerNight: parseFloat(h.pricePerNight),
     totalRooms: h.totalRooms,
     rating: h.rating ? parseFloat(h.rating) : null,
+    images: h.images ?? null,
     createdAt: h.createdAt.toISOString(),
   };
 }
 
 async function formatBooking(booking: typeof hotelBookingsTable.$inferSelect) {
   const [hotel] = await db.select().from(hotelsTable).where(eq(hotelsTable.id, booking.hotelId)).limit(1);
-  return {
-    id: booking.id,
-    hotelId: booking.hotelId,
-    hotelName: hotel?.name ?? "",
-    city: hotel?.city ?? "",
-    guestName: booking.guestName,
-    guestPhone: booking.guestPhone,
-    checkInDate: booking.checkInDate,
-    checkOutDate: booking.checkOutDate,
-    rooms: booking.rooms,
-    totalPrice: parseFloat(booking.totalPrice),
-    qrCode: booking.qrCode,
-    paymentMethod: booking.paymentMethod,
-    paymentStatus: booking.paymentStatus,
-    createdAt: booking.createdAt.toISOString(),
-  };
+  return formatHotelBooking(booking, hotel);
 }
 
 router.get("/hotels/search", async (req, res): Promise<void> => {

@@ -2,10 +2,11 @@ import { useParams, useLocation, Link } from "wouter";
 import { format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useGetHotel } from "@workspace/api-client-react";
-import { ArrowLeft, MapPin, Star, Info } from "lucide-react";
+import { ArrowLeft, MapPin, Star, Info, Hotel } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ImageGallery } from "@/components/image-gallery";
 
 export default function HotelDetail() {
   const { id } = useParams<{ id: string }>();
@@ -46,7 +47,8 @@ export default function HotelDetail() {
         </Link>
       </Button>
 
-      <Card className="border-border shadow-sm mb-6">
+      <Card className="border-border shadow-sm mb-6 overflow-hidden">
+        <ImageGallery images={hotel.images} alt={hotel.name} icon={Hotel} />
         <CardContent className="p-6">
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold text-foreground">{hotel.name}</h1>

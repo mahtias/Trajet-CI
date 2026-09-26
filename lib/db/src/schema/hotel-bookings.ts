@@ -16,6 +16,7 @@ export const hotelBookingsTable = pgTable("hotel_bookings", {
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
   paymentMethod: text("payment_method").notNull().default("orange_money"), // wave | orange_money | mtn_money
   paymentStatus: text("payment_status").notNull().default("pending"), // pending | paid
+  status: text("status").notNull().default("pending"), // pending | confirmed | cancelled — booking state, set by agency clerks
   paymentId: text("payment_id"),
   qrCode: text("qr_code").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

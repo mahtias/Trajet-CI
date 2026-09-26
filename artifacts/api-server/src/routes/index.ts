@@ -6,8 +6,12 @@ import seatsRouter from "./seats";
 import paymentsRouter from "./payments";
 import ticketsRouter from "./tickets";
 import hotelsRouter from "./hotels";
+import tourismRouter from "./tourism";
+import vehiclesRouter from "./vehicles";
 import clerkRouter from "./clerk";
 import adminRouter from "./admin";
+import adminAgenciesRouter from "./admin-agencies";
+import uploadsRouter from "./uploads";
 
 const router: IRouter = Router();
 
@@ -18,7 +22,12 @@ router.use(seatsRouter);
 router.use(paymentsRouter);
 router.use(ticketsRouter);
 router.use(hotelsRouter);
+router.use(tourismRouter);
+router.use(vehiclesRouter);
+router.use(uploadsRouter); // requireRole("admin") is applied per route, not router-wide
+// Routers below apply requireRole() to every request that reaches them: keep public routers above.
 router.use(clerkRouter);
 router.use(adminRouter);
+router.use(adminAgenciesRouter);
 
 export default router;

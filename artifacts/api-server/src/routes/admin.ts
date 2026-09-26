@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, or, ne, gt, inArray, sql } from "drizzle-orm";
 import {
   db, companiesTable, routesTable, tripsTable, seatsTable, usersTable, hotelsTable,
-  citiesTable, stationsTable, companyStationsTable, busesTable,
+  citiesTable, stationsTable, companyStationsTable, busesTable, agenciesTable,
 } from "@workspace/db";
 import { z } from "zod";
 import {
@@ -44,6 +44,8 @@ import {
   DeleteBusParams,
 } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/require-role";
+import { parsePagination } from "../lib/pagination";
+import { checkAgencyType, checkImageUrls } from "../lib/agency-queries";
 import {
   selectRoutes,
   selectTrips,
@@ -71,12 +73,6 @@ const SalesReportQuery = z.object({
   page: z.coerce.number().int().optional(),
   pageSize: z.coerce.number().int().optional(),
 });
-
-function parsePagination(page?: number, pageSize?: number) {
-  const p = Math.max(1, Math.trunc(page ?? 1) || 1);
-  const size = Math.min(100, Math.max(1, Math.trunc(pageSize ?? 20) || 20));
-  return { page: p, pageSize: size, offset: (p - 1) * size };
-}
 
 const router: IRouter = Router();
 router.use(requireRole("admin"));
@@ -123,6 +119,19 @@ router.delete("/admin/companies/:companyId", async (req, res): Promise<void> => 
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
+function formatUser(
+  u: typeof usersTable.$inferSelect,
+  company: typeof companiesTable.$inferSelect | null | undefined,
+  agency: typeof agenciesTable.$inferSelect | null | undefined,
+) {
+  return {
+    id: u.id, phone: u.phone, name: u.name, role: u.role,
+    companyId: u.companyId, companyName: company?.name ?? null,
+    agencyId: u.agencyId, agencyName: agency?.name ?? null, agencyType: agency?.type ?? null,
+    createdAt: u.createdAt.toISOString(),
+  };
+}
+
 function getSession(req: any) {
   return req.session as { userId?: number };
 }
@@ -134,18 +143,15 @@ router.get("/admin/users", async (req, res): Promise<void> => {
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
   const results = await db
-    .select({ user: usersTable, company: companiesTable })
+    .select({ user: usersTable, company: companiesTable, agency: agenciesTable })
     .from(usersTable)
     .leftJoin(companiesTable, eq(usersTable.companyId, companiesTable.id))
+    .leftJoin(agenciesTable, eq(usersTable.agencyId, agenciesTable.id))
     .orderBy(usersTable.createdAt, usersTable.id)
     .limit(pageSize).offset(offset);
 
   res.json({
-    items: results.map(({ user: u, company }) => ({
-      id: u.id, phone: u.phone, name: u.name, role: u.role,
-      companyId: u.companyId, companyName: company?.name ?? null,
-      createdAt: u.createdAt.toISOString(),
-    })),
+    items: results.map(({ user, company, agency }) => formatUser(user, company, agency)),
     total: count, page, pageSize,
   });
 });
@@ -162,9 +168,19 @@ router.put("/admin/users/:userId/role", async (req, res): Promise<void> => {
     return;
   }
 
+  // A clerk works either for a bus company or for an agency, never both
+  if (body.data.companyId && body.data.agencyId) {
+    res.status(400).json({ error: "Un utilisateur ne peut pas être rattaché à la fois à une compagnie et à une agence" });
+    return;
+  }
+  if (body.data.agencyId) {
+    const [agency] = await db.select({ id: agenciesTable.id }).from(agenciesTable).where(eq(agenciesTable.id, body.data.agencyId)).limit(1);
+    if (!agency) { res.status(400).json({ error: "Agence non trouvée" }); return; }
+  }
+
   const [u] = await db
     .update(usersTable)
-    .set({ role: body.data.role, companyId: body.data.companyId ?? null })
+    .set({ role: body.data.role, companyId: body.data.companyId ?? null, agencyId: body.data.agencyId ?? null })
     .where(eq(usersTable.id, params.data.userId))
     .returning();
   if (!u) { res.status(404).json({ error: "Utilisateur non trouvé" }); return; }
@@ -172,12 +188,11 @@ router.put("/admin/users/:userId/role", async (req, res): Promise<void> => {
   const [company] = u.companyId
     ? await db.select().from(companiesTable).where(eq(companiesTable.id, u.companyId)).limit(1)
     : [undefined];
+  const [agency] = u.agencyId
+    ? await db.select().from(agenciesTable).where(eq(agenciesTable.id, u.agencyId)).limit(1)
+    : [undefined];
 
-  res.json({
-    id: u.id, phone: u.phone, name: u.name, role: u.role,
-    companyId: u.companyId, companyName: company?.name ?? null,
-    createdAt: u.createdAt.toISOString(),
-  });
+  res.json(formatUser(u, company, agency));
 });
 
 // ── Cities ─────────────────────────────────────────────────────────────────────
@@ -714,11 +729,11 @@ router.get("/admin/reports/sales", async (req, res): Promise<void> => {
 
 // ── Hotels ─────────────────────────────────────────────────────────────────────
 
-function formatHotel(h: typeof hotelsTable.$inferSelect) {
+function formatHotel(h: typeof hotelsTable.$inferSelect, agency: typeof agenciesTable.$inferSelect | undefined) {
   return {
-    id: h.id, name: h.name, city: h.city, address: h.address, description: h.description,
+    id: h.id, agencyId: h.agencyId, agencyName: agency?.name ?? "", name: h.name, city: h.city, address: h.address, description: h.description,
     pricePerNight: parseFloat(h.pricePerNight), totalRooms: h.totalRooms,
-    rating: h.rating ? parseFloat(h.rating) : null, createdAt: h.createdAt.toISOString(),
+    rating: h.rating ? parseFloat(h.rating) : null, images: h.images ?? null, createdAt: h.createdAt.toISOString(),
   };
 }
 
@@ -728,23 +743,35 @@ router.get("/admin/hotels", async (req, res): Promise<void> => {
   const { page, pageSize, offset } = parsePagination(query.data.page, query.data.pageSize);
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(hotelsTable);
-  const hotels = await db.select().from(hotelsTable).orderBy(hotelsTable.city, hotelsTable.id).limit(pageSize).offset(offset);
+  const hotels = await db
+    .select({ hotel: hotelsTable, agency: agenciesTable })
+    .from(hotelsTable)
+    .innerJoin(agenciesTable, eq(hotelsTable.agencyId, agenciesTable.id))
+    .orderBy(hotelsTable.city, hotelsTable.id)
+    .limit(pageSize).offset(offset);
 
-  res.json({ items: hotels.map(formatHotel), total: count, page, pageSize });
+  res.json({ items: hotels.map(({ hotel, agency }) => formatHotel(hotel, agency)), total: count, page, pageSize });
 });
 
 router.post("/admin/hotels", async (req, res): Promise<void> => {
   const body = CreateHotelBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
+  const agencyError = await checkAgencyType(body.data.agencyId, "hotel");
+  if (agencyError) { res.status(400).json({ error: agencyError }); return; }
+  const imagesError = checkImageUrls(body.data.images);
+  if (imagesError) { res.status(400).json({ error: imagesError }); return; }
+
   const [h] = await db.insert(hotelsTable).values({
-    name: body.data.name, city: body.data.city, address: body.data.address,
+    agencyId: body.data.agencyId, name: body.data.name, city: body.data.city, address: body.data.address,
     description: body.data.description ?? null,
     pricePerNight: String(body.data.pricePerNight), totalRooms: body.data.totalRooms,
     rating: body.data.rating != null ? String(body.data.rating) : null,
+    images: body.data.images ?? null,
   }).returning();
 
-  res.status(201).json(formatHotel(h));
+  const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, h.agencyId)).limit(1);
+  res.status(201).json(formatHotel(h, agency));
 });
 
 router.put("/admin/hotels/:hotelId", async (req, res): Promise<void> => {
@@ -753,15 +780,22 @@ router.put("/admin/hotels/:hotelId", async (req, res): Promise<void> => {
   const body = UpdateHotelBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
+  const agencyError = await checkAgencyType(body.data.agencyId, "hotel");
+  if (agencyError) { res.status(400).json({ error: agencyError }); return; }
+  const imagesError = checkImageUrls(body.data.images);
+  if (imagesError) { res.status(400).json({ error: imagesError }); return; }
+
   const [h] = await db.update(hotelsTable).set({
-    name: body.data.name, city: body.data.city, address: body.data.address,
+    agencyId: body.data.agencyId, name: body.data.name, city: body.data.city, address: body.data.address,
     description: body.data.description ?? null,
     pricePerNight: String(body.data.pricePerNight), totalRooms: body.data.totalRooms,
     rating: body.data.rating != null ? String(body.data.rating) : null,
+    images: body.data.images ?? null,
   }).where(eq(hotelsTable.id, params.data.hotelId)).returning();
 
   if (!h) { res.status(404).json({ error: "Hôtel non trouvé" }); return; }
-  res.json(formatHotel(h));
+  const [agency] = await db.select().from(agenciesTable).where(eq(agenciesTable.id, h.agencyId)).limit(1);
+  res.json(formatHotel(h, agency));
 });
 
 router.delete("/admin/hotels/:hotelId", async (req, res): Promise<void> => {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetAdminUsers, useUpdateUserRole, useGetMe, useGetAdminCompanies } from "@workspace/api-client-react";
+import { useGetAdminUsers, useUpdateUserRole, useGetMe, getGetMeQueryKey, useGetAdminCompanies, useGetAdminAgencies } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -13,10 +13,13 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AGENCY_TYPE_LABELS } from "@/components/agency-select";
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
 
@@ -33,16 +36,18 @@ export default function AdminUsers() {
   const { data, isLoading } = useGetAdminUsers({ page, pageSize: PAGE_SIZE });
   const users = data?.items;
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
-  const { data: me } = useGetMe({ query: { retry: false } });
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
   const { data: companiesData } = useGetAdminCompanies({ page: 1, pageSize: 100 });
   const companies = companiesData?.items;
+  const { data: agencies } = useGetAdminAgencies();
   const updateUserRole = useUpdateUserRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const saveUser = (userId: number, role: "passenger" | "clerk" | "admin", companyId: number | null) => {
+  // A clerk is assigned either to a bus company or to an agency (hotel / tourism / vehicle rental)
+  const saveUser = (userId: number, role: "passenger" | "clerk" | "admin", companyId: number | null, agencyId: number | null) => {
     updateUserRole.mutate(
-      { userId, data: { role, companyId } },
+      { userId, data: { role, companyId, agencyId } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -52,19 +57,29 @@ export default function AdminUsers() {
           toast({
             variant: "destructive",
             title: "Erreur",
-            description: err?.message || "Impossible de modifier l'utilisateur",
+            description: err?.data?.error || err?.message || "Impossible de modifier l'utilisateur",
           });
         },
       }
     );
   };
 
-  const handleRoleChange = (userId: number, role: string, currentCompanyId: number | null) => {
-    saveUser(userId, role as "passenger" | "clerk" | "admin", role === "clerk" ? currentCompanyId : null);
+  const handleRoleChange = (userId: number, role: string, currentCompanyId: number | null, currentAgencyId: number | null) => {
+    const isClerk = role === "clerk";
+    saveUser(userId, role as "passenger" | "clerk" | "admin", isClerk ? currentCompanyId : null, isClerk ? currentAgencyId : null);
   };
 
-  const handleCompanyChange = (userId: number, companyId: string) => {
-    saveUser(userId, "clerk", parseInt(companyId, 10));
+  // Assignment values are "company:<id>" or "agency:<id>"
+  const handleAssignmentChange = (userId: number, value: string) => {
+    const [kind, id] = value.split(":");
+    const numericId = parseInt(id, 10);
+    saveUser(userId, "clerk", kind === "company" ? numericId : null, kind === "agency" ? numericId : null);
+  };
+
+  const assignmentValue = (user: { companyId?: number | null; agencyId?: number | null }) => {
+    if (user.companyId) return `company:${user.companyId}`;
+    if (user.agencyId) return `agency:${user.agencyId}`;
+    return undefined;
   };
 
   return (
@@ -85,7 +100,7 @@ export default function AdminUsers() {
               <TableHead>Nom</TableHead>
               <TableHead>Date création</TableHead>
               <TableHead className="w-48">Rôle</TableHead>
-              <TableHead className="w-48">Compagnie</TableHead>
+              <TableHead className="w-64">Rattachement</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -112,7 +127,7 @@ export default function AdminUsers() {
                       <Select
                         value={user.role}
                         disabled={isSelf || updateUserRole.isPending}
-                        onValueChange={(role) => handleRoleChange(user.id, role, user.companyId ?? null)}
+                        onValueChange={(role) => handleRoleChange(user.id, role, user.companyId ?? null, user.agencyId ?? null)}
                       >
                         <SelectTrigger className="h-9">
                           <SelectValue />
@@ -128,17 +143,28 @@ export default function AdminUsers() {
                     <TableCell>
                       {user.role === "clerk" ? (
                         <Select
-                          value={user.companyId ? user.companyId.toString() : undefined}
+                          value={assignmentValue(user)}
                           disabled={updateUserRole.isPending}
-                          onValueChange={(companyId) => handleCompanyChange(user.id, companyId)}
+                          onValueChange={(value) => handleAssignmentChange(user.id, value)}
                         >
                           <SelectTrigger className="h-9">
                             <SelectValue placeholder="Choisir..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {companies?.map((c) => (
-                              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                            ))}
+                            <SelectGroup>
+                              <SelectLabel>Compagnies de bus</SelectLabel>
+                              {companies?.map((c) => (
+                                <SelectItem key={`company:${c.id}`} value={`company:${c.id}`}>{c.name}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectGroup>
+                              <SelectLabel>Agences</SelectLabel>
+                              {agencies?.map((a) => (
+                                <SelectItem key={`agency:${a.id}`} value={`agency:${a.id}`}>
+                                  {a.name} · {AGENCY_TYPE_LABELS[a.type]}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                       ) : (

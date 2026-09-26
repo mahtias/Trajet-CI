@@ -8,6 +8,8 @@
 
 export interface Hotel {
   id: number;
+  agencyId: number;
+  agencyName?: string;
   name: string;
   city: string;
   address: string;
@@ -17,5 +19,7 @@ export interface Hotel {
   totalRooms: number;
   /** @nullable */
   rating?: number | null;
+  /** @nullable */
+  images?: string[] | null;
   createdAt: Date;
 }

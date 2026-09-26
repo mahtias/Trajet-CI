@@ -52,3 +52,8 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Uploaded images (admin uploads). Must never be tracked: the VPS deploy does
+# `git reset --hard`, which only preserves untracked/ignored files.
+artifacts/api-server/uploads/*
+!artifacts/api-server/uploads/.gitkeep

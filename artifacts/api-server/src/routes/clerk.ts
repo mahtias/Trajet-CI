@@ -1,15 +1,35 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql } from "drizzle-orm";
-import { db, tripsTable, companiesTable, seatsTable, ticketsTable, type User } from "@workspace/db";
+import { eq, and, sql, desc } from "drizzle-orm";
+import {
+  db, tripsTable, companiesTable, seatsTable, ticketsTable,
+  tourismSpotsTable, tourismBookingsTable, vehiclesTable, vehicleBookingsTable, hotelsTable, hotelBookingsTable,
+  type User,
+} from "@workspace/db";
 import {
   GetClerkTripSeatsParams,
   ClerkSellSeatParams,
   ClerkSellSeatBody,
   GetClerkPassengersParams,
   ValidateTicketParams,
+  UpdateClerkAgencyTourismBookingStatusParams,
+  UpdateClerkAgencyTourismBookingStatusBody,
+  UpdateClerkAgencyVehicleBookingStatusParams,
+  UpdateClerkAgencyVehicleBookingStatusBody,
+  UpdateClerkAgencyHotelBookingStatusParams,
+  UpdateClerkAgencyHotelBookingStatusBody,
 } from "@workspace/api-zod";
 import { generateQrCode } from "../lib/qr";
 import { requireRole } from "../middlewares/require-role";
+import {
+  isAllowedForAgency,
+  selectTourismBookings,
+  selectVehicleBookings,
+  formatTourismBooking,
+  formatVehicleBooking,
+  formatHotelBooking,
+  checkStatusTransition,
+  settlePendingPayment,
+} from "../lib/agency-queries";
 import { selectTrips, getTripDetails, getTripCompanyId, getSeatCounts, formatTripSummary, routeLabels } from "../lib/trip-queries";
 
 const router: IRouter = Router();
@@ -262,6 +282,114 @@ router.post("/clerk/tickets/:ticketId/validate", async (req, res): Promise<void>
       createdAt: updated.createdAt.toISOString(),
     },
   });
+});
+
+// ── Agency bookings (hotel / tourism / vehicle rental) ─────────────────────────
+// Agency clerks only manage bookings (confirm / cancel), never the catalog itself.
+
+/** Agency filter for list endpoints: admins see every agency, clerks only their own; undefined = nothing to show. */
+function agencyScope(user: User): { all: true } | { agencyId: number } | undefined {
+  if (user.role === "admin") return { all: true };
+  return user.agencyId ? { agencyId: user.agencyId } : undefined;
+}
+
+router.get("/clerk/agency/tourism-bookings", async (req, res): Promise<void> => {
+  const scope = agencyScope(currentUser(req));
+  if (!scope) { res.json([]); return; }
+
+  const rows = await selectTourismBookings()
+    .where("agencyId" in scope ? eq(tourismSpotsTable.agencyId, scope.agencyId) : undefined)
+    .orderBy(desc(tourismBookingsTable.visitDate), desc(tourismBookingsTable.id));
+  res.json(rows.map(formatTourismBooking));
+});
+
+router.put("/clerk/agency/tourism-bookings/:bookingId/status", async (req, res): Promise<void> => {
+  const params = UpdateClerkAgencyTourismBookingStatusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = UpdateClerkAgencyTourismBookingStatusBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const [row] = await selectTourismBookings().where(eq(tourismBookingsTable.id, params.data.bookingId)).limit(1);
+  if (!row) { res.status(404).json({ error: "Réservation non trouvée" }); return; }
+  if (!isAllowedForAgency(currentUser(req), row.spot.agencyId)) {
+    res.status(403).json({ error: "Cette réservation appartient à une autre agence" });
+    return;
+  }
+  const transitionError = checkStatusTransition(row.booking.status, body.data.status);
+  if (transitionError) { res.status(409).json({ error: transitionError }); return; }
+
+  const [booking] = await db.update(tourismBookingsTable).set({ status: body.data.status }).where(eq(tourismBookingsTable.id, row.booking.id)).returning();
+  await settlePendingPayment("tourism", booking.id, body.data.status);
+  res.json(formatTourismBooking({ ...row, booking }));
+});
+
+router.get("/clerk/agency/vehicle-bookings", async (req, res): Promise<void> => {
+  const scope = agencyScope(currentUser(req));
+  if (!scope) { res.json([]); return; }
+
+  const rows = await selectVehicleBookings()
+    .where("agencyId" in scope ? eq(vehiclesTable.agencyId, scope.agencyId) : undefined)
+    .orderBy(desc(vehicleBookingsTable.startDate), desc(vehicleBookingsTable.id));
+  res.json(rows.map(formatVehicleBooking));
+});
+
+router.put("/clerk/agency/vehicle-bookings/:bookingId/status", async (req, res): Promise<void> => {
+  const params = UpdateClerkAgencyVehicleBookingStatusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = UpdateClerkAgencyVehicleBookingStatusBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const [row] = await selectVehicleBookings().where(eq(vehicleBookingsTable.id, params.data.bookingId)).limit(1);
+  if (!row) { res.status(404).json({ error: "Réservation non trouvée" }); return; }
+  if (!isAllowedForAgency(currentUser(req), row.vehicle.agencyId)) {
+    res.status(403).json({ error: "Cette réservation appartient à une autre agence" });
+    return;
+  }
+  const transitionError = checkStatusTransition(row.booking.status, body.data.status);
+  if (transitionError) { res.status(409).json({ error: transitionError }); return; }
+
+  const [booking] = await db.update(vehicleBookingsTable).set({ status: body.data.status }).where(eq(vehicleBookingsTable.id, row.booking.id)).returning();
+  await settlePendingPayment("vehicle", booking.id, body.data.status);
+  res.json(formatVehicleBooking({ ...row, booking }));
+});
+
+router.get("/clerk/agency/hotel-bookings", async (req, res): Promise<void> => {
+  const scope = agencyScope(currentUser(req));
+  if (!scope) { res.json([]); return; }
+
+  const rows = await db
+    .select({ booking: hotelBookingsTable, hotel: hotelsTable })
+    .from(hotelBookingsTable)
+    .innerJoin(hotelsTable, eq(hotelBookingsTable.hotelId, hotelsTable.id))
+    .where("agencyId" in scope ? eq(hotelsTable.agencyId, scope.agencyId) : undefined)
+    .orderBy(desc(hotelBookingsTable.checkInDate), desc(hotelBookingsTable.id));
+  res.json(rows.map(({ booking, hotel }) => formatHotelBooking(booking, hotel)));
+});
+
+router.put("/clerk/agency/hotel-bookings/:bookingId/status", async (req, res): Promise<void> => {
+  const params = UpdateClerkAgencyHotelBookingStatusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = UpdateClerkAgencyHotelBookingStatusBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const [row] = await db
+    .select({ booking: hotelBookingsTable, hotel: hotelsTable })
+    .from(hotelBookingsTable)
+    .innerJoin(hotelsTable, eq(hotelBookingsTable.hotelId, hotelsTable.id))
+    .where(eq(hotelBookingsTable.id, params.data.bookingId))
+    .limit(1);
+  if (!row) { res.status(404).json({ error: "Réservation non trouvée" }); return; }
+  if (!isAllowedForAgency(currentUser(req), row.hotel.agencyId)) {
+    res.status(403).json({ error: "Cette réservation appartient à une autre agence" });
+    return;
+  }
+  const transitionError = checkStatusTransition(row.booking.status, body.data.status);
+  if (transitionError) { res.status(409).json({ error: transitionError }); return; }
+
+  // Only the booking status changes: paymentStatus stays owned by the payment flow
+  const [booking] = await db.update(hotelBookingsTable).set({ status: body.data.status }).where(eq(hotelBookingsTable.id, row.booking.id)).returning();
+  await settlePendingPayment("hotel", booking.id, body.data.status);
+  res.json(formatHotelBooking(booking, row.hotel));
 });
 
 export default router;

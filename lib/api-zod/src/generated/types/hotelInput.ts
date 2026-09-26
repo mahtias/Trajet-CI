@@ -7,6 +7,7 @@
  */
 
 export interface HotelInput {
+  agencyId: number;
   name: string;
   city: string;
   address: string;
@@ -16,4 +17,6 @@ export interface HotelInput {
   totalRooms: number;
   /** @nullable */
   rating?: number | null;
+  /** @nullable */
+  images?: string[] | null;
 }
