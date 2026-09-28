@@ -63,7 +63,13 @@ export function Navbar() {
     });
   };
 
-  const NavLinks = () => {
+  const loginLink = (
+    <Link href="/login" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+      {t("nav.login")}
+    </Link>
+  );
+
+  const NavLinks = ({ withLogin = true }: { withLogin?: boolean }) => {
     if (!user) {
       return (
         <>
@@ -76,12 +82,11 @@ export function Navbar() {
           <Link href="/vehicles" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
             <Car className="h-4 w-4" /> {t("nav.vehicles")}
           </Link>
-          <Link href="/login" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            {t("nav.login")}
-          </Link>
           <Button asChild className="rounded-full">
             <Link href="/login">{t("nav.buyTicket")}</Link>
           </Button>
+          {/* On desktop "Se connecter" is rendered last, after the currency and language pickers */}
+          {withLogin && loginLink}
         </>
       );
     }
@@ -206,9 +211,10 @@ export function Navbar() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-6">
-          <NavLinks />
+          <NavLinks withLogin={false} />
           <CurrencySelect />
           <LanguageToggle />
+          {!user && loginLink}
         </nav>
 
         {/* Mobile Nav Toggle */}

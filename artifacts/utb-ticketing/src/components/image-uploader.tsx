@@ -4,6 +4,7 @@ import { ImagePlus, Loader2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { ImageThumb } from "@/components/image-gallery";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE = 5 * 1024 * 1024; // must match the server limit
@@ -73,7 +74,7 @@ export function ImageUploader({ value, onChange, max = 5 }: ImageUploaderProps) 
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
           {value.map((url, i) => (
             <div key={url + i} className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted group">
-              <img src={url} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
+              <ImageThumb src={url} alt={`Image ${i + 1}`} className="w-full h-full" thumbnail />
               {i === 0 && (
                 <span className="absolute bottom-1 left-1 text-[10px] font-bold bg-background/90 px-1.5 py-0.5 rounded">Principale</span>
               )}

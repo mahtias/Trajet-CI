@@ -1,11 +1,11 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { writeFile } from "node:fs/promises";
 import multer from "multer";
 import { fileTypeFromBuffer } from "file-type";
 import { requireRole } from "../middlewares/require-role";
 import { UPLOADS_DIR, UPLOADS_URL_PREFIX } from "../lib/uploads";
+import { processAndStoreImage, ImageRejected } from "../lib/image-processing";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
@@ -64,9 +64,18 @@ router.post("/admin/uploads", requireRole("admin"), async (req, res): Promise<vo
     return;
   }
 
-  // Server-generated name: nothing from the original filename ends up on disk
-  const filename = `${randomUUID()}.${detected.ext}`;
-  await writeFile(path.join(UPLOADS_DIR, filename), file.buffer, { flag: "wx" });
+  // Compressed WebP + thumbnail; the original is never written to disk.
+  // Server-generated name: nothing from the original filename ends up on disk.
+  let filename: string;
+  try {
+    filename = await processAndStoreImage(file.buffer, UPLOADS_DIR, randomUUID());
+  } catch (err) {
+    if (err instanceof ImageRejected) { res.status(err.status).json({ error: err.message }); return; }
+    // Disk full, permissions…: no internal detail in the response, but logged for the admin
+    req.log.error({ err }, "Image upload could not be stored");
+    res.status(500).json({ error: "Impossible d'enregistrer l'image, réessayez plus tard" });
+    return;
+  }
 
   res.status(201).json({ url: `${UPLOADS_URL_PREFIX}/${filename}` });
 });

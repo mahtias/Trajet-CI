@@ -1,7 +1,8 @@
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { ImageOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { thumbUrl } from "@/lib/images";
 
 interface ImageThumbProps {
   src: string | null | undefined;
@@ -9,13 +10,19 @@ interface ImageThumbProps {
   /** Icon shown on the neutral placeholder when there's no image (or it fails to load). */
   icon?: ComponentType<{ className?: string }>;
   className?: string;
+  /** Load the small "-thumb" version (lists, previews); falls back to the full image if it's missing. */
+  thumbnail?: boolean;
 }
 
 /** A single cover image with a neutral placeholder when missing or broken. */
-export function ImageThumb({ src, alt, icon: Icon = ImageOff, className }: ImageThumbProps) {
-  const [failed, setFailed] = useState(false);
+export function ImageThumb({ src, alt, icon: Icon = ImageOff, className, thumbnail = false }: ImageThumbProps) {
+  // Candidates tried in order: thumbnail (if asked and it exists by convention), then the full image
+  const candidates = src ? Array.from(new Set(thumbnail ? [thumbUrl(src), src] : [src])) : [];
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => setAttempt(0), [src, thumbnail]);
 
-  if (!src || failed) {
+  const current = candidates[attempt];
+  if (!current) {
     return (
       <div className={cn("bg-muted flex items-center justify-center text-muted-foreground", className)} aria-label={alt} role="img">
         <Icon className="w-10 h-10 opacity-60" />
@@ -23,7 +30,16 @@ export function ImageThumb({ src, alt, icon: Icon = ImageOff, className }: Image
     );
   }
 
-  return <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} className={cn("object-cover", className)} />;
+  return (
+    <img
+      src={current}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onError={() => setAttempt((n) => n + 1)}
+      className={cn("object-cover", className)}
+    />
+  );
 }
 
 interface ImageGalleryProps {
@@ -54,7 +70,7 @@ export function ImageGallery({ images, alt, icon }: ImageGalleryProps) {
               )}
               aria-label={`Voir l'image ${i + 1}`}
             >
-              <ImageThumb src={src} alt={`${alt} ${i + 1}`} icon={icon} className="w-full h-full" />
+              <ImageThumb src={src} alt={`${alt} ${i + 1}`} icon={icon} className="w-full h-full" thumbnail />
             </button>
           ))}
         </div>

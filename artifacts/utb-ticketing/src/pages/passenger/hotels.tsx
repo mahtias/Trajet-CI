@@ -114,6 +114,7 @@ export default function Hotels() {
                   alt={hotel.name}
                   icon={Hotel}
                   className="w-full md:w-40 aspect-video md:aspect-[4/3] rounded-lg shrink-0"
+                  thumbnail
                 />
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">

@@ -74,7 +74,7 @@ export default function Vehicles() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {vehicles.map((vehicle) => (
             <Card key={vehicle.id} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow hover:border-primary/40">
-              <ImageThumb src={vehicle.images?.[0]} alt={`${vehicle.brand} ${vehicle.model}`} icon={Car} className="w-full aspect-video" />
+              <ImageThumb src={vehicle.images?.[0]} alt={`${vehicle.brand} ${vehicle.model}`} icon={Car} className="w-full aspect-video" thumbnail />
               <CardContent className="p-5 flex flex-col flex-1">
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="text-lg font-bold text-foreground">{vehicle.brand} {vehicle.model}</h3>

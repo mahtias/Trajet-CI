@@ -73,7 +73,7 @@ export default function Tourism() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {spots.map((spot) => (
             <Card key={spot.id} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow hover:border-primary/40">
-              <ImageThumb src={spot.images?.[0]} alt={spot.name} icon={Landmark} className="w-full aspect-video" />
+              <ImageThumb src={spot.images?.[0]} alt={spot.name} icon={Landmark} className="w-full aspect-video" thumbnail />
               <CardContent className="p-5 flex flex-col flex-1">
                 <h3 className="text-lg font-bold text-foreground mb-1">{spot.name}</h3>
                 <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">

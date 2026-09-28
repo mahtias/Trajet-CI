@@ -35,13 +35,14 @@ export const MAX_IMAGES = 5;
 
 /**
  * Error message if the image list is invalid, or null if it's fine.
- * Images are URLs from POST /admin/uploads (or external http(s) URLs), stored as-is in jsonb.
+ * Images are URLs from POST /admin/uploads, stored as-is in jsonb.
  */
 export function checkImageUrls(images: string[] | null | undefined): string | null {
   if (!images) return null;
   if (images.length > MAX_IMAGES) return `${MAX_IMAGES} images maximum`;
-  const valid = (url: string) => url.length <= 2048 && (/^\/api\/uploads\/[\w.-]+$/.test(url) || /^https?:\/\//.test(url));
-  if (!images.every(valid)) return "Image invalide : utilisez une URL renvoyée par l'envoi de fichier ou une URL http(s)";
+  // Only files returned by POST /admin/uploads: "<uuid>.webp" (compressed) or the older "<uuid>.jpg|png|webp"
+  const valid = (url: string) => /^\/api\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(webp|jpg|png)$/.test(url);
+  if (!images.every(valid)) return "Image invalide : utilisez une image envoyée via l'upload";
   return null;
 }
 
