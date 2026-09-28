@@ -12,6 +12,7 @@ import clerkRouter from "./clerk";
 import adminRouter from "./admin";
 import adminAgenciesRouter from "./admin-agencies";
 import uploadsRouter from "./uploads";
+import exchangeRatesRouter from "./exchange-rates";
 
 const router: IRouter = Router();
 
@@ -25,6 +26,7 @@ router.use(hotelsRouter);
 router.use(tourismRouter);
 router.use(vehiclesRouter);
 router.use(uploadsRouter); // requireRole("admin") is applied per route, not router-wide
+router.use(exchangeRatesRouter); // public GET + admin PUT (per-route requireRole)
 // Routers below apply requireRole() to every request that reaches them: keep public routers above.
 router.use(clerkRouter);
 router.use(adminRouter);

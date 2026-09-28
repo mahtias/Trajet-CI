@@ -11,16 +11,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CityCombobox } from "@/components/city-combobox";
+import { Price } from "@/components/price";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/use-language";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { useListCities, getListCitiesQueryKey } from "@workspace/api-client-react";
 
 const POPULAR_ROUTES = [
-  { origin: "Abidjan", destination: "Bouaké", price: "5 000 FCFA" },
-  { origin: "Abidjan", destination: "Yamoussoukro", price: "3 500 FCFA" },
-  { origin: "Abidjan", destination: "Daloa", price: "6 000 FCFA" },
-  { origin: "Abidjan", destination: "San-Pédro", price: "7 000 FCFA" },
+  { origin: "Abidjan", destination: "Bouaké", priceFcfa: 5000 },
+  { origin: "Abidjan", destination: "Yamoussoukro", priceFcfa: 3500 },
+  { origin: "Abidjan", destination: "Daloa", priceFcfa: 6000 },
+  { origin: "Abidjan", destination: "San-Pédro", priceFcfa: 7000 },
 ];
 
 function buildFormSchema(t: (key: string) => string) {
@@ -228,7 +229,7 @@ export default function Home() {
                     </div>
                     <div className="pt-4 border-t border-border flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t("home.startingFrom")}</span>
-                      <span className="font-bold text-accent font-mono text-lg">{route.price}</span>
+                      <Price amountFcfa={route.priceFcfa} align="right" className="font-bold text-accent font-mono text-lg" />
                     </div>
                   </div>
                 </div>

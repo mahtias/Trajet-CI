@@ -1,7 +1,7 @@
 import { useGetClerkTrips, useGetMe } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Users, Clock, ArrowRight, Building2 } from "lucide-react";
+import { Users, Clock, ArrowRight, Building2, Navigation } from "lucide-react";
 import { Link } from "wouter";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +81,11 @@ export default function ClerkDashboard() {
                 <Button asChild className="w-full" disabled={trip.status === "cancelled"}>
                   <Link href={`/clerk/trips/${trip.id}`}>
                     Gérer le voyage
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full mt-2 gap-2">
+                  <Link href={`/clerk/trips/${trip.id}/share`}>
+                    <Navigation className="w-4 h-4" /> Partager ma position
                   </Link>
                 </Button>
               </CardContent>

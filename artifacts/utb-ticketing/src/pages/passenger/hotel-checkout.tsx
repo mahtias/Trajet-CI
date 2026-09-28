@@ -3,7 +3,8 @@ import { useParams, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useInitiateHotelBooking, useHotelBookingCallback, useGetMe } from "@workspace/api-client-react";
+import { useInitiateHotelBooking, useHotelBookingCallback, useGetMe, useGetHotel, getGetHotelQueryKey } from "@workspace/api-client-react";
+import { differenceInCalendarDays, parseISO } from "date-fns";
 import { ArrowLeft, Shield } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/use-language";
+import { PaymentAmount } from "@/components/price";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, getPaymentMethod, type PaymentMethodId } from "@/lib/payment-methods";
 
@@ -34,6 +37,12 @@ export default function HotelCheckout() {
   const checkIn = searchParams.get("checkIn") || "";
   const checkOut = searchParams.get("checkOut") || "";
   const rooms = parseInt(searchParams.get("rooms") || "1", 10);
+
+  // Same formula as the server (price/night × nights × rooms); the server's amount is the one charged
+  const { data: hotel } = useGetHotel(hotelId, { query: { queryKey: getGetHotelQueryKey(hotelId), enabled: !!hotelId } });
+  const nights = checkIn && checkOut ? differenceInCalendarDays(parseISO(checkOut), parseISO(checkIn)) : 0;
+  const amountToPay = hotel && nights > 0 ? hotel.pricePerNight * nights * rooms : null;
+  const { t } = useLanguage();
 
   const { toast } = useToast();
   const { data: user } = useGetMe({ query: { retry: false } });
@@ -128,6 +137,14 @@ export default function HotelCheckout() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-8">
+          {amountToPay !== null && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-6 flex items-center justify-between gap-4">
+              <span className="text-muted-foreground font-medium">{t("price.amountToPay")} · {nights} nuit{nights > 1 ? "s" : ""}, {rooms} chambre{rooms > 1 ? "s" : ""}</span>
+              <PaymentAmount amountFcfa={amountToPay} className="text-2xl font-bold text-primary font-mono" />
+            </CardContent>
+            </Card>
+          )}
           <Card className="border-border">
             <CardContent className="p-6">
               <h2 className="text-xl font-bold mb-4">Choisissez votre moyen de paiement</h2>
@@ -145,7 +162,7 @@ export default function HotelCheckout() {
                       )}
                     >
                       <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs", method.badgeClass)}>
-                        {method.name.slice(0, 2).toUpperCase()}
+                        {method.shortLabel}
                       </div>
                       <span className="text-sm font-semibold text-center">{method.name}</span>
                     </button>
@@ -192,11 +209,15 @@ export default function HotelCheckout() {
 
                   <div className={cn("border rounded-xl p-4 flex gap-4 mt-8", selectedMethod.panelClass)}>
                     <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0", selectedMethod.badgeClass)}>
-                      {selectedMethod.name.slice(0, 2).toUpperCase()}
+                      {selectedMethod.shortLabel}
                     </div>
                     <div>
                       <h4 className="font-bold">Payer avec {selectedMethod.name}</h4>
-                      <p className="text-sm opacity-80">Vous recevrez un prompt sur votre téléphone {selectedMethod.name} pour confirmer le paiement.</p>
+                      <p className="text-sm opacity-80">
+                        {selectedMethod.kind === "card"
+                          ? "Vous saisirez les informations de votre carte sur une page de paiement sécurisée."
+                          : `Vous recevrez un prompt sur votre téléphone ${selectedMethod.name} pour confirmer le paiement.`}
+                      </p>
                     </div>
                   </div>
 

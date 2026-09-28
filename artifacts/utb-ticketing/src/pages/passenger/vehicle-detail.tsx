@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ImageGallery } from "@/components/image-gallery";
+import { Price, PaymentAmount } from "@/components/price";
 
 export default function VehicleDetail() {
   const { id } = useParams<{ id: string }>();
@@ -97,9 +98,7 @@ export default function VehicleDetail() {
           <p className="text-muted-foreground flex items-center gap-1 mb-4 text-sm">
             <Users className="w-4 h-4" /> {vehicle.seats} places · proposé par {vehicle.agencyName}
           </p>
-          <p className="text-2xl font-bold text-accent font-mono">
-            {vehicle.pricePerDay.toLocaleString("fr-CI")} FCFA<span className="text-sm text-muted-foreground font-normal">/jour</span>
-          </p>
+          <Price amountFcfa={vehicle.pricePerDay} suffix="/jour" className="text-2xl font-bold text-accent font-mono" />
         </CardContent>
       </Card>
 
@@ -109,9 +108,11 @@ export default function VehicleDetail() {
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-3" />
             <h2 className="text-xl font-bold mb-2">Demande de location enregistrée</h2>
             <p className="text-muted-foreground mb-1">
-              Du {format(parseISO(booking.startDate), "dd/MM/yyyy")} au {format(parseISO(booking.endDate), "dd/MM/yyyy")} ·{" "}
-              <span className="font-bold font-mono">{booking.totalPrice.toLocaleString("fr-CI")} FCFA</span>
+              Du {format(parseISO(booking.startDate), "dd/MM/yyyy")} au {format(parseISO(booking.endDate), "dd/MM/yyyy")}
             </p>
+            <div className="mb-2">
+              <PaymentAmount amountFcfa={booking.totalPrice} align="center" className="font-bold font-mono text-lg text-foreground" />
+            </div>
             <p className="text-sm text-muted-foreground mb-4">
               Statut : en attente. L'agence confirmera votre location à réception du paiement.
             </p>
@@ -163,7 +164,7 @@ export default function VehicleDetail() {
 
               <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20">
                 <span className="text-muted-foreground">Total estimé ({days} jour{days > 1 ? "s" : ""})</span>
-                <span className="text-2xl font-bold text-primary font-mono">{estimatedTotal.toLocaleString("fr-CI")} FCFA</span>
+                <PaymentAmount amountFcfa={estimatedTotal} className="text-2xl font-bold text-primary font-mono" />
               </div>
 
               {error && (

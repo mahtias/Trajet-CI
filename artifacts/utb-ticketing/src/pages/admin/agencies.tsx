@@ -22,14 +22,19 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { AGENCY_TYPE_LABELS } from "@/components/agency-select";
+import { ListPagination } from "@/components/list-pagination";
+import { useClientPagination } from "@/hooks/use-client-pagination";
 
 const ALL_TYPES = "all";
+const PAGE_SIZE = 20;
 
 export default function AdminAgencies() {
   const [typeFilter, setTypeFilter] = useState<string>(ALL_TYPES);
   const { data: agencies, isLoading } = useGetAdminAgencies(
     typeFilter === ALL_TYPES ? undefined : { type: typeFilter as AgencyType }
   );
+
+  const agenciesPage = useClientPagination(agencies, PAGE_SIZE);
 
   const createAgency = useCreateAgency();
   const updateAgency = useUpdateAgency();
@@ -121,7 +126,7 @@ export default function AdminAgencies() {
         <h1 className="text-3xl font-bold text-foreground">Gestion des Agences</h1>
 
         <div className="flex gap-4 items-center w-full md:w-auto">
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); agenciesPage.setPage(1); }}>
             <SelectTrigger className="w-full md:w-56">
               <SelectValue />
             </SelectTrigger>
@@ -202,7 +207,7 @@ export default function AdminAgencies() {
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Aucune agence.</TableCell>
               </TableRow>
             ) : (
-              agencies?.map((agency) => (
+              agenciesPage.pageItems?.map((agency) => (
                 <TableRow key={agency.id}>
                   <TableCell className="font-bold">{agency.name}</TableCell>
                   <TableCell>
@@ -227,6 +232,7 @@ export default function AdminAgencies() {
             )}
           </TableBody>
         </Table>
+        <ListPagination page={agenciesPage.page} totalPages={agenciesPage.totalPages} onPageChange={agenciesPage.setPage} />
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { Layout } from '@/components/layout';
 import { LanguageProvider } from '@/lib/i18n/language-context';
+import { CurrencyProvider } from '@/lib/currency';
 import { RequireRole } from '@/components/require-role';
 
 // Pages
@@ -25,12 +26,14 @@ import TourismDetail from '@/pages/passenger/tourism-detail';
 import Vehicles from '@/pages/passenger/vehicles';
 import VehicleDetail from '@/pages/passenger/vehicle-detail';
 import MyBookings from '@/pages/passenger/my-bookings';
+import TrackTrip from '@/pages/passenger/track-trip';
 
 import ClerkDashboard from '@/pages/clerk/dashboard';
 import ClerkTripDetail from '@/pages/clerk/trip-detail';
 import ClerkSell from '@/pages/clerk/sell';
 import ClerkValidate from '@/pages/clerk/validate';
 import ClerkAgencyBookings from '@/pages/clerk/agency-bookings';
+import ClerkShareLocation from '@/pages/clerk/share-location';
 
 import AdminDashboard from '@/pages/admin/dashboard';
 import AdminCompanies from '@/pages/admin/companies';
@@ -44,6 +47,7 @@ import AdminFleet from '@/pages/admin/fleet';
 import AdminAgencies from '@/pages/admin/agencies';
 import AdminTourismSpots from '@/pages/admin/tourism-spots';
 import AdminVehicles from '@/pages/admin/vehicles';
+import AdminExchangeRates from '@/pages/admin/exchange-rates';
 
 const queryClient = new QueryClient();
 
@@ -59,6 +63,7 @@ function Router() {
         <Route path="/checkout" component={Checkout} />
         <Route path="/tickets" component={Tickets} />
         <Route path="/tickets/:id" component={TicketDetail} />
+        <Route path="/tickets/:id/track" component={TrackTrip} />
         <Route path="/hotels" component={Hotels} />
         <Route path="/hotels/:id" component={HotelDetail} />
         <Route path="/hotels/:id/checkout" component={HotelCheckout} />
@@ -112,6 +117,9 @@ function Router() {
         <Route path="/admin/hotels">
           <RequireRole roles={['admin']}><AdminHotels /></RequireRole>
         </Route>
+        <Route path="/admin/exchange-rates">
+          <RequireRole roles={['admin']}><AdminExchangeRates /></RequireRole>
+        </Route>
         <Route path="/admin/agencies">
           <RequireRole roles={['admin']}><AdminAgencies /></RequireRole>
         </Route>
@@ -120,6 +128,9 @@ function Router() {
         </Route>
         <Route path="/admin/vehicles">
           <RequireRole roles={['admin']}><AdminVehicles /></RequireRole>
+        </Route>
+        <Route path="/clerk/trips/:id/share">
+          <RequireRole roles={['clerk', 'admin']}><ClerkShareLocation /></RequireRole>
         </Route>
         <Route path="/clerk/agency">
           <RequireRole roles={['clerk', 'admin']}><ClerkAgencyBookings /></RequireRole>
@@ -135,12 +146,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
+        <CurrencyProvider>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
             <Router />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
+        </CurrencyProvider>
       </LanguageProvider>
     </QueryClientProvider>
   );

@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
+import { Price } from "@/components/price";
 
 export default function Trips() {
   const [location] = useLocation();
@@ -87,9 +88,7 @@ export default function Trips() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="text-2xl font-bold text-accent font-mono">
-                            {trip.price.toLocaleString(numberLocale)} FCFA
-                          </span>
+                          <Price amountFcfa={trip.price} align="right" className="text-2xl font-bold text-accent font-mono" />
                         </div>
                       </div>
 

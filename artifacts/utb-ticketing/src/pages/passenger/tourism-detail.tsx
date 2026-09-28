@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ImageGallery } from "@/components/image-gallery";
+import { Price, PaymentAmount } from "@/components/price";
 
 export default function TourismDetail() {
   const { id } = useParams<{ id: string }>();
@@ -82,9 +83,7 @@ export default function TourismDetail() {
             <Users className="w-4 h-4" /> {spot.capacityPerDay} visiteurs par jour · proposé par {spot.agencyName}
           </p>
           {spot.description && <p className="text-foreground/80 mb-4 whitespace-pre-line">{spot.description}</p>}
-          <p className="text-2xl font-bold text-accent font-mono">
-            {spot.price.toLocaleString("fr-CI")} FCFA<span className="text-sm text-muted-foreground font-normal">/personne</span>
-          </p>
+          <Price amountFcfa={spot.price} suffix="/personne" className="text-2xl font-bold text-accent font-mono" />
         </CardContent>
       </Card>
 
@@ -94,9 +93,11 @@ export default function TourismDetail() {
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-3" />
             <h2 className="text-xl font-bold mb-2">Demande de réservation enregistrée</h2>
             <p className="text-muted-foreground mb-1">
-              {booking.nbPeople} personne(s) le {format(parseISO(booking.visitDate), "dd/MM/yyyy")} ·{" "}
-              <span className="font-bold font-mono">{booking.totalPrice.toLocaleString("fr-CI")} FCFA</span>
+              {booking.nbPeople} personne(s) le {format(parseISO(booking.visitDate), "dd/MM/yyyy")}
             </p>
+            <div className="mb-2">
+              <PaymentAmount amountFcfa={booking.totalPrice} align="center" className="font-bold font-mono text-lg text-foreground" />
+            </div>
             <p className="text-sm text-muted-foreground mb-4">
               Statut : en attente. L'agence confirmera votre réservation à réception du paiement.
             </p>
@@ -138,7 +139,7 @@ export default function TourismDetail() {
 
               <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20">
                 <span className="text-muted-foreground">Total estimé</span>
-                <span className="text-2xl font-bold text-primary font-mono">{estimatedTotal.toLocaleString("fr-CI")} FCFA</span>
+                <PaymentAmount amountFcfa={estimatedTotal} className="text-2xl font-bold text-primary font-mono" />
               </div>
 
               {error && (

@@ -314,6 +314,8 @@ export const PaymentInputPaymentMethod = {
   wave: 'wave',
   orange_money: 'orange_money',
   mtn_money: 'mtn_money',
+  moov_money: 'moov_money',
+  card: 'card',
 } as const;
 
 export interface PaymentInput {
@@ -347,6 +349,8 @@ export const TicketPaymentMethod = {
   wave: 'wave',
   orange_money: 'orange_money',
   mtn_money: 'mtn_money',
+  moov_money: 'moov_money',
+  card: 'card',
 } as const;
 
 export type TicketPaymentStatus = typeof TicketPaymentStatus[keyof typeof TicketPaymentStatus];
@@ -449,6 +453,8 @@ export const HotelBookingInputPaymentMethod = {
   wave: 'wave',
   orange_money: 'orange_money',
   mtn_money: 'mtn_money',
+  moov_money: 'moov_money',
+  card: 'card',
 } as const;
 
 export interface HotelBookingInput {
@@ -481,6 +487,8 @@ export const HotelBookingPaymentMethod = {
   wave: 'wave',
   orange_money: 'orange_money',
   mtn_money: 'mtn_money',
+  moov_money: 'moov_money',
+  card: 'card',
 } as const;
 
 export type HotelBookingPaymentStatus = typeof HotelBookingPaymentStatus[keyof typeof HotelBookingPaymentStatus];
@@ -770,6 +778,33 @@ export interface UploadInput {
 
 export interface UploadResponse {
   url: string;
+}
+
+export interface TripLocation {
+  latitude: number;
+  longitude: number;
+  updatedAt: string;
+}
+
+export type ExchangeRateCurrency = typeof ExchangeRateCurrency[keyof typeof ExchangeRateCurrency];
+
+
+export const ExchangeRateCurrency = {
+  EUR: 'EUR',
+  USD: 'USD',
+  CNY: 'CNY',
+} as const;
+
+export interface ExchangeRate {
+  currency: ExchangeRateCurrency;
+  /** Number of FCFA for 1 unit of the currency */
+  fcfaPerUnit: number;
+  updatedAt: string;
+}
+
+export interface ExchangeRateInput {
+  /** @exclusiveMinimum 0 */
+  fcfaPerUnit: number;
 }
 
 export type SearchTripsParams = {

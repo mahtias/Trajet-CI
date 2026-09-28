@@ -6,6 +6,7 @@ import { Link } from "wouter";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Price } from "@/components/price";
 
 export default function HotelBookings() {
   const { data: bookings, isLoading } = useGetMyHotelBookings();
@@ -59,7 +60,7 @@ export default function HotelBookings() {
                     {format(new Date(booking.checkInDate), "d MMM", { locale: fr })} → {format(new Date(booking.checkOutDate), "d MMM yyyy", { locale: fr })}
                   </div>
                   <div className="flex justify-between items-center mt-3 pt-3 border-t border-border">
-                    <span className="font-mono font-bold text-accent">{booking.totalPrice.toLocaleString("fr-CI")} FCFA</span>
+                    <Price amountFcfa={booking.totalPrice} className="font-mono font-bold text-accent" />
                     <span className="font-medium text-primary flex items-center gap-1 text-sm group-hover:translate-x-1 transition-transform">
                       Voir <ArrowRight className="w-4 h-4" />
                     </span>

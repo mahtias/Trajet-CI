@@ -6,6 +6,7 @@ import { Landmark, Car, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
+import { Price } from "@/components/price";
 
 export default function MyBookings() {
   const { data: tourismBookings, isLoading: tourismLoading } = useGetMyTourismBookings();
@@ -46,7 +47,7 @@ export default function MyBookings() {
                 </p>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <span className="font-bold font-mono">{b.totalPrice.toLocaleString("fr-CI")} FCFA</span>
+                <Price amountFcfa={b.totalPrice} align="right" className="font-bold font-mono" />
                 <BookingStatusBadge status={b.status} />
               </div>
             </CardContent>
@@ -62,7 +63,7 @@ export default function MyBookings() {
                 </p>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <span className="font-bold font-mono">{b.totalPrice.toLocaleString("fr-CI")} FCFA</span>
+                <Price amountFcfa={b.totalPrice} align="right" className="font-bold font-mono" />
                 <BookingStatusBadge status={b.status} />
               </div>
             </CardContent>

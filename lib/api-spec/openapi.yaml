@@ -26,6 +26,8 @@ tags:
     description: Tourism spots and bookings
   - name: vehicles
     description: Vehicle rental and bookings
+  - name: exchange-rates
+    description: Display-only currency conversion rates
   - name: clerk
     description: Station clerk operations
   - name: admin
@@ -198,6 +200,31 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Seat"
+
+  /trips/{tripId}/location:
+    get:
+      operationId: getTripLocation
+      tags: [trips]
+      summary: Last known bus position for a trip (staff of the trip's company, or a passenger with a paid ticket)
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Last known position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripLocation"
+        "401":
+          description: Not logged in
+        "403":
+          description: No valid ticket for this trip
+        "404":
+          description: No position shared yet
 
   # Seat reservation
   /seats/{seatId}/reserve:
@@ -1281,6 +1308,66 @@ paths:
               schema:
                 $ref: "#/components/schemas/SalesReport"
 
+  # Exchange rates (display only: prices and payments stay in FCFA)
+  /exchange-rates:
+    get:
+      operationId: listExchangeRates
+      tags: [exchange-rates]
+      summary: Exchange rates available for indicative price conversions
+      responses:
+        "200":
+          description: Rates that have been set (FCFA per unit of currency)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExchangeRate"
+
+  /admin/exchange-rates/{currency}:
+    put:
+      operationId: updateExchangeRate
+      tags: [admin]
+      summary: Set the rate of a currency (upsert)
+      parameters:
+        - name: currency
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [EUR, USD, CNY]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeRateInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRate"
+    delete:
+      operationId: deleteExchangeRate
+      tags: [admin]
+      summary: Remove the rate of a currency (it is then no longer offered for display). EUR cannot be removed.
+      parameters:
+        - name: currency
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [EUR, USD, CNY]
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   # Admin - Image uploads (hotels, tourism spots, vehicles)
   /admin/uploads:
     post:
@@ -2280,7 +2367,7 @@ components:
           type: string
         paymentMethod:
           type: string
-          enum: [wave, orange_money, mtn_money]
+          enum: [wave, orange_money, mtn_money, moov_money, card]
 
     PaymentResponse:
       type: object
@@ -2339,7 +2426,7 @@ components:
           type: string
         paymentMethod:
           type: string
-          enum: [wave, orange_money, mtn_money]
+          enum: [wave, orange_money, mtn_money, moov_money, card]
         paymentStatus:
           type: string
           enum: [pending, paid]
@@ -2485,7 +2572,7 @@ components:
           type: integer
         paymentMethod:
           type: string
-          enum: [wave, orange_money, mtn_money]
+          enum: [wave, orange_money, mtn_money, moov_money, card]
 
     HotelBookingCallbackInput:
       type: object
@@ -2537,7 +2624,7 @@ components:
           type: string
         paymentMethod:
           type: string
-          enum: [wave, orange_money, mtn_money]
+          enum: [wave, orange_money, mtn_money, moov_money, card]
         paymentStatus:
           type: string
           enum: [pending, paid]
@@ -2991,3 +3078,39 @@ components:
       properties:
         url:
           type: string
+
+    # Live trip tracking
+    TripLocation:
+      type: object
+      required: [latitude, longitude, updatedAt]
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        updatedAt:
+          type: string
+          format: date-time
+
+    # Exchange rates (display only)
+    ExchangeRate:
+      type: object
+      required: [currency, fcfaPerUnit, updatedAt]
+      properties:
+        currency:
+          type: string
+          enum: [EUR, USD, CNY]
+        fcfaPerUnit:
+          type: number
+          description: Number of FCFA for 1 unit of the currency
+        updatedAt:
+          type: string
+          format: date-time
+
+    ExchangeRateInput:
+      type: object
+      required: [fcfaPerUnit]
+      properties:
+        fcfaPerUnit:
+          type: number
+          exclusiveMinimum: 0

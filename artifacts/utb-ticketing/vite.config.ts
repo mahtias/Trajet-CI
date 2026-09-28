@@ -110,6 +110,8 @@ export default defineConfig({
       '/api': {
         target: `http://localhost:${process.env.API_PORT ?? 8080}`,
         changeOrigin: true,
+        // Socket.io (live trip tracking) lives under /api/socket.io
+        ws: true,
       },
     },
     fs: {
@@ -124,6 +126,8 @@ export default defineConfig({
       '/api': {
         target: `http://localhost:${process.env.API_PORT ?? 8080}`,
         changeOrigin: true,
+        // Socket.io (live trip tracking) lives under /api/socket.io
+        ws: true,
       },
     },
   },

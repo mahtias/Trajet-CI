@@ -4,8 +4,10 @@ import { db, tripsTable, citiesTable, seatsTable } from "@workspace/db";
 import {
   GetTripParams,
   GetTripSeatsParams,
+  GetTripLocationParams,
 } from "@workspace/api-zod";
 import { z } from "zod";
+import { getUserById, getTrackingAccess, getLastLocation, formatTripLocation } from "../lib/trip-tracking";
 import {
   selectTrips,
   getTripDetails,
@@ -112,6 +114,26 @@ router.get("/trips/:tripId/seats", async (req, res): Promise<void> => {
       passengerName: s.passengerName,
     }))
   );
+});
+
+// First display for the tracking page; live updates then come through Socket.io (lib/socket.ts)
+router.get("/trips/:tripId/location", async (req, res): Promise<void> => {
+  const params = GetTripLocationParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const userId = (req.session as { userId?: number }).userId;
+  const user = userId ? await getUserById(userId) : undefined;
+  if (!user) { res.status(401).json({ error: "Authentification requise" }); return; }
+
+  if (!(await getTrackingAccess(user, params.data.tripId))) {
+    res.status(403).json({ error: "Vous n'avez pas de billet payé pour ce voyage" });
+    return;
+  }
+
+  const location = await getLastLocation(params.data.tripId);
+  if (!location) { res.status(404).json({ error: "Le chauffeur n'a pas encore démarré le partage de position" }); return; }
+
+  res.json(formatTripLocation(location));
 });
 
 export default router;

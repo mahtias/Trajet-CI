@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
+import { Price } from "@/components/price";
 
 export default function TripDetail() {
   const { id } = useParams<{ id: string }>();
@@ -49,7 +50,7 @@ export default function TripDetail() {
     // We navigate to checkout with the selected seat id
     // The actual reservation will be done at checkout or we can do a temporary lock here.
     // For this flow, we will pass it as query param to checkout
-    setLocation(`/checkout?seatId=${selectedSeatId}`);
+    setLocation(`/checkout?tripId=${tripId}&seatId=${selectedSeatId}`);
   };
 
   if (isLoadingTrip || isLoadingSeats) {
@@ -91,7 +92,7 @@ export default function TripDetail() {
             </div>
             <div className="bg-white/10 px-6 py-4 rounded-xl text-right">
               <div className="text-sm text-white/80 uppercase tracking-wider mb-1">{t("tripDetail.pricePerSeat")}</div>
-              <div className="text-3xl font-mono font-bold text-accent">{trip.price.toLocaleString(numberLocale)} FCFA</div>
+              <Price amountFcfa={trip.price} align="right" className="text-3xl font-mono font-bold text-accent" fcfaClassName="text-white/80" />
             </div>
           </div>
         </div>
@@ -187,11 +188,11 @@ export default function TripDetail() {
                       </div>
                       <div className="flex justify-between items-center pb-4 border-b border-border">
                         <span className="text-muted-foreground">{t("tripDetail.fare")}</span>
-                        <span className="font-bold font-mono text-lg">{trip.price.toLocaleString(numberLocale)} FCFA</span>
+                        <Price amountFcfa={trip.price} align="right" className="font-bold font-mono text-lg" />
                       </div>
                       <div className="flex justify-between items-center font-bold text-xl text-primary pt-2">
                         <span>{t("common.total")}</span>
-                        <span className="font-mono">{trip.price.toLocaleString(numberLocale)} FCFA</span>
+                        <Price amountFcfa={trip.price} align="right" className="font-mono" />
                       </div>
 
                       <Button onClick={handleContinue} className="w-full h-14 text-lg mt-6" size="lg">

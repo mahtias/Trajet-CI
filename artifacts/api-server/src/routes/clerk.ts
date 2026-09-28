@@ -30,19 +30,13 @@ import {
   checkStatusTransition,
   settlePendingPayment,
 } from "../lib/agency-queries";
-import { selectTrips, getTripDetails, getTripCompanyId, getSeatCounts, formatTripSummary, routeLabels } from "../lib/trip-queries";
+import { selectTrips, getTripDetails, getTripCompanyId, isAllowed, getSeatCounts, formatTripSummary, routeLabels } from "../lib/trip-queries";
 
 const router: IRouter = Router();
 router.use(requireRole("clerk", "admin"));
 
 function currentUser(req: any): User {
   return req.currentUser;
-}
-
-/** True if a clerk (scoped to a company) is allowed to act on this trip. Admins are unrestricted. */
-function isAllowed(user: User, tripCompanyId: number | null): boolean {
-  if (user.role === "admin") return true;
-  return user.companyId !== null && user.companyId === tripCompanyId;
 }
 
 // Get today's trips for clerk

@@ -9,6 +9,7 @@ import {
   stationsTable,
   citiesTable,
   seatsTable,
+  type User,
 } from "@workspace/db";
 
 // Stations and cities are joined twice (departure / arrival), so they need aliases.
@@ -93,6 +94,12 @@ export async function getTripCompanyId(tripId: number): Promise<number | null> {
     .where(eq(tripsTable.id, tripId))
     .limit(1);
   return result?.companyId ?? null;
+}
+
+/** True if a clerk (scoped to a company) is allowed to act on this trip. Admins are unrestricted. */
+export function isAllowed(user: User, tripCompanyId: number | null): boolean {
+  if (user.role === "admin") return true;
+  return user.companyId !== null && user.companyId === tripCompanyId;
 }
 
 /**

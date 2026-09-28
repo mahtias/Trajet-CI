@@ -18,14 +18,19 @@ import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/searchable-select";
+import { ListPagination } from "@/components/list-pagination";
+import { useClientPagination } from "@/hooks/use-client-pagination";
 import { useToast } from "@/hooks/use-toast";
+
+const CITIES_PAGE_SIZE = 10;
+const STATIONS_PAGE_SIZE = 20;
 
 export default function AdminStations() {
   const { data: cities, isLoading: citiesLoading } = useGetAdminCities({ query: { queryKey: getGetAdminCitiesQueryKey() } });
   const { data: stations, isLoading: stationsLoading } = useGetAdminStations({ query: { queryKey: getGetAdminStationsQueryKey() } });
+  const citiesPage = useClientPagination(cities, CITIES_PAGE_SIZE);
+  const stationsPage = useClientPagination(stations, STATIONS_PAGE_SIZE);
 
   const createCity = useCreateCity();
   const deleteCity = useDeleteCity();
@@ -138,7 +143,7 @@ export default function AdminStations() {
                   <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">Aucune ville.</TableCell>
                 </TableRow>
               ) : (
-                cities?.map((city) => (
+                citiesPage.pageItems?.map((city) => (
                   <TableRow key={city.id}>
                     <TableCell className="font-medium">{city.name}</TableCell>
                     <TableCell className="text-right">
@@ -151,6 +156,7 @@ export default function AdminStations() {
               )}
             </TableBody>
           </Table>
+          <ListPagination page={citiesPage.page} totalPages={citiesPage.totalPages} onPageChange={citiesPage.setPage} />
         </div>
 
         {/* Stations */}
@@ -160,16 +166,16 @@ export default function AdminStations() {
               <MapPin className="w-5 h-5 text-primary" /> Gares
             </h2>
             <form onSubmit={handleCreateStation} className="flex flex-col sm:flex-row gap-2">
-              <Select value={stationCityId} onValueChange={setStationCityId}>
-                <SelectTrigger className="sm:w-56">
-                  <SelectValue placeholder="Ville" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cities?.map(c => (
-                    <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="sm:w-56 shrink-0">
+                <SearchableSelect
+                  options={cities?.map(c => ({ value: c.id.toString(), label: c.name })) ?? []}
+                  value={stationCityId}
+                  onChange={setStationCityId}
+                  placeholder="Ville"
+                  searchPlaceholder="Rechercher une ville..."
+                  emptyText="Aucune ville trouvée."
+                />
+              </div>
               <Input value={stationName} onChange={e => setStationName(e.target.value)} placeholder="Ex: Gare d'Adjamé" />
               <Button type="submit" className="gap-2" disabled={createStation.isPending || !stationCityId}>
                 <Plus className="w-4 h-4" /> Ajouter
@@ -194,7 +200,7 @@ export default function AdminStations() {
                   <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">Aucune gare.</TableCell>
                 </TableRow>
               ) : (
-                stations?.map((station) => (
+                stationsPage.pageItems?.map((station) => (
                   <TableRow key={station.id}>
                     <TableCell className="font-medium">{station.name}</TableCell>
                     <TableCell className="text-muted-foreground">{station.cityName}</TableCell>
@@ -208,6 +214,7 @@ export default function AdminStations() {
               )}
             </TableBody>
           </Table>
+          <ListPagination page={stationsPage.page} totalPages={stationsPage.totalPages} onPageChange={stationsPage.setPage} />
         </div>
       </div>
     </div>

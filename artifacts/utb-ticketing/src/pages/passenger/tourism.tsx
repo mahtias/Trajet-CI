@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ImageThumb } from "@/components/image-gallery";
+import { Price } from "@/components/price";
 
 export default function Tourism() {
   const [locationInput, setLocationInput] = useState("");
@@ -82,9 +83,7 @@ export default function Tourism() {
                   <Users className="w-3.5 h-3.5" /> {spot.capacityPerDay} visiteurs/jour · {spot.agencyName}
                 </p>
                 <div className="mt-auto flex items-center justify-between">
-                  <span className="text-xl font-bold text-accent font-mono">
-                    {spot.price.toLocaleString("fr-CI")} FCFA<span className="text-sm text-muted-foreground font-normal">/pers.</span>
-                  </span>
+                  <Price amountFcfa={spot.price} suffix="/pers." className="text-xl font-bold text-accent font-mono" />
                   <Button asChild>
                     <Link href={`/tourism/${spot.id}`}>Voir</Link>
                   </Button>

@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { useGetMe, useLogout } from "@workspace/api-client-react";
+import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { BusFront, User, LogOut, Ticket, Menu, X, LayoutDashboard, QrCode, Hotel, Landmark, Car, ChevronDown, ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { useLanguage } from "@/hooks/use-language";
+import { CurrencySelect } from "@/components/currency-select";
 import { cn } from "@/lib/utils";
 import type { Language } from "@/lib/i18n/translations";
 
@@ -37,16 +39,26 @@ function LanguageToggle() {
 }
 
 export function Navbar() {
-  const { data: user } = useGetMe({ query: { queryKey: ["/api/auth/me"], retry: false } });
+  const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
   const logout = useLogout();
+  const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { t } = useLanguage();
 
   const handleLogout = () => {
     logout.mutate(undefined, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // The UI reads the user only from the /auth/me query: without this the cached user
+        // stays on screen until a reload. Stop in-flight fetches, mark "me" as logged out
+        // right away, and drop every other cached query (tickets, bookings, admin data…)
+        // so nothing from the previous session can be shown to the next person.
+        // Navigate first so a RequireRole page doesn't bounce to /login when "me" becomes null.
+        setIsMobileMenuOpen(false);
         setLocation("/");
+        await queryClient.cancelQueries();
+        queryClient.setQueryData(getGetMeQueryKey(), null);
+        queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== getGetMeQueryKey()[0] });
       }
     });
   };
@@ -100,6 +112,9 @@ export function Navbar() {
           </Link>
           <Link href="/admin/users" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             {t("nav.adminUsers")}
+          </Link>
+          <Link href="/admin/exchange-rates" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminExchangeRates")}
           </Link>
           <DropdownMenu>
             <DropdownMenuTrigger className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1 outline-none">
@@ -192,11 +207,13 @@ export function Navbar() {
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-6">
           <NavLinks />
+          <CurrencySelect />
           <LanguageToggle />
         </nav>
 
         {/* Mobile Nav Toggle */}
         <div className="flex items-center gap-3 md:hidden">
+          <CurrencySelect />
           <LanguageToggle />
           <button
             className="p-2 text-foreground"

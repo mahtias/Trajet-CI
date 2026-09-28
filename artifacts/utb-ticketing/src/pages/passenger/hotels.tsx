@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { CityCombobox } from "@/components/city-combobox";
 import { ImageThumb } from "@/components/image-gallery";
 import { CITIES } from "@/lib/cities";
+import { Price } from "@/components/price";
 
 export default function Hotels() {
   const searchParams = new URLSearchParams(window.location.search);
@@ -131,9 +132,7 @@ export default function Hotels() {
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <span className="text-xl font-bold text-accent font-mono">
-                    {hotel.pricePerNight.toLocaleString("fr-CI")} FCFA<span className="text-sm text-muted-foreground font-normal">/nuit</span>
-                  </span>
+                  <Price amountFcfa={hotel.pricePerNight} suffix="/nuit" align="right" className="text-xl font-bold text-accent font-mono" />
                   <Button asChild size="lg">
                     <Link href={`/hotels/${hotel.id}?checkIn=${checkIn}&checkOut=${checkOut}&rooms=${rooms}`}>
                       Voir

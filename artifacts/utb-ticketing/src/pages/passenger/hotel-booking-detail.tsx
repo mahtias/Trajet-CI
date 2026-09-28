@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getPaymentMethod } from "@/lib/payment-methods";
 import { cn } from "@/lib/utils";
+import { PaymentAmount } from "@/components/price";
 
 export default function HotelBookingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -97,7 +98,7 @@ export default function HotelBookingDetail() {
 
             <div className="flex justify-between items-center mt-4 pt-4 border-t border-border">
               <span className="text-muted-foreground">Total payé</span>
-              <span className="font-mono font-bold text-lg text-accent">{booking.totalPrice.toLocaleString("fr-CI")} FCFA</span>
+              <PaymentAmount amountFcfa={booking.totalPrice} className="font-mono font-bold text-lg text-accent" />
             </div>
           </div>
         </CardContent>

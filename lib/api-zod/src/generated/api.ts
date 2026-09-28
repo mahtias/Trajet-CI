@@ -153,6 +153,20 @@ export const GetTripSeatsResponse = zod.array(GetTripSeatsResponseItem)
 
 
 /**
+ * @summary Last known bus position for a trip (staff of the trip's company, or a passenger with a paid ticket)
+ */
+export const GetTripLocationParams = zod.object({
+  "tripId": zod.coerce.number()
+})
+
+export const GetTripLocationResponse = zod.object({
+  "latitude": zod.number(),
+  "longitude": zod.number(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Temporarily reserve a seat (10 min)
  */
 export const ReserveSeatParams = zod.object({
@@ -198,7 +212,7 @@ export const InitiatePaymentBody = zod.object({
   "seatId": zod.number(),
   "passengerName": zod.string(),
   "passengerPhone": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money'])
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card'])
 })
 
 export const InitiatePaymentResponse = zod.object({
@@ -240,7 +254,7 @@ export const GetMyTicketsResponseItem = zod.object({
   "companyName": zod.string(),
   "price": zod.number(),
   "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
@@ -270,7 +284,7 @@ export const GetTicketResponse = zod.object({
   "companyName": zod.string(),
   "price": zod.number(),
   "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
@@ -351,7 +365,7 @@ export const InitiateHotelBookingBody = zod.object({
   "checkInDate": zod.coerce.date(),
   "checkOutDate": zod.coerce.date(),
   "rooms": zod.number(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money'])
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card'])
 })
 
 export const InitiateHotelBookingResponse = zod.object({
@@ -390,7 +404,7 @@ export const GetMyHotelBookingsResponseItem = zod.object({
   "rooms": zod.number(),
   "totalPrice": zod.number(),
   "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
@@ -417,7 +431,7 @@ export const GetHotelBookingResponse = zod.object({
   "rooms": zod.number(),
   "totalPrice": zod.number(),
   "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
@@ -591,7 +605,7 @@ export const ClerkSellSeatResponse = zod.object({
   "companyName": zod.string(),
   "price": zod.number(),
   "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
@@ -640,7 +654,7 @@ export const ValidateTicketResponse = zod.object({
   "companyName": zod.string(),
   "price": zod.number(),
   "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
@@ -1212,6 +1226,51 @@ export const GetSalesReportResponse = zod.object({
 
 
 /**
+ * @summary Exchange rates available for indicative price conversions
+ */
+export const ListExchangeRatesResponseItem = zod.object({
+  "currency": zod.enum(['EUR', 'USD', 'CNY']),
+  "fcfaPerUnit": zod.number().describe('Number of FCFA for 1 unit of the currency'),
+  "updatedAt": zod.coerce.date()
+})
+export const ListExchangeRatesResponse = zod.array(ListExchangeRatesResponseItem)
+
+
+/**
+ * @summary Set the rate of a currency (upsert)
+ */
+export const UpdateExchangeRateParams = zod.object({
+  "currency": zod.enum(['EUR', 'USD', 'CNY'])
+})
+
+export const updateExchangeRateBodyFcfaPerUnitExclusiveMin = 0;
+
+
+
+export const UpdateExchangeRateBody = zod.object({
+  "fcfaPerUnit": zod.number().gt(updateExchangeRateBodyFcfaPerUnitExclusiveMin)
+})
+
+export const UpdateExchangeRateResponse = zod.object({
+  "currency": zod.enum(['EUR', 'USD', 'CNY']),
+  "fcfaPerUnit": zod.number().describe('Number of FCFA for 1 unit of the currency'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove the rate of a currency (it is then no longer offered for display). EUR cannot be removed.
+ */
+export const DeleteExchangeRateParams = zod.object({
+  "currency": zod.enum(['EUR', 'USD', 'CNY'])
+})
+
+export const DeleteExchangeRateResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Upload an image (jpg, png, webp, max 5 MB)
  */
 export const UploadImageBody = zod.object({
@@ -1518,7 +1577,7 @@ export const GetClerkAgencyHotelBookingsResponseItem = zod.object({
   "rooms": zod.number(),
   "totalPrice": zod.number(),
   "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
@@ -1549,7 +1608,7 @@ export const UpdateClerkAgencyHotelBookingStatusResponse = zod.object({
   "rooms": zod.number(),
   "totalPrice": zod.number(),
   "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money']),
+  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid']),
   "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()

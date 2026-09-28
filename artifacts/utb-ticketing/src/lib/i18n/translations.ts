@@ -47,6 +47,12 @@ const fr: Dictionary = {
     adminTourismSpots: 'Sites touristiques',
     adminVehicles: 'Véhicules',
     adminAgencyBookings: 'Réservations des agences',
+    adminExchangeRates: 'Taux de change',
+    currency: 'Devise d\'affichage',
+  },
+  price: {
+    paymentNote: 'Paiement en FCFA. Les conversions sont indicatives.',
+    amountToPay: 'Montant à payer',
   },
   home: {
     heroPrefix: 'Voyagez en toute sérénité à travers la ',
@@ -116,7 +122,7 @@ const fr: Dictionary = {
     seatNumber: 'Place N°',
     fare: 'Tarif',
     selectSeatPrompt: 'Veuillez sélectionner une place libre sur le plan pour continuer.',
-    securePaymentNote: 'Paiement 100% sécurisé via Orange Money. Le billet est généré instantanément après validation.',
+    securePaymentNote: 'Paiement 100% sécurisé via mobile Money. Le billet est généré instantanément après validation.',
   },
   checkout: {
     title: 'Paiement',
@@ -128,6 +134,7 @@ const fr: Dictionary = {
     selectMethod: 'Choisissez votre moyen de paiement',
     payWith: 'Payer avec {{method}}',
     methodNote: 'Vous recevrez un prompt sur votre téléphone {{method}} pour confirmer le paiement.',
+    cardNote: 'Vous saisirez les informations de votre carte sur une page de paiement sécurisée.',
     initiating: 'Initialisation...',
     confirmPay: 'Confirmer et Payer',
     nameRequired: 'Nom du passager requis',
@@ -205,6 +212,12 @@ const en: Dictionary = {
     adminTourismSpots: 'Tourist sites',
     adminVehicles: 'Vehicles',
     adminAgencyBookings: 'Agency bookings',
+    adminExchangeRates: 'Exchange rates',
+    currency: 'Display currency',
+  },
+  price: {
+    paymentNote: 'Payment in FCFA. Conversions are indicative.',
+    amountToPay: 'Amount to pay',
   },
   home: {
     heroPrefix: 'Travel with peace of mind across ',
@@ -286,6 +299,7 @@ const en: Dictionary = {
     selectMethod: 'Choose your payment method',
     payWith: 'Pay with {{method}}',
     methodNote: 'You will receive a {{method}} prompt on your phone to confirm the payment.',
+    cardNote: 'You will enter your card details on a secure payment page.',
     initiating: 'Initiating...',
     confirmPay: 'Confirm and Pay',
     nameRequired: 'Passenger name is required',

@@ -13,4 +13,6 @@ export const PaymentInputPaymentMethod = {
   wave: 'wave',
   orange_money: 'orange_money',
   mtn_money: 'mtn_money',
+  moov_money: 'moov_money',
+  card: 'card',
 } as const;

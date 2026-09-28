@@ -2,7 +2,7 @@ import { useParams } from "wouter";
 import { format } from "date-fns";
 import { useGetTicket, useCancelTicket, getGetTicketQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MapPin, Clock, Calendar as CalendarIcon, ArrowLeft, Download, ShieldCheck, Hotel, XCircle, Ban } from "lucide-react";
+import { MapPin, Clock, Calendar as CalendarIcon, ArrowLeft, Download, ShieldCheck, Hotel, XCircle, Ban, BusFront } from "lucide-react";
 import { Link } from "wouter";
 
 import { Button } from "@/components/ui/button";
@@ -185,6 +185,14 @@ export default function TicketDetail() {
       <Button className="w-full mt-6 h-12" variant="outline" onClick={() => window.print()}>
         <Download className="w-4 h-4 mr-2" /> {t("ticketDetail.downloadPrint")}
       </Button>
+
+      {!isCancelled && ticket.paymentStatus === "paid" && (
+        <Button asChild className="w-full mt-3 h-12">
+          <Link href={`/tickets/${ticket.id}/track`}>
+            <BusFront className="w-4 h-4 mr-2" /> Suivre mon bus
+          </Link>
+        </Button>
+      )}
 
       {!isCancelled && (
         <Button asChild className="w-full mt-3 h-12">

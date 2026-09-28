@@ -7,6 +7,7 @@ import {
   useInitiatePayment,
   useGetMe,
   useGetTrip,
+  getGetTripQueryKey,
   useGetTripSeats
 } from "@workspace/api-client-react";
 import { ArrowLeft, CheckCircle2, Shield } from "lucide-react";
@@ -26,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, getPaymentMethod, type PaymentMethodId } from "@/lib/payment-methods";
+import { PaymentAmount } from "@/components/price";
 
 function buildCheckoutSchema(t: (key: string) => string) {
   return z.object({
@@ -38,6 +40,9 @@ export default function Checkout() {
   const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
   const seatId = searchParams.get("seatId");
+  const tripId = parseInt(searchParams.get("tripId") || "", 10) || 0;
+  // Shown for information only: the server charges the trip price it has in the database
+  const { data: trip } = useGetTrip(tripId, { query: { queryKey: getGetTripQueryKey(tripId), enabled: !!tripId } });
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -133,6 +138,14 @@ export default function Checkout() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-8">
+          {trip && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-6 flex items-center justify-between gap-4">
+              <span className="text-muted-foreground font-medium">{t("price.amountToPay")}</span>
+              <PaymentAmount amountFcfa={trip.price} className="text-2xl font-bold text-primary font-mono" />
+            </CardContent>
+            </Card>
+          )}
           <Card className="border-border">
             <CardContent className="p-6">
               <h2 className="text-xl font-bold mb-4">{t("checkout.selectMethod")}</h2>
@@ -150,7 +163,7 @@ export default function Checkout() {
                       )}
                     >
                       <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs", method.badgeClass)}>
-                        {method.name.slice(0, 2).toUpperCase()}
+                        {method.shortLabel}
                       </div>
                       <span className="text-sm font-semibold text-center">{method.name}</span>
                     </button>
@@ -197,11 +210,11 @@ export default function Checkout() {
 
                   <div className={cn("border rounded-xl p-4 flex gap-4 mt-8", selectedMethod.panelClass)}>
                     <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0", selectedMethod.badgeClass)}>
-                      {selectedMethod.name.slice(0, 2).toUpperCase()}
+                      {selectedMethod.shortLabel}
                     </div>
                     <div>
                       <h4 className="font-bold">{t("checkout.payWith", { method: selectedMethod.name })}</h4>
-                      <p className="text-sm opacity-80">{t("checkout.methodNote", { method: selectedMethod.name })}</p>
+                      <p className="text-sm opacity-80">{t(selectedMethod.kind === "card" ? "checkout.cardNote" : "checkout.methodNote", { method: selectedMethod.name })}</p>
                     </div>
                   </div>
 

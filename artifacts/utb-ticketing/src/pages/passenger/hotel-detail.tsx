@@ -7,6 +7,7 @@ import { ArrowLeft, MapPin, Star, Info, Hotel } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ImageGallery } from "@/components/image-gallery";
+import { Price } from "@/components/price";
 
 export default function HotelDetail() {
   const { id } = useParams<{ id: string }>();
@@ -62,9 +63,7 @@ export default function HotelDetail() {
             <MapPin className="w-4 h-4" /> {hotel.address}, {hotel.city}
           </p>
           {hotel.description && <p className="text-foreground/80 mb-4">{hotel.description}</p>}
-          <p className="text-2xl font-bold text-accent font-mono">
-            {hotel.pricePerNight.toLocaleString("fr-CI")} FCFA<span className="text-sm text-muted-foreground font-normal">/nuit</span>
-          </p>
+          <Price amountFcfa={hotel.pricePerNight} suffix="/nuit" className="text-2xl font-bold text-accent font-mono" />
         </CardContent>
       </Card>
 
@@ -94,7 +93,7 @@ export default function HotelDetail() {
 
           <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20 mb-6">
             <span className="text-muted-foreground">Total</span>
-            <span className="text-2xl font-bold text-primary font-mono">{totalPrice.toLocaleString("fr-CI")} FCFA</span>
+            <Price amountFcfa={totalPrice} align="right" className="text-2xl font-bold text-primary font-mono" />
           </div>
 
           <Button

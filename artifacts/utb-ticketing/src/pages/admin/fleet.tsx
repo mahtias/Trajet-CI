@@ -29,6 +29,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { ListPagination } from "@/components/list-pagination";
+import { useClientPagination } from "@/hooks/use-client-pagination";
+
+const PAGE_SIZE = 10;
 
 export default function AdminFleet() {
   const { data: companiesData } = useGetAdminCompanies({ page: 1, pageSize: 100 });
@@ -59,6 +63,9 @@ export default function AdminFleet() {
   const [editingBus, setEditingBus] = useState<{ id: number; isActive: boolean } | null>(null);
   const [busName, setBusName] = useState("");
   const [capacity, setCapacity] = useState("");
+
+  const companyStationsPage = useClientPagination(companyStations, PAGE_SIZE);
+  const busesPage = useClientPagination(buses, PAGE_SIZE);
 
   const linkedIds = new Set(companyStations?.map(s => s.id));
   const unlinkedStations = allStations?.filter(s => !linkedIds.has(s.id));
@@ -165,7 +172,7 @@ export default function AdminFleet() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-foreground">Bus & Réseau</h1>
-        <Select value={companyId} onValueChange={setCompanyId}>
+        <Select value={companyId} onValueChange={(v) => { setCompanyId(v); companyStationsPage.setPage(1); busesPage.setPage(1); }}>
           <SelectTrigger className="w-full md:w-72">
             <SelectValue placeholder="Choisir une compagnie" />
           </SelectTrigger>
@@ -216,7 +223,7 @@ export default function AdminFleet() {
                     <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">Aucune gare rattachée.</TableCell>
                   </TableRow>
                 ) : (
-                  companyStations?.map((station) => (
+                  companyStationsPage.pageItems?.map((station) => (
                     <TableRow key={station.id}>
                       <TableCell className="font-medium">{station.name}</TableCell>
                       <TableCell className="text-muted-foreground">{station.cityName}</TableCell>
@@ -230,6 +237,7 @@ export default function AdminFleet() {
                 )}
               </TableBody>
             </Table>
+            <ListPagination page={companyStationsPage.page} totalPages={companyStationsPage.totalPages} onPageChange={companyStationsPage.setPage} />
           </div>
 
           {/* Buses */}
@@ -289,7 +297,7 @@ export default function AdminFleet() {
                     <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Aucun bus.</TableCell>
                   </TableRow>
                 ) : (
-                  buses?.map((bus) => (
+                  busesPage.pageItems?.map((bus) => (
                     <TableRow key={bus.id}>
                       <TableCell className="font-medium">{bus.name}</TableCell>
                       <TableCell>{bus.capacity}</TableCell>
@@ -309,6 +317,7 @@ export default function AdminFleet() {
                 )}
               </TableBody>
             </Table>
+            <ListPagination page={busesPage.page} totalPages={busesPage.totalPages} onPageChange={busesPage.setPage} />
           </div>
         </div>
       )}

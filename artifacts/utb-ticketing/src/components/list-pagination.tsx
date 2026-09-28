@@ -12,11 +12,10 @@ interface ListPaginationProps {
   onPageChange: (page: number) => void;
 }
 
+// Always shown (even with a single page) so every admin table has the same footer
 export function ListPagination({ page, totalPages, onPageChange }: ListPaginationProps) {
-  if (totalPages <= 1) return null;
-
   return (
-    <div className="flex items-center justify-between px-2 py-4">
+    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
       <p className="text-sm text-muted-foreground">
         Page {page} sur {totalPages}
       </p>

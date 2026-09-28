@@ -9,6 +9,7 @@ import { ImageThumb } from "@/components/image-gallery";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
+import { Price } from "@/components/price";
 
 const ALL_CATEGORIES = "all";
 
@@ -83,9 +84,7 @@ export default function Vehicles() {
                   <Users className="w-3.5 h-3.5" /> {vehicle.seats} places · {vehicle.agencyName}
                 </p>
                 <div className="mt-auto flex items-center justify-between">
-                  <span className="text-xl font-bold text-accent font-mono">
-                    {vehicle.pricePerDay.toLocaleString("fr-CI")} FCFA<span className="text-sm text-muted-foreground font-normal">/jour</span>
-                  </span>
+                  <Price amountFcfa={vehicle.pricePerDay} suffix="/jour" className="text-xl font-bold text-accent font-mono" />
                   <Button asChild>
                     <Link href={`/vehicles/${vehicle.id}`}>Voir</Link>
                   </Button>

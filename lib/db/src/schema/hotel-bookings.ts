@@ -14,7 +14,7 @@ export const hotelBookingsTable = pgTable("hotel_bookings", {
   checkOutDate: date("check_out_date", { mode: "string" }).notNull(),
   rooms: integer("rooms").notNull().default(1),
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
-  paymentMethod: text("payment_method").notNull().default("orange_money"), // wave | orange_money | mtn_money
+  paymentMethod: text("payment_method").notNull().default("orange_money"), // wave | orange_money | mtn_money | moov_money | card
   paymentStatus: text("payment_status").notNull().default("pending"), // pending | paid
   status: text("status").notNull().default("pending"), // pending | confirmed | cancelled — booking state, set by agency clerks
   paymentId: text("payment_id"),

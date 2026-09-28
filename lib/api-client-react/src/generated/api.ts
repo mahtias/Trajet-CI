@@ -33,6 +33,8 @@ import type {
   CompanyInput,
   CompanyStationInput,
   DashboardStats,
+  ExchangeRate,
+  ExchangeRateInput,
   GetAdminAgenciesParams,
   GetAdminCompaniesParams,
   GetAdminHotelsParams,
@@ -86,6 +88,7 @@ import type {
   TourismSpotInput,
   TripDetail,
   TripInput,
+  TripLocation,
   TripSummary,
   TripUpdate,
   UploadInput,
@@ -796,6 +799,83 @@ export function useGetTripSeats<TData = Awaited<ReturnType<typeof getTripSeats>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTripSeatsQueryOptions(tripId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTripLocationUrl = (tripId: number,) => {
+
+
+
+
+  return `/api/trips/${tripId}/location`
+}
+
+/**
+ * @summary Last known bus position for a trip (staff of the trip's company, or a passenger with a paid ticket)
+ */
+export const getTripLocation = async (tripId: number, options?: RequestInit): Promise<TripLocation> => {
+
+  return customFetch<TripLocation>(getGetTripLocationUrl(tripId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTripLocationQueryKey = (tripId: number,) => {
+    return [
+    `/api/trips/${tripId}/location`
+    ] as const;
+    }
+
+
+export const getGetTripLocationQueryOptions = <TData = Awaited<ReturnType<typeof getTripLocation>>, TError = ErrorType<void>>(tripId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTripLocation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripLocationQueryKey(tripId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripLocation>>> = ({ signal }) => getTripLocation(tripId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripLocation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTripLocationQueryResult = NonNullable<Awaited<ReturnType<typeof getTripLocation>>>
+export type GetTripLocationQueryError = ErrorType<void>
+
+
+/**
+ * @summary Last known bus position for a trip (staff of the trip's company, or a passenger with a paid ticket)
+ */
+
+export function useGetTripLocation<TData = Awaited<ReturnType<typeof getTripLocation>>, TError = ErrorType<void>>(
+ tripId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTripLocation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTripLocationQueryOptions(tripId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -4609,6 +4689,226 @@ export function useGetSalesReport<TData = Awaited<ReturnType<typeof getSalesRepo
 
 
 
+
+export const getListExchangeRatesUrl = () => {
+
+
+
+
+  return `/api/exchange-rates`
+}
+
+/**
+ * @summary Exchange rates available for indicative price conversions
+ */
+export const listExchangeRates = async ( options?: RequestInit): Promise<ExchangeRate[]> => {
+
+  return customFetch<ExchangeRate[]>(getListExchangeRatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExchangeRatesQueryKey = () => {
+    return [
+    `/api/exchange-rates`
+    ] as const;
+    }
+
+
+export const getListExchangeRatesQueryOptions = <TData = Awaited<ReturnType<typeof listExchangeRates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExchangeRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExchangeRatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExchangeRates>>> = ({ signal }) => listExchangeRates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExchangeRates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListExchangeRatesQueryResult = NonNullable<Awaited<ReturnType<typeof listExchangeRates>>>
+export type ListExchangeRatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Exchange rates available for indicative price conversions
+ */
+
+export function useListExchangeRates<TData = Awaited<ReturnType<typeof listExchangeRates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExchangeRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListExchangeRatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateExchangeRateUrl = (currency: 'EUR' | 'USD' | 'CNY',) => {
+
+
+
+
+  return `/api/admin/exchange-rates/${currency}`
+}
+
+/**
+ * @summary Set the rate of a currency (upsert)
+ */
+export const updateExchangeRate = async (currency: 'EUR' | 'USD' | 'CNY',
+    exchangeRateInput: ExchangeRateInput, options?: RequestInit): Promise<ExchangeRate> => {
+
+  return customFetch<ExchangeRate>(getUpdateExchangeRateUrl(currency),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(exchangeRateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateExchangeRateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateExchangeRate>>, TError,{currency: 'EUR' | 'USD' | 'CNY';data: BodyType<ExchangeRateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateExchangeRate>>, TError,{currency: 'EUR' | 'USD' | 'CNY';data: BodyType<ExchangeRateInput>}, TContext> => {
+
+const mutationKey = ['updateExchangeRate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateExchangeRate>>, {currency: 'EUR' | 'USD' | 'CNY';data: BodyType<ExchangeRateInput>}> = (props) => {
+          const {currency,data} = props ?? {};
+
+          return  updateExchangeRate(currency,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateExchangeRateMutationResult = NonNullable<Awaited<ReturnType<typeof updateExchangeRate>>>
+    export type UpdateExchangeRateMutationBody = BodyType<ExchangeRateInput>
+    export type UpdateExchangeRateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set the rate of a currency (upsert)
+ */
+export const useUpdateExchangeRate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateExchangeRate>>, TError,{currency: 'EUR' | 'USD' | 'CNY';data: BodyType<ExchangeRateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateExchangeRate>>,
+        TError,
+        {currency: 'EUR' | 'USD' | 'CNY';data: BodyType<ExchangeRateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateExchangeRateMutationOptions(options));
+    }
+
+export const getDeleteExchangeRateUrl = (currency: 'EUR' | 'USD' | 'CNY',) => {
+
+
+
+
+  return `/api/admin/exchange-rates/${currency}`
+}
+
+/**
+ * @summary Remove the rate of a currency (it is then no longer offered for display). EUR cannot be removed.
+ */
+export const deleteExchangeRate = async (currency: 'EUR' | 'USD' | 'CNY', options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getDeleteExchangeRateUrl(currency),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteExchangeRateMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteExchangeRate>>, TError,{currency: 'EUR' | 'USD' | 'CNY'}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteExchangeRate>>, TError,{currency: 'EUR' | 'USD' | 'CNY'}, TContext> => {
+
+const mutationKey = ['deleteExchangeRate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteExchangeRate>>, {currency: 'EUR' | 'USD' | 'CNY'}> = (props) => {
+          const {currency} = props ?? {};
+
+          return  deleteExchangeRate(currency,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteExchangeRateMutationResult = NonNullable<Awaited<ReturnType<typeof deleteExchangeRate>>>
+
+    export type DeleteExchangeRateMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove the rate of a currency (it is then no longer offered for display). EUR cannot be removed.
+ */
+export const useDeleteExchangeRate = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteExchangeRate>>, TError,{currency: 'EUR' | 'USD' | 'CNY'}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteExchangeRate>>,
+        TError,
+        {currency: 'EUR' | 'USD' | 'CNY'},
+        TContext
+      > => {
+      return useMutation(getDeleteExchangeRateMutationOptions(options));
+    }
 
 export const getUploadImageUrl = () => {
 
