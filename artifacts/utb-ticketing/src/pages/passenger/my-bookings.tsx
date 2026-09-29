@@ -1,5 +1,4 @@
 import { Link } from "wouter";
-import { format, parseISO } from "date-fns";
 import { useGetMyTourismBookings, useGetMyVehicleBookings } from "@workspace/api-client-react";
 import { Landmark, Car, CalendarDays } from "lucide-react";
 
@@ -7,8 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { Price } from "@/components/price";
+import { useLanguage } from "@/hooks/use-language";
+import { formatShortDate } from "@/lib/dates";
 
 export default function MyBookings() {
+  const { t, tc, dateLocale } = useLanguage();
   const { data: tourismBookings, isLoading: tourismLoading } = useGetMyTourismBookings();
   const { data: vehicleBookings, isLoading: vehicleLoading } = useGetMyVehicleBookings();
 
@@ -17,7 +19,7 @@ export default function MyBookings() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold text-foreground mb-8">Mes réservations tourisme & location</h1>
+      <h1 className="text-3xl font-bold text-foreground mb-8">{t("bookings.myAgencyBookingsTitle")}</h1>
 
       {isLoading && (
         <div className="space-y-4">
@@ -28,10 +30,10 @@ export default function MyBookings() {
       {isEmpty && (
         <div className="text-center py-16 bg-muted/50 rounded-xl border border-border">
           <CalendarDays className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">Vous n'avez encore aucune réservation.</p>
+          <p className="text-muted-foreground mb-4">{t("bookings.noBookingsYet")}</p>
           <div className="flex justify-center gap-3">
-            <Button asChild variant="outline"><Link href="/tourism">Voir les sites touristiques</Link></Button>
-            <Button asChild variant="outline"><Link href="/vehicles">Louer un véhicule</Link></Button>
+            <Button asChild variant="outline"><Link href="/tourism">{t("bookings.browseTourism")}</Link></Button>
+            <Button asChild variant="outline"><Link href="/vehicles">{t("bookings.rentVehicle")}</Link></Button>
           </div>
         </div>
       )}
@@ -43,7 +45,7 @@ export default function MyBookings() {
               <div>
                 <p className="font-bold flex items-center gap-2"><Landmark className="w-4 h-4 text-primary" /> {b.spotName}</p>
                 <p className="text-sm text-muted-foreground">
-                  Visite le {format(parseISO(b.visitDate), "dd/MM/yyyy")} · {b.nbPeople} personne(s)
+                  {t("bookings.visitOn", { date: formatShortDate(b.visitDate, dateLocale) })} · {tc("bookings.people", b.nbPeople)}
                 </p>
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -59,7 +61,7 @@ export default function MyBookings() {
               <div>
                 <p className="font-bold flex items-center gap-2"><Car className="w-4 h-4 text-primary" /> {b.vehicleLabel}</p>
                 <p className="text-sm text-muted-foreground">
-                  Du {format(parseISO(b.startDate), "dd/MM/yyyy")} au {format(parseISO(b.endDate), "dd/MM/yyyy")}
+                  {t("bookings.fromTo", { from: formatShortDate(b.startDate, dateLocale), to: formatShortDate(b.endDate, dateLocale) })}
                 </p>
               </div>
               <div className="flex flex-col items-end gap-2">

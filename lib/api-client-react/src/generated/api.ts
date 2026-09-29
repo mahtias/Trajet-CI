@@ -48,9 +48,9 @@ import type {
   HealthStatus,
   Hotel,
   HotelBooking,
-  HotelBookingCallbackInput,
   HotelBookingInitiateResponse,
   HotelBookingInput,
+  HotelBookingPaymentStatusResponse,
   HotelInput,
   HotelSearchResult,
   ListTourismSpotsParams,
@@ -66,10 +66,10 @@ import type {
   PaginatedUsers,
   PaginatedVehicles,
   Passenger,
-  PaymentCallbackInput,
+  PaydunyaWebhookInput,
   PaymentInput,
   PaymentResponse,
-  ReserveInput,
+  PaymentStatusResponse,
   Route,
   RouteInput,
   SalesReport,
@@ -888,149 +888,6 @@ export function useGetTripLocation<TData = Awaited<ReturnType<typeof getTripLoca
 
 
 
-export const getReserveSeatUrl = (seatId: number,) => {
-
-
-
-
-  return `/api/seats/${seatId}/reserve`
-}
-
-/**
- * @summary Temporarily reserve a seat (10 min)
- */
-export const reserveSeat = async (seatId: number,
-    reserveInput: ReserveInput, options?: RequestInit): Promise<Seat> => {
-
-  return customFetch<Seat>(getReserveSeatUrl(seatId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(reserveInput)
-  }
-);}
-
-
-
-
-
-export const getReserveSeatMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reserveSeat>>, TError,{seatId: number;data: BodyType<ReserveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof reserveSeat>>, TError,{seatId: number;data: BodyType<ReserveInput>}, TContext> => {
-
-const mutationKey = ['reserveSeat'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reserveSeat>>, {seatId: number;data: BodyType<ReserveInput>}> = (props) => {
-          const {seatId,data} = props ?? {};
-
-          return  reserveSeat(seatId,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ReserveSeatMutationResult = NonNullable<Awaited<ReturnType<typeof reserveSeat>>>
-    export type ReserveSeatMutationBody = BodyType<ReserveInput>
-    export type ReserveSeatMutationError = ErrorType<unknown>
-
-    /**
- * @summary Temporarily reserve a seat (10 min)
- */
-export const useReserveSeat = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reserveSeat>>, TError,{seatId: number;data: BodyType<ReserveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof reserveSeat>>,
-        TError,
-        {seatId: number;data: BodyType<ReserveInput>},
-        TContext
-      > => {
-      return useMutation(getReserveSeatMutationOptions(options));
-    }
-
-export const getReleaseSeatUrl = (seatId: number,) => {
-
-
-
-
-  return `/api/seats/${seatId}/reserve`
-}
-
-/**
- * @summary Release a temporary reservation
- */
-export const releaseSeat = async (seatId: number, options?: RequestInit): Promise<Seat> => {
-
-  return customFetch<Seat>(getReleaseSeatUrl(seatId),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
-
-
-
-
-export const getReleaseSeatMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseSeat>>, TError,{seatId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof releaseSeat>>, TError,{seatId: number}, TContext> => {
-
-const mutationKey = ['releaseSeat'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof releaseSeat>>, {seatId: number}> = (props) => {
-          const {seatId} = props ?? {};
-
-          return  releaseSeat(seatId,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ReleaseSeatMutationResult = NonNullable<Awaited<ReturnType<typeof releaseSeat>>>
-
-    export type ReleaseSeatMutationError = ErrorType<unknown>
-
-    /**
- * @summary Release a temporary reservation
- */
-export const useReleaseSeat = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseSeat>>, TError,{seatId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof releaseSeat>>,
-        TError,
-        {seatId: number},
-        TContext
-      > => {
-      return useMutation(getReleaseSeatMutationOptions(options));
-    }
-
 export const getInitiatePaymentUrl = () => {
 
 
@@ -1102,25 +959,27 @@ export const useInitiatePayment = <TError = ErrorType<unknown>,
       return useMutation(getInitiatePaymentMutationOptions(options));
     }
 
-export const getPaymentCallbackUrl = () => {
+export const getPaydunyaWebhookUrl = () => {
 
 
 
 
-  return `/api/payments/callback`
+  return `/api/payments/paydunya-webhook`
 }
 
 /**
- * @summary Mobile money payment callback
+ * @summary PayDunya payment notification (IPN) for bus tickets and hotel bookings. Called by PayDunya, not by the app; the state is re-checked with PayDunya's confirm API.
  */
-export const paymentCallback = async (paymentCallbackInput: PaymentCallbackInput, options?: RequestInit): Promise<SuccessResponse> => {
+export const paydunyaWebhook = async (paydunyaWebhookInput: PaydunyaWebhookInput, options?: RequestInit): Promise<SuccessResponse> => {
+    const formUrlEncoded = new URLSearchParams();
+formUrlEncoded.append(`data`, JSON.stringify(paydunyaWebhookInput.data));
 
-  return customFetch<SuccessResponse>(getPaymentCallbackUrl(),
+  return customFetch<SuccessResponse>(getPaydunyaWebhookUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(paymentCallbackInput)
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...options?.headers },
+    body: formUrlEncoded
   }
 );}
 
@@ -1128,11 +987,11 @@ export const paymentCallback = async (paymentCallbackInput: PaymentCallbackInput
 
 
 
-export const getPaymentCallbackMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof paymentCallback>>, TError,{data: BodyType<PaymentCallbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof paymentCallback>>, TError,{data: BodyType<PaymentCallbackInput>}, TContext> => {
+export const getPaydunyaWebhookMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof paydunyaWebhook>>, TError,{data: BodyType<PaydunyaWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof paydunyaWebhook>>, TError,{data: BodyType<PaydunyaWebhookInput>}, TContext> => {
 
-const mutationKey = ['paymentCallback'];
+const mutationKey = ['paydunyaWebhook'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1142,10 +1001,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof paymentCallback>>, {data: BodyType<PaymentCallbackInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof paydunyaWebhook>>, {data: BodyType<PaydunyaWebhookInput>}> = (props) => {
           const {data} = props ?? {};
 
-          return  paymentCallback(data,requestOptions)
+          return  paydunyaWebhook(data,requestOptions)
         }
 
 
@@ -1155,22 +1014,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PaymentCallbackMutationResult = NonNullable<Awaited<ReturnType<typeof paymentCallback>>>
-    export type PaymentCallbackMutationBody = BodyType<PaymentCallbackInput>
-    export type PaymentCallbackMutationError = ErrorType<unknown>
+    export type PaydunyaWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof paydunyaWebhook>>>
+    export type PaydunyaWebhookMutationBody = BodyType<PaydunyaWebhookInput>
+    export type PaydunyaWebhookMutationError = ErrorType<void>
 
     /**
- * @summary Mobile money payment callback
+ * @summary PayDunya payment notification (IPN) for bus tickets and hotel bookings. Called by PayDunya, not by the app; the state is re-checked with PayDunya's confirm API.
  */
-export const usePaymentCallback = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof paymentCallback>>, TError,{data: BodyType<PaymentCallbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const usePaydunyaWebhook = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof paydunyaWebhook>>, TError,{data: BodyType<PaydunyaWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof paymentCallback>>,
+        Awaited<ReturnType<typeof paydunyaWebhook>>,
         TError,
-        {data: BodyType<PaymentCallbackInput>},
+        {data: BodyType<PaydunyaWebhookInput>},
         TContext
       > => {
-      return useMutation(getPaymentCallbackMutationOptions(options));
+      return useMutation(getPaydunyaWebhookMutationOptions(options));
     }
 
 export const getGetMyTicketsUrl = () => {
@@ -1259,7 +1118,7 @@ export const getGetTicketUrl = (ticketId: number,) => {
 }
 
 /**
- * @summary Get ticket by ID
+ * @summary Get one of the logged-in user's tickets
  */
 export const getTicket = async (ticketId: number, options?: RequestInit): Promise<Ticket> => {
 
@@ -1283,7 +1142,7 @@ export const getGetTicketQueryKey = (ticketId: number,) => {
     }
 
 
-export const getGetTicketQueryOptions = <TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<unknown>>(ticketId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetTicketQueryOptions = <TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<void>>(ticketId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1302,19 +1161,96 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetTicketQueryResult = NonNullable<Awaited<ReturnType<typeof getTicket>>>
-export type GetTicketQueryError = ErrorType<unknown>
+export type GetTicketQueryError = ErrorType<void>
 
 
 /**
- * @summary Get ticket by ID
+ * @summary Get one of the logged-in user's tickets
  */
 
-export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<unknown>>(
+export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<void>>(
  ticketId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTicketQueryOptions(ticketId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTicketPaymentStatusUrl = (ticketId: number,) => {
+
+
+
+
+  return `/api/tickets/${ticketId}/payment-status`
+}
+
+/**
+ * @summary Current payment status of the logged-in user's ticket (polled after returning from PayDunya)
+ */
+export const getTicketPaymentStatus = async (ticketId: number, options?: RequestInit): Promise<PaymentStatusResponse> => {
+
+  return customFetch<PaymentStatusResponse>(getGetTicketPaymentStatusUrl(ticketId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTicketPaymentStatusQueryKey = (ticketId: number,) => {
+    return [
+    `/api/tickets/${ticketId}/payment-status`
+    ] as const;
+    }
+
+
+export const getGetTicketPaymentStatusQueryOptions = <TData = Awaited<ReturnType<typeof getTicketPaymentStatus>>, TError = ErrorType<void>>(ticketId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketPaymentStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTicketPaymentStatusQueryKey(ticketId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTicketPaymentStatus>>> = ({ signal }) => getTicketPaymentStatus(ticketId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: ticketId !== null && ticketId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTicketPaymentStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTicketPaymentStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getTicketPaymentStatus>>>
+export type GetTicketPaymentStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary Current payment status of the logged-in user's ticket (polled after returning from PayDunya)
+ */
+
+export function useGetTicketPaymentStatus<TData = Awaited<ReturnType<typeof getTicketPaymentStatus>>, TError = ErrorType<void>>(
+ ticketId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketPaymentStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTicketPaymentStatusQueryOptions(ticketId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1568,7 +1504,7 @@ export const getInitiateHotelBookingUrl = () => {
 }
 
 /**
- * @summary Initiate a hotel booking (mobile money payment)
+ * @summary Start a hotel booking and create its PayDunya invoice (login required)
  */
 export const initiateHotelBooking = async (hotelBookingInput: HotelBookingInput, options?: RequestInit): Promise<HotelBookingInitiateResponse> => {
 
@@ -1617,7 +1553,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type InitiateHotelBookingMutationError = ErrorType<unknown>
 
     /**
- * @summary Initiate a hotel booking (mobile money payment)
+ * @summary Start a hotel booking and create its PayDunya invoice (login required)
  */
 export const useInitiateHotelBooking = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateHotelBooking>>, TError,{data: BodyType<HotelBookingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1628,77 +1564,6 @@ export const useInitiateHotelBooking = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getInitiateHotelBookingMutationOptions(options));
-    }
-
-export const getHotelBookingCallbackUrl = () => {
-
-
-
-
-  return `/api/hotel-bookings/callback`
-}
-
-/**
- * @summary Hotel booking payment callback
- */
-export const hotelBookingCallback = async (hotelBookingCallbackInput: HotelBookingCallbackInput, options?: RequestInit): Promise<SuccessResponse> => {
-
-  return customFetch<SuccessResponse>(getHotelBookingCallbackUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(hotelBookingCallbackInput)
-  }
-);}
-
-
-
-
-
-export const getHotelBookingCallbackMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hotelBookingCallback>>, TError,{data: BodyType<HotelBookingCallbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof hotelBookingCallback>>, TError,{data: BodyType<HotelBookingCallbackInput>}, TContext> => {
-
-const mutationKey = ['hotelBookingCallback'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof hotelBookingCallback>>, {data: BodyType<HotelBookingCallbackInput>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  hotelBookingCallback(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type HotelBookingCallbackMutationResult = NonNullable<Awaited<ReturnType<typeof hotelBookingCallback>>>
-    export type HotelBookingCallbackMutationBody = BodyType<HotelBookingCallbackInput>
-    export type HotelBookingCallbackMutationError = ErrorType<unknown>
-
-    /**
- * @summary Hotel booking payment callback
- */
-export const useHotelBookingCallback = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hotelBookingCallback>>, TError,{data: BodyType<HotelBookingCallbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof hotelBookingCallback>>,
-        TError,
-        {data: BodyType<HotelBookingCallbackInput>},
-        TContext
-      > => {
-      return useMutation(getHotelBookingCallbackMutationOptions(options));
     }
 
 export const getGetMyHotelBookingsUrl = () => {
@@ -1787,7 +1652,7 @@ export const getGetHotelBookingUrl = (bookingId: number,) => {
 }
 
 /**
- * @summary Get hotel booking by ID
+ * @summary Get one of the logged-in user's hotel bookings
  */
 export const getHotelBooking = async (bookingId: number, options?: RequestInit): Promise<HotelBooking> => {
 
@@ -1811,7 +1676,7 @@ export const getGetHotelBookingQueryKey = (bookingId: number,) => {
     }
 
 
-export const getGetHotelBookingQueryOptions = <TData = Awaited<ReturnType<typeof getHotelBooking>>, TError = ErrorType<unknown>>(bookingId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHotelBooking>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetHotelBookingQueryOptions = <TData = Awaited<ReturnType<typeof getHotelBooking>>, TError = ErrorType<void>>(bookingId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHotelBooking>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1830,19 +1695,96 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetHotelBookingQueryResult = NonNullable<Awaited<ReturnType<typeof getHotelBooking>>>
-export type GetHotelBookingQueryError = ErrorType<unknown>
+export type GetHotelBookingQueryError = ErrorType<void>
 
 
 /**
- * @summary Get hotel booking by ID
+ * @summary Get one of the logged-in user's hotel bookings
  */
 
-export function useGetHotelBooking<TData = Awaited<ReturnType<typeof getHotelBooking>>, TError = ErrorType<unknown>>(
+export function useGetHotelBooking<TData = Awaited<ReturnType<typeof getHotelBooking>>, TError = ErrorType<void>>(
  bookingId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHotelBooking>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetHotelBookingQueryOptions(bookingId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetHotelBookingPaymentStatusUrl = (bookingId: number,) => {
+
+
+
+
+  return `/api/hotel-bookings/${bookingId}/payment-status`
+}
+
+/**
+ * @summary Current payment status of the logged-in user's hotel booking (polled after returning from PayDunya)
+ */
+export const getHotelBookingPaymentStatus = async (bookingId: number, options?: RequestInit): Promise<HotelBookingPaymentStatusResponse> => {
+
+  return customFetch<HotelBookingPaymentStatusResponse>(getGetHotelBookingPaymentStatusUrl(bookingId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHotelBookingPaymentStatusQueryKey = (bookingId: number,) => {
+    return [
+    `/api/hotel-bookings/${bookingId}/payment-status`
+    ] as const;
+    }
+
+
+export const getGetHotelBookingPaymentStatusQueryOptions = <TData = Awaited<ReturnType<typeof getHotelBookingPaymentStatus>>, TError = ErrorType<void>>(bookingId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHotelBookingPaymentStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHotelBookingPaymentStatusQueryKey(bookingId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHotelBookingPaymentStatus>>> = ({ signal }) => getHotelBookingPaymentStatus(bookingId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: bookingId !== null && bookingId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHotelBookingPaymentStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHotelBookingPaymentStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getHotelBookingPaymentStatus>>>
+export type GetHotelBookingPaymentStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary Current payment status of the logged-in user's hotel booking (polled after returning from PayDunya)
+ */
+
+export function useGetHotelBookingPaymentStatus<TData = Awaited<ReturnType<typeof getHotelBookingPaymentStatus>>, TError = ErrorType<void>>(
+ bookingId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHotelBookingPaymentStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHotelBookingPaymentStatusQueryOptions(bookingId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

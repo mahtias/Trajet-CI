@@ -10,7 +10,10 @@ export interface PaymentResponse {
   paymentId: string;
   amount: number;
   status: string;
-  /** @nullable */
+  /**
+     * PayDunya checkout page to send the customer to
+     * @nullable
+     */
   redirectUrl?: string | null;
   /** @nullable */
   ticketId?: number | null;

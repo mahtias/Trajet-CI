@@ -167,45 +167,6 @@ export const GetTripLocationResponse = zod.object({
 
 
 /**
- * @summary Temporarily reserve a seat (10 min)
- */
-export const ReserveSeatParams = zod.object({
-  "seatId": zod.coerce.number()
-})
-
-export const ReserveSeatBody = zod.object({
-  "passengerName": zod.string(),
-  "passengerPhone": zod.string()
-})
-
-export const ReserveSeatResponse = zod.object({
-  "id": zod.number(),
-  "tripId": zod.number(),
-  "seatNumber": zod.number(),
-  "status": zod.enum(['available', 'reserved', 'sold']),
-  "reservedAt": zod.string().nullish(),
-  "passengerName": zod.string().nullish()
-})
-
-
-/**
- * @summary Release a temporary reservation
- */
-export const ReleaseSeatParams = zod.object({
-  "seatId": zod.coerce.number()
-})
-
-export const ReleaseSeatResponse = zod.object({
-  "id": zod.number(),
-  "tripId": zod.number(),
-  "seatNumber": zod.number(),
-  "status": zod.enum(['available', 'reserved', 'sold']),
-  "reservedAt": zod.string().nullish(),
-  "passengerName": zod.string().nullish()
-})
-
-
-/**
  * @summary Initiate mobile money payment (Wave, Orange Money, or MTN Money)
  */
 export const InitiatePaymentBody = zod.object({
@@ -219,21 +180,19 @@ export const InitiatePaymentResponse = zod.object({
   "paymentId": zod.string(),
   "amount": zod.number(),
   "status": zod.string(),
-  "redirectUrl": zod.string().nullish(),
+  "redirectUrl": zod.string().nullish().describe('PayDunya checkout page to send the customer to'),
   "ticketId": zod.number().nullish()
 })
 
 
 /**
- * @summary Mobile money payment callback
+ * @summary PayDunya payment notification (IPN) for bus tickets and hotel bookings. Called by PayDunya, not by the app; the state is re-checked with PayDunya's confirm API.
  */
-export const PaymentCallbackBody = zod.object({
-  "paymentId": zod.string(),
-  "status": zod.string(),
-  "ticketId": zod.number().nullish()
-})
+export const PaydunyaWebhookBody = zod.object({
+  "data": zod.record(zod.string(), zod.unknown())
+}).describe('Sent by PayDunya; \"data\" holds the invoice object (status, hash, invoice.token, invoice.total_amount, custom_data…)')
 
-export const PaymentCallbackResponse = zod.object({
+export const PaydunyaWebhookResponse = zod.object({
   "success": zod.boolean()
 })
 
@@ -255,7 +214,7 @@ export const GetMyTicketsResponseItem = zod.object({
   "price": zod.number(),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
@@ -265,7 +224,7 @@ export const GetMyTicketsResponse = zod.array(GetMyTicketsResponseItem)
 
 
 /**
- * @summary Get ticket by ID
+ * @summary Get one of the logged-in user's tickets
  */
 export const GetTicketParams = zod.object({
   "ticketId": zod.coerce.number()
@@ -285,11 +244,24 @@ export const GetTicketResponse = zod.object({
   "price": zod.number(),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Current payment status of the logged-in user's ticket (polled after returning from PayDunya)
+ */
+export const GetTicketPaymentStatusParams = zod.object({
+  "ticketId": zod.coerce.number()
+})
+
+export const GetTicketPaymentStatusResponse = zod.object({
+  "ticketId": zod.number(),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required'])
 })
 
 
@@ -356,7 +328,7 @@ export const GetHotelResponse = zod.object({
 
 
 /**
- * @summary Initiate a hotel booking (mobile money payment)
+ * @summary Start a hotel booking and create its PayDunya invoice (login required)
  */
 export const InitiateHotelBookingBody = zod.object({
   "hotelId": zod.number(),
@@ -372,20 +344,8 @@ export const InitiateHotelBookingResponse = zod.object({
   "paymentId": zod.string(),
   "amount": zod.number(),
   "status": zod.string(),
-  "bookingId": zod.number().nullish()
-})
-
-
-/**
- * @summary Hotel booking payment callback
- */
-export const HotelBookingCallbackBody = zod.object({
-  "paymentId": zod.string(),
-  "status": zod.string()
-})
-
-export const HotelBookingCallbackResponse = zod.object({
-  "success": zod.boolean()
+  "bookingId": zod.number().nullish(),
+  "redirectUrl": zod.string().nullish().describe('PayDunya checkout page to send the customer to')
 })
 
 
@@ -405,7 +365,7 @@ export const GetMyHotelBookingsResponseItem = zod.object({
   "totalPrice": zod.number(),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refund_required']),
   "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })
@@ -413,7 +373,7 @@ export const GetMyHotelBookingsResponse = zod.array(GetMyHotelBookingsResponseIt
 
 
 /**
- * @summary Get hotel booking by ID
+ * @summary Get one of the logged-in user's hotel bookings
  */
 export const GetHotelBookingParams = zod.object({
   "bookingId": zod.coerce.number()
@@ -432,9 +392,22 @@ export const GetHotelBookingResponse = zod.object({
   "totalPrice": zod.number(),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refund_required']),
   "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Current payment status of the logged-in user's hotel booking (polled after returning from PayDunya)
+ */
+export const GetHotelBookingPaymentStatusParams = zod.object({
+  "bookingId": zod.coerce.number()
+})
+
+export const GetHotelBookingPaymentStatusResponse = zod.object({
+  "bookingId": zod.number(),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refund_required'])
 })
 
 
@@ -606,7 +579,7 @@ export const ClerkSellSeatResponse = zod.object({
   "price": zod.number(),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
@@ -655,7 +628,7 @@ export const ValidateTicketResponse = zod.object({
   "price": zod.number(),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
@@ -1578,7 +1551,7 @@ export const GetClerkAgencyHotelBookingsResponseItem = zod.object({
   "totalPrice": zod.number(),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refund_required']),
   "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })
@@ -1609,7 +1582,7 @@ export const UpdateClerkAgencyHotelBookingStatusResponse = zod.object({
   "totalPrice": zod.number(),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refund_required']),
   "status": zod.enum(['pending', 'confirmed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })

@@ -12,4 +12,9 @@ export interface HotelBookingInitiateResponse {
   status: string;
   /** @nullable */
   bookingId?: number | null;
+  /**
+     * PayDunya checkout page to send the customer to
+     * @nullable
+     */
+  redirectUrl?: string | null;
 }

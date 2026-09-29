@@ -47,7 +47,7 @@ export default function Checkout() {
   const { t } = useLanguage();
 
   const { data: user } = useGetMe({ query: { retry: false } });
-  const [isSimulatingPayment, setIsSimulatingPayment] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("wave");
   const selectedMethod = getPaymentMethod(paymentMethod);
   const initiatePayment = useInitiatePayment();
@@ -91,21 +91,19 @@ export default function Checkout() {
       },
       {
         onSuccess: (res) => {
-          setIsSimulatingPayment(true);
-          // Simuler le succès du paiement OM après 2 secondes
-          setTimeout(() => {
-            if (res.ticketId) {
-              setLocation(`/tickets/${res.ticketId}`);
-            } else {
-              setLocation(`/tickets`);
-            }
-          }, 2000);
+          if (!res.redirectUrl) {
+            toast({ variant: "destructive", title: t("common.error"), description: t("checkout.initiateError") });
+            return;
+          }
+          // Full-page redirect to PayDunya; the customer comes back on /payment/return
+          setIsRedirecting(true);
+          window.location.assign(res.redirectUrl);
         },
         onError: (err: any) => {
           toast({
             variant: "destructive",
             title: t("common.error"),
-            description: err?.message || t("checkout.initiateError"),
+            description: err?.data?.error || err?.message || t("checkout.initiateError"),
           });
         }
       }
@@ -120,7 +118,7 @@ export default function Checkout() {
 
       <h1 className="text-3xl font-bold text-foreground mb-8">{t("checkout.title")}</h1>
 
-      {isSimulatingPayment ? (
+      {isRedirecting ? (
         <Card className="border-border">
           <CardContent className="p-12 text-center flex flex-col items-center">
             <div className="relative mb-6">

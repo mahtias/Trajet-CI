@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
-import { format, addDays, parseISO } from "date-fns";
+import { format, addDays } from "date-fns";
 import {
   useGetTourismSpot,
   getGetTourismSpotQueryKey,
@@ -16,8 +16,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ImageGallery } from "@/components/image-gallery";
 import { Price, PaymentAmount } from "@/components/price";
+import { useLanguage } from "@/hooks/use-language";
+import { formatShortDate } from "@/lib/dates";
 
 export default function TourismDetail() {
+  const { t, tc, dateLocale } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const spotId = parseInt(id, 10);
 
@@ -43,7 +46,7 @@ export default function TourismDetail() {
   if (!spot) {
     return (
       <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-        Site touristique non trouvé.
+        {t("tourism.notFound")}
       </div>
     );
   }
@@ -57,7 +60,7 @@ export default function TourismDetail() {
       { data: { spotId, visitDate, nbPeople } },
       {
         onSuccess: (created) => setBooking(created),
-        onError: (err: any) => setError(err?.data?.error ?? err?.message ?? "Réservation impossible"),
+        onError: (err: any) => setError(err?.data?.error ?? err?.message ?? t("bookings.bookingImpossible")),
       }
     );
   };
@@ -66,7 +69,7 @@ export default function TourismDetail() {
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <Button variant="ghost" asChild className="mb-6 -ml-4 text-muted-foreground">
         <Link href="/tourism">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t("bookings.back")}
         </Link>
       </Button>
 
@@ -80,10 +83,10 @@ export default function TourismDetail() {
             <MapPin className="w-4 h-4" /> {spot.location}
           </p>
           <p className="text-muted-foreground flex items-center gap-1 mb-4 text-sm">
-            <Users className="w-4 h-4" /> {spot.capacityPerDay} visiteurs par jour · proposé par {spot.agencyName}
+            <Users className="w-4 h-4" /> {t("tourism.visitorsPerDayLong", { count: spot.capacityPerDay })} · {t("bookings.offeredBy", { agency: spot.agencyName })}
           </p>
           {spot.description && <p className="text-foreground/80 mb-4 whitespace-pre-line">{spot.description}</p>}
-          <Price amountFcfa={spot.price} suffix="/personne" className="text-2xl font-bold text-accent font-mono" />
+          <Price amountFcfa={spot.price} suffix={t("tourism.perPersonLong")} className="text-2xl font-bold text-accent font-mono" />
         </CardContent>
       </Card>
 
@@ -91,18 +94,18 @@ export default function TourismDetail() {
         <Card className="border-green-200 bg-green-50/50 shadow-sm">
           <CardContent className="p-6 text-center">
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-3" />
-            <h2 className="text-xl font-bold mb-2">Demande de réservation enregistrée</h2>
+            <h2 className="text-xl font-bold mb-2">{t("tourism.requestSaved")}</h2>
             <p className="text-muted-foreground mb-1">
-              {booking.nbPeople} personne(s) le {format(parseISO(booking.visitDate), "dd/MM/yyyy")}
+              {tc("bookings.people", booking.nbPeople)} · {formatShortDate(booking.visitDate, dateLocale)}
             </p>
             <div className="mb-2">
               <PaymentAmount amountFcfa={booking.totalPrice} align="center" className="font-bold font-mono text-lg text-foreground" />
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              Statut : en attente. L'agence confirmera votre réservation à réception du paiement.
+              {t("tourism.pendingNote")}
             </p>
             <Button asChild variant="outline">
-              <Link href="/my-bookings">Voir mes réservations</Link>
+              <Link href="/my-bookings">{t("bookings.viewMyBookings")}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -110,12 +113,12 @@ export default function TourismDetail() {
         <Card className="border-border shadow-sm">
           <CardContent className="p-6">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Info className="w-5 h-5 text-primary" /> Réserver une visite
+              <Info className="w-5 h-5 text-primary" /> {t("tourism.bookVisit")}
             </h2>
             <form onSubmit={handleBook} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Date de visite</label>
+                  <label className="text-sm font-medium mb-1 block">{t("tourism.visitDate")}</label>
                   <Input
                     type="date"
                     value={visitDate}
@@ -125,7 +128,7 @@ export default function TourismDetail() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Nombre de personnes</label>
+                  <label className="text-sm font-medium mb-1 block">{t("tourism.people")}</label>
                   <Input
                     type="number"
                     min={1}
@@ -138,7 +141,7 @@ export default function TourismDetail() {
               </div>
 
               <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20">
-                <span className="text-muted-foreground">Total estimé</span>
+                <span className="text-muted-foreground">{t("bookings.estimatedTotal")}</span>
                 <PaymentAmount amountFcfa={estimatedTotal} className="text-2xl font-bold text-primary font-mono" />
               </div>
 
@@ -148,15 +151,15 @@ export default function TourismDetail() {
 
               {me ? (
                 <Button type="submit" size="lg" className="w-full h-14 text-lg font-bold" disabled={createBooking.isPending}>
-                  Réserver
+                  {t("bookings.book")}
                 </Button>
               ) : (
                 <Button asChild size="lg" className="w-full h-14 text-lg font-bold">
-                  <Link href="/login">Se connecter pour réserver</Link>
+                  <Link href="/login">{t("bookings.loginToBook")}</Link>
                 </Button>
               )}
               <p className="text-xs text-muted-foreground text-center">
-                Le prix final et la disponibilité sont vérifiés au moment de la réservation.
+                {t("bookings.priceCheckedNote")}
               </p>
             </form>
           </CardContent>

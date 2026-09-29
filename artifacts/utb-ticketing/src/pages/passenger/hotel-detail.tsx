@@ -1,6 +1,5 @@
 import { useParams, useLocation, Link } from "wouter";
-import { format, differenceInCalendarDays } from "date-fns";
-import { fr } from "date-fns/locale";
+import { differenceInCalendarDays } from "date-fns";
 import { useGetHotel } from "@workspace/api-client-react";
 import { ArrowLeft, MapPin, Star, Info, Hotel } from "lucide-react";
 
@@ -8,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ImageGallery } from "@/components/image-gallery";
 import { Price } from "@/components/price";
+import { useLanguage } from "@/hooks/use-language";
+import { formatShortDate } from "@/lib/dates";
 
 export default function HotelDetail() {
+  const { t, dateLocale } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const hotelId = parseInt(id, 10);
   const [, setLocation] = useLocation();
@@ -32,7 +34,7 @@ export default function HotelDetail() {
   if (!hotel) {
     return (
       <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-        Hôtel non trouvé.
+        {t("hotels.notFound")}
       </div>
     );
   }
@@ -44,7 +46,7 @@ export default function HotelDetail() {
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <Button variant="ghost" asChild className="mb-6 -ml-4 text-muted-foreground">
         <Link href="/hotels">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t("bookings.back")}
         </Link>
       </Button>
 
@@ -63,36 +65,36 @@ export default function HotelDetail() {
             <MapPin className="w-4 h-4" /> {hotel.address}, {hotel.city}
           </p>
           {hotel.description && <p className="text-foreground/80 mb-4">{hotel.description}</p>}
-          <Price amountFcfa={hotel.pricePerNight} suffix="/nuit" className="text-2xl font-bold text-accent font-mono" />
+          <Price amountFcfa={hotel.pricePerNight} suffix={t("hotels.perNight")} className="text-2xl font-bold text-accent font-mono" />
         </CardContent>
       </Card>
 
       <Card className="border-border shadow-sm">
         <CardContent className="p-6">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <Info className="w-5 h-5 text-primary" /> Récapitulatif du séjour
+            <Info className="w-5 h-5 text-primary" /> {t("hotels.staySummary")}
           </h2>
           <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
             <div className="bg-muted/50 p-3 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Arrivée</p>
-              <p className="font-semibold">{checkIn ? format(new Date(checkIn), "d MMM yyyy", { locale: fr }) : "-"}</p>
+              <p className="text-xs text-muted-foreground mb-1">{t("hotels.checkIn")}</p>
+              <p className="font-semibold">{checkIn ? formatShortDate(checkIn, dateLocale) : "-"}</p>
             </div>
             <div className="bg-muted/50 p-3 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Départ</p>
-              <p className="font-semibold">{checkOut ? format(new Date(checkOut), "d MMM yyyy", { locale: fr }) : "-"}</p>
+              <p className="text-xs text-muted-foreground mb-1">{t("hotels.checkOut")}</p>
+              <p className="font-semibold">{checkOut ? formatShortDate(checkOut, dateLocale) : "-"}</p>
             </div>
             <div className="bg-muted/50 p-3 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Nuits</p>
+              <p className="text-xs text-muted-foreground mb-1">{t("hotels.nights")}</p>
               <p className="font-semibold">{nights}</p>
             </div>
             <div className="bg-muted/50 p-3 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Chambres</p>
+              <p className="text-xs text-muted-foreground mb-1">{t("hotels.rooms")}</p>
               <p className="font-semibold">{rooms}</p>
             </div>
           </div>
 
           <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20 mb-6">
-            <span className="text-muted-foreground">Total</span>
+            <span className="text-muted-foreground">{t("common.total")}</span>
             <Price amountFcfa={totalPrice} align="right" className="text-2xl font-bold text-primary font-mono" />
           </div>
 
@@ -102,10 +104,10 @@ export default function HotelDetail() {
             disabled={!checkIn || !checkOut}
             onClick={() => setLocation(`/hotels/${hotelId}/checkout?checkIn=${checkIn}&checkOut=${checkOut}&rooms=${rooms}`)}
           >
-            Réserver
+            {t("bookings.book")}
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-3">
-            La disponibilité est vérifiée au moment de la réservation.
+            {t("hotels.availabilityNote")}
           </p>
         </CardContent>
       </Card>

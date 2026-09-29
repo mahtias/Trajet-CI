@@ -12,4 +12,6 @@ export type HotelBookingPaymentStatus = typeof HotelBookingPaymentStatus[keyof t
 export const HotelBookingPaymentStatus = {
   pending: 'pending',
   paid: 'paid',
+  failed: 'failed',
+  refund_required: 'refund_required',
 } as const;

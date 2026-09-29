@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useInitiateHotelBooking, useHotelBookingCallback, useGetMe, useGetHotel, getGetHotelQueryKey } from "@workspace/api-client-react";
+import { useInitiateHotelBooking, useGetMe, useGetHotel, getGetHotelQueryKey } from "@workspace/api-client-react";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { ArrowLeft, Shield } from "lucide-react";
 
@@ -24,10 +24,12 @@ import { PaymentAmount } from "@/components/price";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, getPaymentMethod, type PaymentMethodId } from "@/lib/payment-methods";
 
-const checkoutSchema = z.object({
-  guestName: z.string().min(2, "Nom du client requis"),
-  guestPhone: z.string().min(8, "Numéro de téléphone invalide"),
-});
+function buildCheckoutSchema(t: (key: string) => string) {
+  return z.object({
+    guestName: z.string().min(2, t("hotels.guestNameRequired")),
+    guestPhone: z.string().min(8, t("common.invalidPhone")),
+  });
+}
 
 export default function HotelCheckout() {
   const { id } = useParams<{ id: string }>();
@@ -42,16 +44,16 @@ export default function HotelCheckout() {
   const { data: hotel } = useGetHotel(hotelId, { query: { queryKey: getGetHotelQueryKey(hotelId), enabled: !!hotelId } });
   const nights = checkIn && checkOut ? differenceInCalendarDays(parseISO(checkOut), parseISO(checkIn)) : 0;
   const amountToPay = hotel && nights > 0 ? hotel.pricePerNight * nights * rooms : null;
-  const { t } = useLanguage();
+  const { t, tc } = useLanguage();
+  const checkoutSchema = useMemo(() => buildCheckoutSchema(t), [t]);
 
   const { toast } = useToast();
   const { data: user } = useGetMe({ query: { retry: false } });
-  const [isSimulatingPayment, setIsSimulatingPayment] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("wave");
   const selectedMethod = getPaymentMethod(paymentMethod);
 
   const initiateBooking = useInitiateHotelBooking();
-  const bookingCallback = useHotelBookingCallback();
 
   const form = useForm<z.infer<typeof checkoutSchema>>({
     resolver: zodResolver(checkoutSchema),
@@ -68,7 +70,7 @@ export default function HotelCheckout() {
 
   const onSubmit = (values: z.infer<typeof checkoutSchema>) => {
     if (!user) {
-      toast({ title: "Connexion requise", description: "Veuillez vous connecter pour réserver." });
+      toast({ title: t("hotels.loginRequired"), description: t("hotels.loginRequiredDesc") });
       setLocation("/login");
       return;
     }
@@ -87,27 +89,19 @@ export default function HotelCheckout() {
       },
       {
         onSuccess: (res) => {
-          setIsSimulatingPayment(true);
-          setTimeout(() => {
-            bookingCallback.mutate(
-              { data: { paymentId: res.paymentId, status: "success" } },
-              {
-                onSuccess: () => {
-                  if (res.bookingId) {
-                    setLocation(`/hotel-bookings/${res.bookingId}`);
-                  } else {
-                    setLocation("/hotel-bookings");
-                  }
-                },
-              }
-            );
-          }, 2000);
+          if (!res.redirectUrl) {
+            toast({ variant: "destructive", title: t("common.error"), description: t("hotels.initiateError") });
+            return;
+          }
+          // Full-page redirect to PayDunya; the customer comes back on /payment/return
+          setIsRedirecting(true);
+          window.location.assign(res.redirectUrl);
         },
         onError: (err: any) => {
           toast({
             variant: "destructive",
-            title: "Erreur",
-            description: err?.message || "Impossible d'initier la réservation. Chambres peut-être indisponibles.",
+            title: t("common.error"),
+            description: err?.data?.error || err?.message || t("hotels.initiateError"),
           });
         },
       }
@@ -117,12 +111,12 @@ export default function HotelCheckout() {
   return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
       <Button variant="ghost" onClick={() => window.history.back()} className="mb-6 -ml-4 text-muted-foreground">
-        <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+        <ArrowLeft className="w-4 h-4 mr-2" /> {t("common.back")}
       </Button>
 
-      <h1 className="text-3xl font-bold text-foreground mb-8">Paiement de la réservation</h1>
+      <h1 className="text-3xl font-bold text-foreground mb-8">{t("hotels.checkoutTitle")}</h1>
 
-      {isSimulatingPayment ? (
+      {isRedirecting ? (
         <Card className="border-border">
           <CardContent className="p-12 text-center flex flex-col items-center">
             <div className="relative mb-6">
@@ -131,8 +125,8 @@ export default function HotelCheckout() {
                 <Shield className="w-10 h-10 text-primary" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Paiement en cours...</h2>
-            <p className="text-muted-foreground">Veuillez valider la transaction sur votre téléphone. Simulation en cours (MVP)...</p>
+            <h2 className="text-2xl font-bold mb-2">{t("checkout.processing")}</h2>
+            <p className="text-muted-foreground">{t("checkout.processingDesc")}</p>
           </CardContent>
         </Card>
       ) : (
@@ -140,14 +134,14 @@ export default function HotelCheckout() {
           {amountToPay !== null && (
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="p-6 flex items-center justify-between gap-4">
-              <span className="text-muted-foreground font-medium">{t("price.amountToPay")} · {nights} nuit{nights > 1 ? "s" : ""}, {rooms} chambre{rooms > 1 ? "s" : ""}</span>
+              <span className="text-muted-foreground font-medium">{t("price.amountToPay")} · {tc("hotels.nights", nights)}, {tc("hotels.rooms", rooms)}</span>
               <PaymentAmount amountFcfa={amountToPay} className="text-2xl font-bold text-primary font-mono" />
             </CardContent>
             </Card>
           )}
           <Card className="border-border">
             <CardContent className="p-6">
-              <h2 className="text-xl font-bold mb-4">Choisissez votre moyen de paiement</h2>
+              <h2 className="text-xl font-bold mb-4">{t("checkout.selectMethod")}</h2>
               <div className="grid grid-cols-3 gap-3">
                 {PAYMENT_METHODS.map((method) => {
                   const isSelected = paymentMethod === method.id;
@@ -175,7 +169,7 @@ export default function HotelCheckout() {
           <Card className="border-border">
             <CardContent className="p-6">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Shield className="w-5 h-5 text-primary" /> Informations du client
+                <Shield className="w-5 h-5 text-primary" /> {t("hotels.guestInfo")}
               </h2>
 
               <Form {...form}>
@@ -185,7 +179,7 @@ export default function HotelCheckout() {
                     name="guestName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nom complet</FormLabel>
+                        <FormLabel>{t("hotels.fullName")}</FormLabel>
                         <FormControl>
                           <Input placeholder="John Doe" {...field} className="h-12" />
                         </FormControl>
@@ -198,7 +192,7 @@ export default function HotelCheckout() {
                     name="guestPhone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Numéro de téléphone (Mobile Money)</FormLabel>
+                        <FormLabel>{t("checkout.phoneLabel")}</FormLabel>
                         <FormControl>
                           <Input placeholder="07 XX XX XX XX" {...field} className="h-12" />
                         </FormControl>
@@ -212,17 +206,15 @@ export default function HotelCheckout() {
                       {selectedMethod.shortLabel}
                     </div>
                     <div>
-                      <h4 className="font-bold">Payer avec {selectedMethod.name}</h4>
+                      <h4 className="font-bold">{t("checkout.payWith", { method: selectedMethod.name })}</h4>
                       <p className="text-sm opacity-80">
-                        {selectedMethod.kind === "card"
-                          ? "Vous saisirez les informations de votre carte sur une page de paiement sécurisée."
-                          : `Vous recevrez un prompt sur votre téléphone ${selectedMethod.name} pour confirmer le paiement.`}
+                        {t(selectedMethod.kind === "card" ? "checkout.cardNote" : "checkout.methodNote", { method: selectedMethod.name })}
                       </p>
                     </div>
                   </div>
 
                   <Button type="submit" size="lg" className="w-full h-14 text-lg font-bold" disabled={initiateBooking.isPending}>
-                    {initiateBooking.isPending ? "Initialisation..." : "Confirmer et Payer"}
+                    {initiateBooking.isPending ? t("checkout.initiating") : t("checkout.confirmPay")}
                   </Button>
                 </form>
               </Form>

@@ -227,49 +227,6 @@ paths:
           description: No position shared yet
 
   # Seat reservation
-  /seats/{seatId}/reserve:
-    post:
-      operationId: reserveSeat
-      tags: [seats]
-      summary: Temporarily reserve a seat (10 min)
-      parameters:
-        - name: seatId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReserveInput"
-      responses:
-        "200":
-          description: Seat reserved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Seat"
-
-    delete:
-      operationId: releaseSeat
-      tags: [seats]
-      summary: Release a temporary reservation
-      parameters:
-        - name: seatId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Seat released
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Seat"
-
   # Payments
   /payments/initiate:
     post:
@@ -290,24 +247,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaymentResponse"
 
-  /payments/callback:
+  /payments/paydunya-webhook:
     post:
-      operationId: paymentCallback
+      operationId: paydunyaWebhook
       tags: [payments]
-      summary: Mobile money payment callback
+      summary: PayDunya payment notification (IPN) for bus tickets and hotel bookings. Called by PayDunya, not by the app; the state is re-checked with PayDunya's confirm API.
       requestBody:
         required: true
         content:
-          application/json:
+          application/x-www-form-urlencoded:
             schema:
-              $ref: "#/components/schemas/PaymentCallbackInput"
+              $ref: "#/components/schemas/PaydunyaWebhookInput"
       responses:
         "200":
-          description: Callback processed
+          description: Notification processed
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Malformed notification
+        "404":
+          description: Unknown invoice
+        "502":
+          description: PayDunya could not be reached to confirm (PayDunya retries)
 
   # Tickets
   /tickets:
@@ -329,7 +292,7 @@ paths:
     get:
       operationId: getTicket
       tags: [tickets]
-      summary: Get ticket by ID
+      summary: Get one of the logged-in user's tickets
       parameters:
         - name: ticketId
           in: path
@@ -343,6 +306,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Ticket"
+        "401":
+          description: Not logged in
+        "403":
+          description: Belongs to another user
+        "404":
+          description: Not found
+
+  /tickets/{ticketId}/payment-status:
+    get:
+      operationId: getTicketPaymentStatus
+      tags: [tickets]
+      summary: Current payment status of the logged-in user's ticket (polled after returning from PayDunya)
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentStatusResponse"
+        "401":
+          description: Not logged in
+        "403":
+          description: Not your ticket
+        "404":
+          description: Ticket not found
 
   /tickets/{ticketId}/cancel:
     post:
@@ -425,7 +419,7 @@ paths:
     post:
       operationId: initiateHotelBooking
       tags: [hotels]
-      summary: Initiate a hotel booking (mobile money payment)
+      summary: Start a hotel booking and create its PayDunya invoice (login required)
       requestBody:
         required: true
         content:
@@ -439,25 +433,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HotelBookingInitiateResponse"
-
-  /hotel-bookings/callback:
-    post:
-      operationId: hotelBookingCallback
-      tags: [hotels]
-      summary: Hotel booking payment callback
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/HotelBookingCallbackInput"
-      responses:
-        "200":
-          description: Callback processed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
 
   /hotel-bookings:
     get:
@@ -478,7 +453,7 @@ paths:
     get:
       operationId: getHotelBooking
       tags: [hotels]
-      summary: Get hotel booking by ID
+      summary: Get one of the logged-in user's hotel bookings
       parameters:
         - name: bookingId
           in: path
@@ -492,6 +467,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HotelBooking"
+        "401":
+          description: Not logged in
+        "403":
+          description: Belongs to another user
+        "404":
+          description: Not found
+
+  /hotel-bookings/{bookingId}/payment-status:
+    get:
+      operationId: getHotelBookingPaymentStatus
+      tags: [hotels]
+      summary: Current payment status of the logged-in user's hotel booking (polled after returning from PayDunya)
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HotelBookingPaymentStatusResponse"
+        "401":
+          description: Not logged in
+        "403":
+          description: Belongs to another user
+        "404":
+          description: Not found
 
   # Admin - Hotels
   /admin/hotels:
@@ -2345,15 +2351,6 @@ components:
         passengerName:
           type: ["string", "null"]
 
-    ReserveInput:
-      type: object
-      required: [passengerName, passengerPhone]
-      properties:
-        passengerName:
-          type: string
-        passengerPhone:
-          type: string
-
     # Payment
     PaymentInput:
       type: object
@@ -2381,19 +2378,28 @@ components:
           type: string
         redirectUrl:
           type: ["string", "null"]
+          description: PayDunya checkout page to send the customer to
         ticketId:
           type: ["integer", "null"]
 
-    PaymentCallbackInput:
+    PaydunyaWebhookInput:
       type: object
-      required: [paymentId, status]
+      description: Sent by PayDunya; "data" holds the invoice object (status, hash, invoice.token, invoice.total_amount, custom_data…)
+      required: [data]
       properties:
-        paymentId:
-          type: string
-        status:
-          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+    PaymentStatusResponse:
+      type: object
+      required: [ticketId, paymentStatus]
+      properties:
         ticketId:
-          type: ["integer", "null"]
+          type: integer
+        paymentStatus:
+          type: string
+          enum: [pending, paid, failed, expired, refund_required]
 
     # Ticket
     Ticket:
@@ -2429,7 +2435,7 @@ components:
           enum: [wave, orange_money, mtn_money, moov_money, card]
         paymentStatus:
           type: string
-          enum: [pending, paid]
+          enum: [pending, paid, failed, expired, refund_required]
         validated:
           type: boolean
         cancelledAt:
@@ -2574,14 +2580,15 @@ components:
           type: string
           enum: [wave, orange_money, mtn_money, moov_money, card]
 
-    HotelBookingCallbackInput:
+    HotelBookingPaymentStatusResponse:
       type: object
-      required: [paymentId, status]
+      required: [bookingId, paymentStatus]
       properties:
-        paymentId:
+        bookingId:
+          type: integer
+        paymentStatus:
           type: string
-        status:
-          type: string
+          enum: [pending, paid, failed, refund_required]
 
     HotelBookingInitiateResponse:
       type: object
@@ -2595,6 +2602,9 @@ components:
           type: string
         bookingId:
           type: ["integer", "null"]
+        redirectUrl:
+          type: ["string", "null"]
+          description: PayDunya checkout page to send the customer to
 
     HotelBooking:
       type: object
@@ -2627,7 +2637,7 @@ components:
           enum: [wave, orange_money, mtn_money, moov_money, card]
         paymentStatus:
           type: string
-          enum: [pending, paid]
+          enum: [pending, paid, failed, refund_required]
         status:
           type: string
           enum: [pending, confirmed, cancelled]

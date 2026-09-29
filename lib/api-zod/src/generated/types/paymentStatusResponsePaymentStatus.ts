@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type TicketPaymentStatus = typeof TicketPaymentStatus[keyof typeof TicketPaymentStatus];
+export type PaymentStatusResponsePaymentStatus = typeof PaymentStatusResponsePaymentStatus[keyof typeof PaymentStatusResponsePaymentStatus];
 
 
-export const TicketPaymentStatus = {
+export const PaymentStatusResponsePaymentStatus = {
   pending: 'pending',
   paid: 'paid',
   failed: 'failed',

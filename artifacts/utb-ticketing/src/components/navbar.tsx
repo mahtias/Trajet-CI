@@ -9,32 +9,32 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useLanguage } from "@/hooks/use-language";
 import { CurrencySelect } from "@/components/currency-select";
-import { cn } from "@/lib/utils";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
 import type { Language } from "@/lib/i18n/translations";
 
-function LanguageToggle() {
-  const { language, setLanguage } = useLanguage();
+const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
+  { value: "fr", label: "FR · Français" },
+  { value: "en", label: "EN · English" },
+  { value: "zh", label: "中文 · Chinese" },
+];
 
-  const option = (lang: Language, label: string) => (
-    <button
-      type="button"
-      onClick={() => setLanguage(lang)}
-      className={cn(
-        "px-2 py-1 text-xs font-bold rounded-full transition-colors",
-        language === lang
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:text-foreground"
-      )}
-    >
-      {label}
-    </button>
-  );
+function LanguageToggle() {
+  const { language, setLanguage, t } = useLanguage();
+  const short = language === "zh" ? "中文" : language.toUpperCase();
 
   return (
-    <div className="flex items-center gap-1 bg-muted rounded-full p-0.5">
-      {option("fr", "FR")}
-      {option("en", "EN")}
-    </div>
+    <Select value={language} onValueChange={(v) => setLanguage(v as Language)}>
+      <SelectTrigger className="h-8 w-auto gap-1 rounded-full text-xs font-bold bg-muted border-0 px-2.5 sm:px-3" aria-label={t("nav.language")}>
+        <SelectValue>{short}</SelectValue>
+      </SelectTrigger>
+      <SelectContent align="end">
+        {LANGUAGE_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value} className="text-xs font-bold">{option.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -201,12 +201,13 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl text-secondary">
-          <div className="bg-primary text-primary-foreground p-1.5 rounded-md">
-            <BusFront className="h-5 w-5" />
+      <div className="container mx-auto px-4 md:px-8 h-16 flex items-center justify-between gap-2">
+        {/* min-w-0 + truncate: on small phones the name shrinks instead of pushing the menu button off screen */}
+        <Link href="/" className="flex items-center gap-1.5 sm:gap-2 font-bold text-base sm:text-xl text-secondary min-w-0">
+          <div className="bg-primary text-primary-foreground p-1 sm:p-1.5 rounded-md shrink-0">
+            <BusFront className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
-         ChapVoyage
+          <span className="truncate">ChapVoyage</span>
         </Link>
 
         {/* Desktop Nav */}
@@ -218,12 +219,14 @@ export function Navbar() {
         </nav>
 
         {/* Mobile Nav Toggle */}
-        <div className="flex items-center gap-3 md:hidden">
+        <div className="flex items-center gap-1.5 shrink-0 md:hidden">
           <CurrencySelect />
           <LanguageToggle />
           <button
-            className="p-2 text-foreground"
+            className="p-2 -mr-2 text-foreground shrink-0"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Menu"
+            aria-expanded={isMobileMenuOpen}
           >
             {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>

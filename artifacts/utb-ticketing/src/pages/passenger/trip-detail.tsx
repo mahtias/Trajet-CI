@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { format } from "date-fns";
 import {
   useGetTrip,
   useGetTripSeats,
   getGetTripSeatsQueryKey,
-  useReserveSeat
 } from "@workspace/api-client-react";
 import { Clock, Info, ShieldCheck, ArrowRight, UserRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { Price } from "@/components/price";
+import { formatShortDate } from "@/lib/dates";
 
 export default function TripDetail() {
   const { id } = useParams<{ id: string }>();
@@ -37,8 +36,6 @@ export default function TripDetail() {
     }
   });
 
-  const reserveSeat = useReserveSeat();
-
   const handleSeatClick = (seatId: number, status: string) => {
     if (status !== "available") return;
     setSelectedSeatId(seatId);
@@ -47,9 +44,7 @@ export default function TripDetail() {
   const handleContinue = () => {
     if (!selectedSeatId) return;
     
-    // We navigate to checkout with the selected seat id
-    // The actual reservation will be done at checkout or we can do a temporary lock here.
-    // For this flow, we will pass it as query param to checkout
+    // The seat is held atomically by POST /payments/initiate when the checkout starts
     setLocation(`/checkout?tripId=${tripId}&seatId=${selectedSeatId}`);
   };
 
@@ -86,7 +81,7 @@ export default function TripDetail() {
               <div className="flex items-center gap-4 mt-2 text-white/80">
                 <div className="flex items-center gap-1">
                   <Clock className="w-4 h-4" />
-                  {format(new Date(trip.departureDate), "d MMM yyyy", { locale: dateLocale })} {t("tripDetail.at")} {trip.departureTime.slice(0, 5)}
+                  {formatShortDate(trip.departureDate, dateLocale)} {t("tripDetail.at")} {trip.departureTime.slice(0, 5)}
                 </div>
               </div>
             </div>

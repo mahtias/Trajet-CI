@@ -17,6 +17,7 @@ import {
   originStation,
   destinationStation,
 } from "../lib/trip-queries";
+import { releaseExpiredReservations } from "../lib/seat-reservations";
 
 // Generated SearchTripsQueryParams expects a Date for `date`; query strings need the YYYY-MM-DD form.
 const SearchQuery = z.object({
@@ -52,11 +53,8 @@ router.get("/trips/search", async (req, res): Promise<void> => {
     )
     .orderBy(tripsTable.departureTime, tripsTable.id);
 
-  // Auto-release expired reservations (older than 10 min)
-  await db.execute(
-    sql`UPDATE seats SET status = 'available', reserved_at = NULL, passenger_name = NULL, passenger_phone = NULL
-        WHERE status = 'reserved' AND reserved_at < NOW() - INTERVAL '10 minutes'`
-  );
+  // Expire stale online purchases and free their seats
+  await releaseExpiredReservations();
 
   const trips = await Promise.all(
     results.map(async (row) => {
@@ -92,11 +90,8 @@ router.get("/trips/:tripId/seats", async (req, res): Promise<void> => {
     return;
   }
 
-  // Auto-release expired reservations
-  await db.execute(
-    sql`UPDATE seats SET status = 'available', reserved_at = NULL, passenger_name = NULL, passenger_phone = NULL
-        WHERE trip_id = ${params.data.tripId} AND status = 'reserved' AND reserved_at < NOW() - INTERVAL '10 minutes'`
-  );
+  // Expire stale online purchases and free their seats
+  await releaseExpiredReservations(params.data.tripId);
 
   const seats = await db
     .select()

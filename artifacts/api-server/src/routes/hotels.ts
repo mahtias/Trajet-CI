@@ -5,11 +5,12 @@ import { z } from "zod";
 import {
   GetHotelParams,
   InitiateHotelBookingBody,
-  HotelBookingCallbackBody,
   GetHotelBookingParams,
+  GetHotelBookingPaymentStatusParams,
 } from "@workspace/api-zod";
-import { generateQrCode } from "../lib/qr";
-import { formatHotelBooking } from "../lib/agency-queries";
+import { formatHotelBooking, todayDate } from "../lib/agency-queries";
+import { computeAvailableRooms } from "../lib/hotel-availability";
+import { getPaydunyaConfig, createCheckoutInvoice, PaydunyaConfigError } from "../lib/paydunya";
 
 const router: IRouter = Router();
 
@@ -26,21 +27,6 @@ const SearchHotelsQuery = z.object({
   checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   rooms: z.coerce.number().int().min(1).optional(),
 });
-
-async function computeAvailableRooms(hotelId: number, totalRooms: number, checkIn: string, checkOut: string): Promise<number> {
-  const [{ booked }] = await db
-    .select({ booked: sql<number>`COALESCE(SUM(${hotelBookingsTable.rooms}), 0)::int` })
-    .from(hotelBookingsTable)
-    .where(
-      and(
-        eq(hotelBookingsTable.hotelId, hotelId),
-        eq(hotelBookingsTable.paymentStatus, "paid"),
-        sql`${hotelBookingsTable.checkInDate} < ${checkOut}`,
-        sql`${hotelBookingsTable.checkOutDate} > ${checkIn}`,
-      )
-    );
-  return Math.max(0, totalRooms - booked);
-}
 
 function formatHotel(h: typeof hotelsTable.$inferSelect) {
   return {
@@ -89,18 +75,40 @@ router.get("/hotels/:hotelId", async (req, res): Promise<void> => {
   res.json(formatHotel(hotel));
 });
 
+/**
+ * Starts a hotel booking paid online, same pattern as bus tickets (routes/payments.ts):
+ * the amount is recomputed here from the hotel's price and the stay (never taken from the client),
+ * a PayDunya invoice is created, and the booking only becomes "paid" through the PayDunya webhook.
+ */
 router.post("/hotel-bookings/initiate", async (req, res): Promise<void> => {
   const body = InitiateHotelBookingBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const { userId } = getSession(req);
+  if (!userId) { res.status(401).json({ error: "Authentification requise" }); return; }
+
+  let config;
+  try {
+    config = getPaydunyaConfig();
+  } catch (err) {
+    if (err instanceof PaydunyaConfigError) {
+      req.log.error({ reason: err.message }, "Hotel payment requested but PayDunya is not configured");
+      res.status(503).json({ error: "Le paiement en ligne est momentanément indisponible" });
+      return;
+    }
+    throw err;
+  }
 
   const { hotelId, guestName, guestPhone, rooms, paymentMethod } = body.data;
   const checkInDate = body.data.checkInDate.toISOString().split("T")[0];
   const checkOutDate = body.data.checkOutDate.toISOString().split("T")[0];
 
+  if (!Number.isInteger(rooms) || rooms < 1) { res.status(400).json({ error: "Le nombre de chambres doit être un entier positif" }); return; }
   if (checkOutDate <= checkInDate) {
     res.status(400).json({ error: "La date de départ doit être après la date d'arrivée" });
     return;
   }
+  if (checkInDate < todayDate()) { res.status(400).json({ error: "La date d'arrivée est déjà passée" }); return; }
 
   const [hotel] = await db.select().from(hotelsTable).where(eq(hotelsTable.id, hotelId)).limit(1);
   if (!hotel) { res.status(404).json({ error: "Hôtel non trouvé" }); return; }
@@ -111,44 +119,46 @@ router.post("/hotel-bookings/initiate", async (req, res): Promise<void> => {
     return;
   }
 
+  // FCFA has no subunit: the invoiced amount is an integer, and it is exactly what the booking records
   const nights = Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / (24 * 3600 * 1000));
-  const totalPrice = parseFloat(hotel.pricePerNight) * nights * rooms;
-  const paymentId = `HPAY-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-  const { userId } = getSession(req);
+  const amount = Math.round(parseFloat(hotel.pricePerNight) * nights * rooms);
+  if (!Number.isFinite(amount) || amount <= 0) { res.status(409).json({ error: "Prix de l'hôtel invalide" }); return; }
 
   const [booking] = await db
     .insert(hotelBookingsTable)
     .values({
-      hotelId, userId: userId ?? null, guestName, guestPhone,
+      hotelId, userId, guestName, guestPhone,
       checkInDate, checkOutDate, rooms,
-      totalPrice: String(totalPrice),
-      paymentMethod, paymentStatus: "pending", paymentId,
-      qrCode: await generateQrCode(paymentId),
+      totalPrice: String(amount),
+      paymentMethod, // what the customer intends to use; the actual method is chosen on the PayDunya page
+      paymentStatus: "pending",
+      qrCode: "",
     })
     .returning();
 
-  res.json({ paymentId, amount: totalPrice, status: "pending", bookingId: booking.id });
-});
-
-router.post("/hotel-bookings/callback", async (req, res): Promise<void> => {
-  const body = HotelBookingCallbackBody.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
-
-  const { paymentId, status } = body.data;
-
-  const [booking] = await db.select().from(hotelBookingsTable).where(eq(hotelBookingsTable.paymentId, paymentId)).limit(1);
-  if (!booking) { res.status(404).json({ error: "Réservation non trouvée" }); return; }
-
-  if (status !== "success") {
-    await db.delete(hotelBookingsTable).where(eq(hotelBookingsTable.paymentId, paymentId));
-    res.json({ success: false });
+  let invoice: { token: string; url: string };
+  try {
+    invoice = await createCheckoutInvoice(config, {
+      amount,
+      description: `${hotel.name} – ${nights} nuit(s), ${rooms} chambre(s), du ${checkInDate} au ${checkOutDate}`,
+      itemName: `Séjour ${hotel.name}`,
+      customer: { name: guestName, phone: guestPhone },
+      customData: { hotel_booking_id: booking.id, hotel_id: hotel.id },
+      returnUrl: `${config.appPublicUrl}/payment/return?hotelBookingId=${booking.id}`,
+      cancelUrl: `${config.appPublicUrl}/payment/return?hotelBookingId=${booking.id}&cancelled=1`,
+      // Same webhook as bus tickets: it finds the booking from the invoice token
+      callbackUrl: `${config.appPublicUrl}/api/payments/paydunya-webhook`,
+    });
+  } catch (err) {
+    req.log.error({ err, bookingId: booking.id }, "PayDunya invoice creation failed (hotel)");
+    await db.update(hotelBookingsTable).set({ paymentStatus: "failed" }).where(eq(hotelBookingsTable.id, booking.id));
+    res.status(502).json({ error: "Le service de paiement est momentanément indisponible, réessayez dans quelques instants" });
     return;
   }
 
-  const qrCode = await generateQrCode(JSON.stringify({ bookingId: booking.id, paymentId }));
-  await db.update(hotelBookingsTable).set({ paymentStatus: "paid", qrCode }).where(eq(hotelBookingsTable.paymentId, paymentId));
+  await db.update(hotelBookingsTable).set({ paymentId: invoice.token }).where(eq(hotelBookingsTable.id, booking.id));
 
-  res.json({ success: true });
+  res.json({ paymentId: invoice.token, amount, status: "pending", bookingId: booking.id, redirectUrl: invoice.url });
 });
 
 router.get("/hotel-bookings", async (req, res): Promise<void> => {
@@ -159,14 +169,34 @@ router.get("/hotel-bookings", async (req, res): Promise<void> => {
   res.json(await Promise.all(bookings.map(formatBooking)));
 });
 
+// Guest data (name, phone, stay): only the booking's owner may read it. 401 → 404 → 403, as for tickets.
 router.get("/hotel-bookings/:bookingId", async (req, res): Promise<void> => {
   const params = GetHotelBookingParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
+  const { userId } = getSession(req);
+  if (!userId) { res.status(401).json({ error: "Authentification requise" }); return; }
+
   const [booking] = await db.select().from(hotelBookingsTable).where(eq(hotelBookingsTable.id, params.data.bookingId)).limit(1);
   if (!booking) { res.status(404).json({ error: "Réservation non trouvée" }); return; }
+  if (booking.userId !== userId) { res.status(403).json({ error: "Cette réservation ne vous appartient pas" }); return; }
 
   res.json(await formatBooking(booking));
+});
+
+// Polled by the page the customer lands on after PayDunya. Read-only: only the webhook marks a booking paid.
+router.get("/hotel-bookings/:bookingId/payment-status", async (req, res): Promise<void> => {
+  const params = GetHotelBookingPaymentStatusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const { userId } = getSession(req);
+  if (!userId) { res.status(401).json({ error: "Authentification requise" }); return; }
+
+  const [booking] = await db.select().from(hotelBookingsTable).where(eq(hotelBookingsTable.id, params.data.bookingId)).limit(1);
+  if (!booking) { res.status(404).json({ error: "Réservation non trouvée" }); return; }
+  if (booking.userId !== userId) { res.status(403).json({ error: "Cette réservation ne vous appartient pas" }); return; }
+
+  res.json({ bookingId: booking.id, paymentStatus: booking.paymentStatus });
 });
 
 export default router;

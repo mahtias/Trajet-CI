@@ -11,8 +11,10 @@ import { CityCombobox } from "@/components/city-combobox";
 import { ImageThumb } from "@/components/image-gallery";
 import { CITIES } from "@/lib/cities";
 import { Price } from "@/components/price";
+import { useLanguage } from "@/hooks/use-language";
 
 export default function Hotels() {
+  const { t, tc } = useLanguage();
   const searchParams = new URLSearchParams(window.location.search);
 
   const [city, setCity] = useState(searchParams.get("city") || "");
@@ -36,10 +38,10 @@ export default function Hotels() {
     <div className="container mx-auto px-4 py-12 max-w-5xl">
       <div className="max-w-3xl mx-auto text-center mb-10">
         <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 flex items-center justify-center gap-3">
-          <Hotel className="w-8 h-8 text-primary" /> Hôtels
+          <Hotel className="w-8 h-8 text-primary" /> {t("hotels.title")}
         </h1>
         <p className="text-muted-foreground">
-          Trouvez un hôtel dans votre ville d'arrivée, où que vous soyez en Côte d'Ivoire.
+          {t("hotels.subtitle")}
         </p>
       </div>
 
@@ -47,26 +49,26 @@ export default function Hotels() {
         <CardContent className="p-4 md:p-6">
           <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
             <div className="md:col-span-2">
-              <label className="text-sm font-medium mb-1 block text-foreground">Ville</label>
+              <label className="text-sm font-medium mb-1 block text-foreground">{t("hotels.city")}</label>
               <CityCombobox
                 cities={CITIES}
                 value={city}
                 onChange={setCity}
-                placeholder="Choisir une ville"
-                searchPlaceholder="Rechercher une ville..."
-                emptyText="Aucune ville trouvée."
+                placeholder={t("hotels.chooseCity")}
+                searchPlaceholder={t("hotels.searchCity")}
+                emptyText={t("hotels.noCity")}
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block text-foreground">Arrivée</label>
+              <label className="text-sm font-medium mb-1 block text-foreground">{t("hotels.checkIn")}</label>
               <Input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="h-12" />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block text-foreground">Départ</label>
+              <label className="text-sm font-medium mb-1 block text-foreground">{t("hotels.checkOut")}</label>
               <Input type="date" value={checkOut} min={checkIn} onChange={(e) => setCheckOut(e.target.value)} className="h-12" />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block text-foreground">Chambres</label>
+              <label className="text-sm font-medium mb-1 block text-foreground">{t("hotels.rooms")}</label>
               <Input
                 type="number"
                 min={1}
@@ -76,7 +78,7 @@ export default function Hotels() {
               />
             </div>
             <Button type="submit" size="lg" className="h-12 font-bold">
-              <Search className="mr-2 h-5 w-5" /> Rechercher
+              <Search className="mr-2 h-5 w-5" /> {t("hotels.search")}
             </Button>
           </form>
         </CardContent>
@@ -92,15 +94,15 @@ export default function Hotels() {
 
       {isError && (
         <div className="bg-destructive/10 text-destructive p-6 rounded-xl text-center">
-          Impossible de charger les hôtels pour le moment.
+          {t("hotels.loadError")}
         </div>
       )}
 
       {submitted && hotels && hotels.length === 0 && (
         <div className="text-center py-20 bg-muted/50 rounded-xl border border-border">
           <Hotel className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-foreground mb-2">Aucun hôtel disponible</h2>
-          <p className="text-muted-foreground">Essayez une autre ville ou d'autres dates.</p>
+          <h2 className="text-xl font-bold text-foreground mb-2">{t("hotels.noneTitle")}</h2>
+          <p className="text-muted-foreground">{t("hotels.noneDesc")}</p>
         </div>
       )}
 
@@ -129,14 +131,14 @@ export default function Hotels() {
                     <MapPin className="w-3.5 h-3.5" /> {hotel.address}, {hotel.city}
                   </p>
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" /> {hotel.availableRooms} chambre{hotel.availableRooms > 1 ? "s" : ""} disponible{hotel.availableRooms > 1 ? "s" : ""}
+                    <Users className="w-3.5 h-3.5" /> {tc("hotels.roomsAvailable", hotel.availableRooms)}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <Price amountFcfa={hotel.pricePerNight} suffix="/nuit" align="right" className="text-xl font-bold text-accent font-mono" />
+                  <Price amountFcfa={hotel.pricePerNight} suffix={t("hotels.perNight")} align="right" className="text-xl font-bold text-accent font-mono" />
                   <Button asChild size="lg">
                     <Link href={`/hotels/${hotel.id}?checkIn=${checkIn}&checkOut=${checkOut}&rooms=${rooms}`}>
-                      Voir
+                      {t("bookings.view")}
                     </Link>
                   </Button>
                 </div>

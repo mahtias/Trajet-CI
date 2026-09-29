@@ -302,11 +302,6 @@ export interface Seat {
   passengerName?: string | null;
 }
 
-export interface ReserveInput {
-  passengerName: string;
-  passengerPhone: string;
-}
-
 export type PaymentInputPaymentMethod = typeof PaymentInputPaymentMethod[keyof typeof PaymentInputPaymentMethod];
 
 
@@ -329,17 +324,38 @@ export interface PaymentResponse {
   paymentId: string;
   amount: number;
   status: string;
-  /** @nullable */
+  /**
+     * PayDunya checkout page to send the customer to
+     * @nullable
+     */
   redirectUrl?: string | null;
   /** @nullable */
   ticketId?: number | null;
 }
 
-export interface PaymentCallbackInput {
-  paymentId: string;
-  status: string;
-  /** @nullable */
-  ticketId?: number | null;
+export type PaydunyaWebhookInputData = { [key: string]: unknown };
+
+/**
+ * Sent by PayDunya; "data" holds the invoice object (status, hash, invoice.token, invoice.total_amount, custom_data…)
+ */
+export interface PaydunyaWebhookInput {
+  data: PaydunyaWebhookInputData;
+}
+
+export type PaymentStatusResponsePaymentStatus = typeof PaymentStatusResponsePaymentStatus[keyof typeof PaymentStatusResponsePaymentStatus];
+
+
+export const PaymentStatusResponsePaymentStatus = {
+  pending: 'pending',
+  paid: 'paid',
+  failed: 'failed',
+  expired: 'expired',
+  refund_required: 'refund_required',
+} as const;
+
+export interface PaymentStatusResponse {
+  ticketId: number;
+  paymentStatus: PaymentStatusResponsePaymentStatus;
 }
 
 export type TicketPaymentMethod = typeof TicketPaymentMethod[keyof typeof TicketPaymentMethod];
@@ -359,6 +375,9 @@ export type TicketPaymentStatus = typeof TicketPaymentStatus[keyof typeof Ticket
 export const TicketPaymentStatus = {
   pending: 'pending',
   paid: 'paid',
+  failed: 'failed',
+  expired: 'expired',
+  refund_required: 'refund_required',
 } as const;
 
 export interface Ticket {
@@ -467,9 +486,19 @@ export interface HotelBookingInput {
   paymentMethod: HotelBookingInputPaymentMethod;
 }
 
-export interface HotelBookingCallbackInput {
-  paymentId: string;
-  status: string;
+export type HotelBookingPaymentStatusResponsePaymentStatus = typeof HotelBookingPaymentStatusResponsePaymentStatus[keyof typeof HotelBookingPaymentStatusResponsePaymentStatus];
+
+
+export const HotelBookingPaymentStatusResponsePaymentStatus = {
+  pending: 'pending',
+  paid: 'paid',
+  failed: 'failed',
+  refund_required: 'refund_required',
+} as const;
+
+export interface HotelBookingPaymentStatusResponse {
+  bookingId: number;
+  paymentStatus: HotelBookingPaymentStatusResponsePaymentStatus;
 }
 
 export interface HotelBookingInitiateResponse {
@@ -478,6 +507,11 @@ export interface HotelBookingInitiateResponse {
   status: string;
   /** @nullable */
   bookingId?: number | null;
+  /**
+     * PayDunya checkout page to send the customer to
+     * @nullable
+     */
+  redirectUrl?: string | null;
 }
 
 export type HotelBookingPaymentMethod = typeof HotelBookingPaymentMethod[keyof typeof HotelBookingPaymentMethod];
@@ -497,6 +531,8 @@ export type HotelBookingPaymentStatus = typeof HotelBookingPaymentStatus[keyof t
 export const HotelBookingPaymentStatus = {
   pending: 'pending',
   paid: 'paid',
+  failed: 'failed',
+  refund_required: 'refund_required',
 } as const;
 
 export type HotelBookingStatus = typeof HotelBookingStatus[keyof typeof HotelBookingStatus];

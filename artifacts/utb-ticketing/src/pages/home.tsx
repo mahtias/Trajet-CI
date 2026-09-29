@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Search, ArrowRight, Ticket, MapPin } from "lucide-react";
+import { Calendar as CalendarIcon, Search, ArrowRight, Ticket, MapPin, ArrowLeftRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/use-language";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { useListCities, getListCitiesQueryKey } from "@workspace/api-client-react";
+import { formatShortDate } from "@/lib/dates";
 
 const POPULAR_ROUTES = [
   { origin: "Abidjan", destination: "Bouaké", priceFcfa: 5000 },
@@ -40,6 +41,14 @@ export default function Home() {
   const prefersReducedMotion = usePrefersReducedMotion();
 
   const formSchema = useMemo(() => buildFormSchema(t), [t]);
+  // Popular routes shown in the opposite direction (index of the card)
+  const [reversedRoutes, setReversedRoutes] = useState<Set<number>>(new Set());
+  const toggleRouteDirection = (index: number) =>
+    setReversedRoutes((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
 
   const { data: cities } = useListCities({ query: { queryKey: getListCitiesQueryKey() } });
   const cityNames = useMemo(() => cities?.map((c) => c.name) ?? [], [cities]);
@@ -169,7 +178,7 @@ export default function Home() {
                             >
                               <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                               {field.value ? (
-                                format(field.value, "dd MMM yyyy", { locale: dateLocale })
+                                formatShortDate(field.value, dateLocale)
                               ) : (
                                 <span>{t("home.chooseDate")}</span>
                               )}
@@ -211,21 +220,39 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            {popularRoutes.map((route, i) => (
-              <Link
-                key={i}
-                href={searchHref(route.originCityId, route.destinationCityId, new Date())}
-                className="group block"
-              >
-                <div className="bg-card border border-border rounded-xl p-6 transition-all hover:shadow-lg hover:border-primary/50 relative overflow-hidden">
+            {popularRoutes.map((route, i) => {
+              const reversed = reversedRoutes.has(i);
+              const from = reversed ? route.destination : route.origin;
+              const to = reversed ? route.origin : route.destination;
+              const fromId = reversed ? route.destinationCityId : route.originCityId;
+              const toId = reversed ? route.originCityId : route.destinationCityId;
+              return (
+                // The link covers the whole card; the swap button sits above it (no button inside a link)
+                <div
+                  key={i}
+                  className="group relative bg-card border border-border rounded-xl p-6 transition-all hover:shadow-lg hover:border-primary/50 overflow-hidden"
+                >
+                  <Link
+                    href={searchHref(fromId, toId, new Date())}
+                    className="absolute inset-0 z-10 rounded-xl"
+                    aria-label={`${from} → ${to}`}
+                  />
                   <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <ArrowRight className="w-24 h-24 -rotate-45" />
                   </div>
-                  <div className="flex flex-col gap-4 relative z-10">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-lg text-foreground">{route.origin}</span>
-                      <ArrowRight className="w-5 h-5 text-primary" />
-                      <span className="font-semibold text-lg text-foreground">{route.destination}</span>
+                  <div className="flex flex-col gap-4 relative">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-lg text-foreground">{from}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleRouteDirection(i)}
+                        title={t("home.swap")}
+                        aria-label={`${t("home.swap")} : ${from} → ${to}`}
+                        className="relative z-20 shrink-0 rounded-full border border-primary/30 bg-background p-1.5 text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+                      >
+                        <ArrowLeftRight className="w-4 h-4" />
+                      </button>
+                      <span className="font-semibold text-lg text-foreground text-right">{to}</span>
                     </div>
                     <div className="pt-4 border-t border-border flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">{t("home.startingFrom")}</span>
@@ -233,8 +260,8 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

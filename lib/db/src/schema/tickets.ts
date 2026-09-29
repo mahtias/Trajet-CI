@@ -15,7 +15,9 @@ export const ticketsTable = pgTable("tickets", {
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   qrCode: text("qr_code").notNull().default(""),
   paymentMethod: text("payment_method").notNull().default("orange_money"), // wave | orange_money | mtn_money | moov_money | card
-  paymentStatus: text("payment_status").notNull().default("pending"), // pending | paid
+  // pending | paid | failed (cancelled/refused on PayDunya) | expired (hold ran out) | refund_required (paid but seat lost)
+  paymentStatus: text("payment_status").notNull().default("pending"),
+  // PayDunya invoice token for online purchases, "CASH-…" for counter sales
   paymentId: text("payment_id"),
   validated: boolean("validated").notNull().default(false),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),

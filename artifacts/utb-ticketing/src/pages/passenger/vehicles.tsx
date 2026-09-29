@@ -10,10 +10,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 import { Price } from "@/components/price";
+import { useLanguage } from "@/hooks/use-language";
 
 const ALL_CATEGORIES = "all";
 
 export default function Vehicles() {
+  const { t } = useLanguage();
   const [category, setCategory] = useState(ALL_CATEGORIES);
 
   // Categories come from the unfiltered catalog so the filter always lists every option
@@ -27,10 +29,10 @@ export default function Vehicles() {
     <div className="container mx-auto px-4 py-12 max-w-6xl">
       <div className="max-w-3xl mx-auto text-center mb-10">
         <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 flex items-center justify-center gap-3">
-          <Car className="w-8 h-8 text-primary" /> Location de véhicules
+          <Car className="w-8 h-8 text-primary" /> {t("vehicles.title")}
         </h1>
         <p className="text-muted-foreground">
-          Louez un véhicule auprès d'agences partenaires, à la journée.
+          {t("vehicles.subtitle")}
         </p>
       </div>
 
@@ -40,7 +42,7 @@ export default function Vehicles() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_CATEGORIES}>Toutes les catégories</SelectItem>
+            <SelectItem value={ALL_CATEGORIES}>{t("vehicles.allCategories")}</SelectItem>
             {categories.map((c) => (
               <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
             ))}
@@ -58,15 +60,15 @@ export default function Vehicles() {
 
       {isError && (
         <div className="bg-destructive/10 text-destructive p-6 rounded-xl text-center">
-          Impossible de charger les véhicules pour le moment.
+          {t("vehicles.loadError")}
         </div>
       )}
 
       {vehicles && vehicles.length === 0 && (
         <div className="text-center py-20 bg-muted/50 rounded-xl border border-border">
           <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-foreground mb-2">Aucun véhicule disponible</h2>
-          <p className="text-muted-foreground">Essayez une autre catégorie.</p>
+          <h2 className="text-xl font-bold text-foreground mb-2">{t("vehicles.noneTitle")}</h2>
+          <p className="text-muted-foreground">{t("vehicles.noneDesc")}</p>
         </div>
       )}
 
@@ -81,12 +83,12 @@ export default function Vehicles() {
                   <span className="text-xs px-2 py-1 rounded-md bg-secondary/10 text-secondary capitalize">{vehicle.category}</span>
                 </div>
                 <p className="text-sm text-muted-foreground flex items-center gap-1 mb-4">
-                  <Users className="w-3.5 h-3.5" /> {vehicle.seats} places · {vehicle.agencyName}
+                  <Users className="w-3.5 h-3.5" /> {t("vehicles.seats", { count: vehicle.seats })} · {vehicle.agencyName}
                 </p>
                 <div className="mt-auto flex items-center justify-between">
-                  <Price amountFcfa={vehicle.pricePerDay} suffix="/jour" className="text-xl font-bold text-accent font-mono" />
+                  <Price amountFcfa={vehicle.pricePerDay} suffix={t("vehicles.perDay")} className="text-xl font-bold text-accent font-mono" />
                   <Button asChild>
-                    <Link href={`/vehicles/${vehicle.id}`}>Voir</Link>
+                    <Link href={`/vehicles/${vehicle.id}`}>{t("bookings.view")}</Link>
                   </Button>
                 </div>
               </CardContent>

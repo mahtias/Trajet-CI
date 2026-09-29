@@ -27,6 +27,7 @@ import Vehicles from '@/pages/passenger/vehicles';
 import VehicleDetail from '@/pages/passenger/vehicle-detail';
 import MyBookings from '@/pages/passenger/my-bookings';
 import TrackTrip from '@/pages/passenger/track-trip';
+import PaymentReturn from '@/pages/passenger/payment-return';
 
 import ClerkDashboard from '@/pages/clerk/dashboard';
 import ClerkTripDetail from '@/pages/clerk/trip-detail';
@@ -61,6 +62,7 @@ function Router() {
         <Route path="/trips" component={Trips} />
         <Route path="/trips/:id" component={TripDetail} />
         <Route path="/checkout" component={Checkout} />
+        <Route path="/payment/return" component={PaymentReturn} />
         <Route path="/tickets" component={Tickets} />
         <Route path="/tickets/:id" component={TicketDetail} />
         <Route path="/tickets/:id/track" component={TrackTrip} />

@@ -31,6 +31,7 @@ import {
   settlePendingPayment,
 } from "../lib/agency-queries";
 import { selectTrips, getTripDetails, getTripCompanyId, isAllowed, getSeatCounts, formatTripSummary, routeLabels } from "../lib/trip-queries";
+import { releaseExpiredReservations } from "../lib/seat-reservations";
 
 const router: IRouter = Router();
 router.use(requireRole("clerk", "admin"));
@@ -82,11 +83,8 @@ router.get("/clerk/trips/:tripId/seats", async (req, res): Promise<void> => {
     return;
   }
 
-  // Auto-release expired reservations
-  await db.execute(
-    sql`UPDATE seats SET status = 'available', reserved_at = NULL, passenger_name = NULL, passenger_phone = NULL
-        WHERE trip_id = ${params.data.tripId} AND status = 'reserved' AND reserved_at < NOW() - INTERVAL '10 minutes'`
-  );
+  // Expire stale online purchases and free their seats
+  await releaseExpiredReservations(params.data.tripId);
 
   const seats = await db
     .select()

@@ -1,11 +1,18 @@
 import { useGetMyTickets } from "@workspace/api-client-react";
-import { format } from "date-fns";
 import { Ticket as TicketIcon, Clock, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/use-language";
+import { formatShortDate } from "@/lib/dates";
+
+const UNPAID_LABELS: Record<string, string> = {
+  pending: "tickets.statusPending",
+  failed: "tickets.statusFailed",
+  expired: "tickets.statusExpired",
+  refund_required: "tickets.statusRefund",
+};
 
 export default function Tickets() {
   const { data: tickets, isLoading } = useGetMyTickets();
@@ -55,6 +62,10 @@ export default function Tickets() {
                         </span>
                         {ticket.cancelledAt ? (
                           <span className="text-xs font-bold px-2 py-1 bg-destructive/10 text-destructive rounded-md">{t("tickets.cancelled")}</span>
+                        ) : ticket.paymentStatus !== "paid" ? (
+                          <span className={`text-xs font-bold px-2 py-1 rounded-md ${ticket.paymentStatus === "pending" || ticket.paymentStatus === "refund_required" ? "bg-amber-100 text-amber-800" : "bg-muted text-muted-foreground"}`}>
+                            {t(UNPAID_LABELS[ticket.paymentStatus] ?? "tickets.statusPending")}
+                          </span>
                         ) : ticket.validated ? (
                           <span className="text-xs font-bold px-2 py-1 bg-muted text-muted-foreground rounded-md flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" /> {t("tickets.used")}
@@ -68,7 +79,7 @@ export default function Tickets() {
                       </div>
                       <div className="text-muted-foreground text-sm flex items-center gap-1 mt-1">
                         <Clock className="w-3 h-3" />
-                        {format(new Date(ticket.departureDate), "d MMM yyyy", { locale: dateLocale })} - {ticket.departureTime.slice(0, 5)}
+                        {formatShortDate(ticket.departureDate, dateLocale)} - {ticket.departureTime.slice(0, 5)}
                       </div>
                     </div>
                     <div className="bg-muted p-4 flex flex-col items-center justify-center border-l border-border border-dashed min-w-[100px]">

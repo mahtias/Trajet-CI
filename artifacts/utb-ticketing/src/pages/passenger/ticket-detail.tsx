@@ -1,5 +1,4 @@
 import { useParams } from "wouter";
-import { format } from "date-fns";
 import { useGetTicket, useCancelTicket, getGetTicketQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MapPin, Clock, Calendar as CalendarIcon, ArrowLeft, Download, ShieldCheck, Hotel, XCircle, Ban, BusFront } from "lucide-react";
@@ -22,6 +21,7 @@ import { useLanguage } from "@/hooks/use-language";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getPaymentMethod } from "@/lib/payment-methods";
+import { formatShortDate } from "@/lib/dates";
 
 const ADVANCE_FEE_PERCENT = 5;
 const SAME_DAY_FEE_PERCENT = 25;
@@ -59,7 +59,8 @@ export default function TicketDetail() {
   const departureAt = new Date(`${ticket.departureDate}T${ticket.departureTime}`);
   const hoursUntilDeparture = (departureAt.getTime() - Date.now()) / (60 * 60 * 1000);
   const isCancelled = !!ticket.cancelledAt;
-  const canCancel = !isCancelled && !ticket.validated && hoursUntilDeparture > 0;
+  const isPaid = ticket.paymentStatus === "paid";
+  const canCancel = isPaid && !isCancelled && !ticket.validated && hoursUntilDeparture > 0;
   const previewFeePercent = hoursUntilDeparture >= 24 ? ADVANCE_FEE_PERCENT : SAME_DAY_FEE_PERCENT;
   const previewRefund = Math.round(ticket.price * (1 - previewFeePercent / 100) * 100) / 100;
 
@@ -107,9 +108,19 @@ export default function TicketDetail() {
 
           {/* QR Code Section */}
           <div className="p-8 flex flex-col items-center justify-center border-b-2 border-dashed border-border pb-10">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-border/50 mb-4">
-              <img src={ticket.qrCode} alt="QR Code" className={cn("w-48 h-48", isCancelled && "opacity-30 grayscale")} />
-            </div>
+            {isPaid ? (
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-border/50 mb-4">
+                <img src={ticket.qrCode} alt="QR Code" className={cn("w-48 h-48", isCancelled && "opacity-30 grayscale")} />
+              </div>
+            ) : (
+              // No QR code before the payment is confirmed
+              <div className="w-56 h-56 mb-4 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center text-center p-4 gap-2">
+                <p className="font-bold text-foreground">{t("ticketDetail.notPaidTitle")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t(ticket.paymentStatus === "refund_required" ? "ticketDetail.refundDesc" : "ticketDetail.notPaidDesc")}
+                </p>
+              </div>
+            )}
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-1">{t("ticketDetail.ticketNumber")}</p>
               <p className="font-mono font-bold tracking-widest text-lg">{ticket.id.toString().padStart(6, '0')}</p>
@@ -139,7 +150,7 @@ export default function TicketDetail() {
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-muted/50 p-3 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {t("common.date")}</p>
-                <p className="font-semibold">{format(new Date(ticket.departureDate), "d MMM yyyy", { locale: dateLocale })}</p>
+                <p className="font-semibold">{formatShortDate(ticket.departureDate, dateLocale)}</p>
               </div>
               <div className="bg-muted/50 p-3 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Clock className="w-3 h-3" /> {t("common.time")}</p>

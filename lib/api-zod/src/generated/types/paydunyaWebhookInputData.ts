@@ -6,7 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HotelBookingCallbackInput {
-  paymentId: string;
-  status: string;
-}
+export type PaydunyaWebhookInputData = { [key: string]: unknown };

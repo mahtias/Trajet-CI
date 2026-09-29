@@ -1,6 +1,4 @@
 import { useParams, Link } from "wouter";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useGetHotelBooking } from "@workspace/api-client-react";
 import { MapPin, Calendar as CalendarIcon, ArrowLeft, Download, Users } from "lucide-react";
 
@@ -9,8 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getPaymentMethod } from "@/lib/payment-methods";
 import { cn } from "@/lib/utils";
 import { PaymentAmount } from "@/components/price";
+import { useLanguage } from "@/hooks/use-language";
+import { formatShortDate } from "@/lib/dates";
 
 export default function HotelBookingDetail() {
+  const { t, dateLocale } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const bookingId = parseInt(id, 10);
 
@@ -27,7 +28,7 @@ export default function HotelBookingDetail() {
   if (!booking) {
     return (
       <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-        Réservation non trouvée.
+        {t("hotels.bookingNotFound")}
       </div>
     );
   }
@@ -38,7 +39,7 @@ export default function HotelBookingDetail() {
     <div className="container mx-auto px-4 py-8 max-w-md">
       <Button variant="ghost" asChild className="mb-6 -ml-4 text-muted-foreground">
         <Link href="/hotel-bookings">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t("common.back")}
         </Link>
       </Button>
 
@@ -49,15 +50,25 @@ export default function HotelBookingDetail() {
         <CardContent className="p-0">
           <div className="bg-secondary text-secondary-foreground p-6 text-center">
             <h2 className="text-xl font-bold tracking-widest">{booking.hotelName}</h2>
-            <p className="text-secondary-foreground/60 text-sm">Confirmation de réservation</p>
+            <p className="text-secondary-foreground/60 text-sm">{t("hotels.bookingConfirmation")}</p>
           </div>
 
           <div className="p-8 flex flex-col items-center justify-center border-b-2 border-dashed border-border pb-10">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-border/50 mb-4">
-              <img src={booking.qrCode} alt="QR Code" className="w-48 h-48" />
-            </div>
+            {booking.paymentStatus === "paid" ? (
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-border/50 mb-4">
+                <img src={booking.qrCode} alt="QR Code" className="w-48 h-48" />
+              </div>
+            ) : (
+              // No QR code before the payment is confirmed
+              <div className="w-56 h-56 mb-4 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center text-center p-4 gap-2">
+                <p className="font-bold text-foreground">{t("hotels.notPaidTitle")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t(booking.paymentStatus === "refund_required" ? "paymentReturn.hotelRefundDesc" : "ticketDetail.notPaidDesc")}
+                </p>
+              </div>
+            )}
             <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">N° de Réservation</p>
+              <p className="text-sm text-muted-foreground mb-1">{t("hotels.bookingNumber")}</p>
               <p className="font-mono font-bold tracking-widest text-lg">{booking.id.toString().padStart(6, '0')}</p>
             </div>
           </div>
@@ -69,17 +80,17 @@ export default function HotelBookingDetail() {
 
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="bg-muted/50 p-3 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> Arrivée</p>
-                <p className="font-semibold">{format(new Date(booking.checkInDate), "d MMM yyyy", { locale: fr })}</p>
+                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {t("hotels.checkIn")}</p>
+                <p className="font-semibold">{formatShortDate(booking.checkInDate, dateLocale)}</p>
               </div>
               <div className="bg-muted/50 p-3 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> Départ</p>
-                <p className="font-semibold">{format(new Date(booking.checkOutDate), "d MMM yyyy", { locale: fr })}</p>
+                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {t("hotels.checkOut")}</p>
+                <p className="font-semibold">{formatShortDate(booking.checkOutDate, dateLocale)}</p>
               </div>
             </div>
 
             <div className="flex items-center justify-between mb-4">
-              <span className="text-xs text-muted-foreground uppercase">Moyen de paiement</span>
+              <span className="text-xs text-muted-foreground uppercase">{t("ticketDetail.paymentMethod")}</span>
               <span className={cn("text-xs font-bold px-2 py-1 rounded-full", method.badgeClass)}>
                 {method.name}
               </span>
@@ -87,17 +98,17 @@ export default function HotelBookingDetail() {
 
             <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20">
               <div>
-                <p className="text-xs text-muted-foreground uppercase">Client</p>
+                <p className="text-xs text-muted-foreground uppercase">{t("hotels.guest")}</p>
                 <p className="font-bold">{booking.guestName}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-muted-foreground uppercase flex items-center gap-1 justify-end"><Users className="w-3 h-3" /> Chambres</p>
+                <p className="text-xs text-muted-foreground uppercase flex items-center gap-1 justify-end"><Users className="w-3 h-3" /> {t("hotels.rooms")}</p>
                 <p className="text-3xl font-black text-primary leading-none">{booking.rooms}</p>
               </div>
             </div>
 
             <div className="flex justify-between items-center mt-4 pt-4 border-t border-border">
-              <span className="text-muted-foreground">Total payé</span>
+              <span className="text-muted-foreground">{t("hotels.totalPaid")}</span>
               <PaymentAmount amountFcfa={booking.totalPrice} className="font-mono font-bold text-lg text-accent" />
             </div>
           </div>
@@ -105,7 +116,7 @@ export default function HotelBookingDetail() {
       </Card>
 
       <Button className="w-full mt-6 h-12" variant="outline" onClick={() => window.print()}>
-        <Download className="w-4 h-4 mr-2" /> Télécharger / Imprimer
+        <Download className="w-4 h-4 mr-2" /> {t("ticketDetail.downloadPrint")}
       </Button>
     </div>
   );

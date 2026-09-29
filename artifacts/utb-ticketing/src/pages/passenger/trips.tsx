@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { useSearch } from "wouter";
 import { format } from "date-fns";
 import { useSearchTrips, getSearchTripsQueryKey, useListCities, getListCitiesQueryKey } from "@workspace/api-client-react";
 import { Clock, Users, ArrowRight, Info, AlertCircle } from "lucide-react";
@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
 import { Price } from "@/components/price";
+import { formatLongDate } from "@/lib/dates";
 
 export default function Trips() {
-  const [location] = useLocation();
-  const { t, dateLocale, numberLocale } = useLanguage();
-  const searchParams = new URLSearchParams(window.location.search);
+  const { t, dateLocale } = useLanguage();
+  // useSearch (not window.location) so the page re-renders when only the query string changes (swap)
+  const searchParams = new URLSearchParams(useSearch());
   const originCityId = Number(searchParams.get("originCityId")) || 0;
   const destinationCityId = Number(searchParams.get("destinationCityId")) || 0;
   const dateStr = searchParams.get("date") || format(new Date(), "yyyy-MM-dd");
@@ -27,7 +28,7 @@ export default function Trips() {
   const origin = cities?.find((c) => c.id === originCityId)?.name ?? "";
   const destination = cities?.find((c) => c.id === destinationCityId)?.name ?? "";
 
-  const displayDate = dateStr ? format(new Date(dateStr), "EEEE d MMMM yyyy", { locale: dateLocale }) : "";
+  const displayDate = dateStr ? formatLongDate(dateStr, dateLocale) : "";
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">

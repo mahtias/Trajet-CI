@@ -20,7 +20,7 @@ export function CurrencySelect() {
 
   return (
     <Select value={currency} onValueChange={(v) => setCurrency(v as DisplayCurrency)}>
-      <SelectTrigger className="h-8 w-[5.5rem] rounded-full text-xs font-bold bg-muted border-0" aria-label={t("nav.currency")}>
+      <SelectTrigger className="h-8 w-auto gap-1 rounded-full text-xs font-bold bg-muted border-0 px-2.5 sm:px-3" aria-label={t("nav.currency")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="end">

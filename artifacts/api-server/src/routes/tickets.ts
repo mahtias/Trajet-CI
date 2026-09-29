@@ -4,7 +4,9 @@ import { db, ticketsTable, tripsTable, seatsTable } from "@workspace/db";
 import {
   GetTicketParams,
   CancelTicketParams,
+  GetTicketPaymentStatusParams,
 } from "@workspace/api-zod";
+import { releaseExpiredReservations } from "../lib/seat-reservations";
 import { getTripDetails, routeLabels } from "../lib/trip-queries";
 
 const SAME_DAY_FEE_PERCENT = 25;
@@ -59,6 +61,8 @@ router.get("/tickets", async (req, res): Promise<void> => {
   res.json(result);
 });
 
+// Passenger data (name, phone, trip): only the ticket's owner may read it.
+// Same order as the other routes of this file: 401 (not logged in) → 404 (unknown) → 403 (someone else's).
 router.get("/tickets/:ticketId", async (req, res): Promise<void> => {
   const params = GetTicketParams.safeParse(req.params);
   if (!params.success) {
@@ -66,13 +70,36 @@ router.get("/tickets/:ticketId", async (req, res): Promise<void> => {
     return;
   }
 
+  const { userId } = getSession(req);
+  if (!userId) { res.status(401).json({ error: "Authentification requise" }); return; }
+
   const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, params.data.ticketId)).limit(1);
   if (!ticket) {
     res.status(404).json({ error: "Ticket non trouvé" });
     return;
   }
+  if (ticket.userId !== userId) { res.status(403).json({ error: "Ce billet ne vous appartient pas" }); return; }
 
   res.json(await buildTicket(ticket));
+});
+
+// Polled by the page the customer lands on after PayDunya. Read-only: only the webhook marks a ticket paid.
+router.get("/tickets/:ticketId/payment-status", async (req, res): Promise<void> => {
+  const params = GetTicketPaymentStatusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const { userId } = getSession(req);
+  if (!userId) { res.status(401).json({ error: "Authentification requise" }); return; }
+
+  const [found] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, params.data.ticketId)).limit(1);
+  if (!found) { res.status(404).json({ error: "Billet non trouvé" }); return; }
+  if (found.userId !== userId) { res.status(403).json({ error: "Ce billet ne vous appartient pas" }); return; }
+
+  // A purchase that never completed turns "expired" here instead of staying "pending" forever
+  await releaseExpiredReservations(found.tripId);
+  const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, found.id)).limit(1);
+
+  res.json({ ticketId: ticket.id, paymentStatus: ticket.paymentStatus });
 });
 
 router.post("/tickets/:ticketId/cancel", async (req, res): Promise<void> => {
@@ -83,12 +110,13 @@ router.post("/tickets/:ticketId/cancel", async (req, res): Promise<void> => {
   }
 
   const { userId } = getSession(req);
+  if (!userId) { res.status(401).json({ error: "Authentification requise" }); return; }
   const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, params.data.ticketId)).limit(1);
   if (!ticket) {
     res.status(404).json({ error: "Billet non trouvé" });
     return;
   }
-  if (!userId || ticket.userId !== userId) {
+  if (ticket.userId !== userId) {
     res.status(403).json({ error: "Ce billet ne vous appartient pas" });
     return;
   }

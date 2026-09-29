@@ -3,6 +3,7 @@ import app, { sessionMiddleware } from "./app";
 import { logger } from "./lib/logger";
 import { initSocket } from "./lib/socket";
 import { seedDefaultExchangeRates } from "./lib/exchange-rates";
+import { checkPaydunyaConfigAtStartup } from "./lib/paydunya";
 
 const rawPort = process.env["PORT"];
 
@@ -19,6 +20,9 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 // Pre-fill the fixed EUR rate if missing (idempotent). Not fatal: prices still show in FCFA without it.
+// Online ticket payment is disabled (with a clear log line) when PayDunya isn't configured
+checkPaydunyaConfigAtStartup();
+
 seedDefaultExchangeRates().catch((err) => logger.error({ err }, "Could not seed default exchange rates"));
 
 // One HTTP server for both the Express API and Socket.io (live trip tracking)

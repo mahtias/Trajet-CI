@@ -19,8 +19,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ImageGallery } from "@/components/image-gallery";
 import { Price, PaymentAmount } from "@/components/price";
+import { useLanguage } from "@/hooks/use-language";
+import { formatShortDate } from "@/lib/dates";
 
 export default function VehicleDetail() {
+  const { t, tc, dateLocale } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const vehicleId = parseInt(id, 10);
   const queryClient = useQueryClient();
@@ -54,7 +57,7 @@ export default function VehicleDetail() {
   if (!vehicle) {
     return (
       <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-        Véhicule non trouvé.
+        {t("vehicles.notFound")}
       </div>
     );
   }
@@ -73,7 +76,7 @@ export default function VehicleDetail() {
           setBooking(created);
           queryClient.invalidateQueries({ queryKey: ["/api/vehicle-availability"] });
         },
-        onError: (err: any) => setError(err?.data?.error ?? err?.message ?? "Réservation impossible"),
+        onError: (err: any) => setError(err?.data?.error ?? err?.message ?? t("bookings.bookingImpossible")),
       }
     );
   };
@@ -82,7 +85,7 @@ export default function VehicleDetail() {
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <Button variant="ghost" asChild className="mb-6 -ml-4 text-muted-foreground">
         <Link href="/vehicles">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t("bookings.back")}
         </Link>
       </Button>
 
@@ -96,9 +99,9 @@ export default function VehicleDetail() {
             <span className="text-xs px-2 py-1 rounded-md bg-secondary/10 text-secondary capitalize">{vehicle.category}</span>
           </div>
           <p className="text-muted-foreground flex items-center gap-1 mb-4 text-sm">
-            <Users className="w-4 h-4" /> {vehicle.seats} places · proposé par {vehicle.agencyName}
+            <Users className="w-4 h-4" /> {t("vehicles.seats", { count: vehicle.seats })} · {t("bookings.offeredBy", { agency: vehicle.agencyName })}
           </p>
-          <Price amountFcfa={vehicle.pricePerDay} suffix="/jour" className="text-2xl font-bold text-accent font-mono" />
+          <Price amountFcfa={vehicle.pricePerDay} suffix={t("vehicles.perDay")} className="text-2xl font-bold text-accent font-mono" />
         </CardContent>
       </Card>
 
@@ -106,18 +109,18 @@ export default function VehicleDetail() {
         <Card className="border-green-200 bg-green-50/50 shadow-sm">
           <CardContent className="p-6 text-center">
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-3" />
-            <h2 className="text-xl font-bold mb-2">Demande de location enregistrée</h2>
+            <h2 className="text-xl font-bold mb-2">{t("vehicles.requestSaved")}</h2>
             <p className="text-muted-foreground mb-1">
-              Du {format(parseISO(booking.startDate), "dd/MM/yyyy")} au {format(parseISO(booking.endDate), "dd/MM/yyyy")}
+              {t("bookings.fromTo", { from: formatShortDate(booking.startDate, dateLocale), to: formatShortDate(booking.endDate, dateLocale) })}
             </p>
             <div className="mb-2">
               <PaymentAmount amountFcfa={booking.totalPrice} align="center" className="font-bold font-mono text-lg text-foreground" />
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              Statut : en attente. L'agence confirmera votre location à réception du paiement.
+              {t("vehicles.pendingNote")}
             </p>
             <Button asChild variant="outline">
-              <Link href="/my-bookings">Voir mes réservations</Link>
+              <Link href="/my-bookings">{t("bookings.viewMyBookings")}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -125,12 +128,12 @@ export default function VehicleDetail() {
         <Card className="border-border shadow-sm">
           <CardContent className="p-6">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Info className="w-5 h-5 text-primary" /> Réserver ce véhicule
+              <Info className="w-5 h-5 text-primary" /> {t("vehicles.bookVehicle")}
             </h2>
             <form onSubmit={handleBook} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Début</label>
+                  <label className="text-sm font-medium mb-1 block">{t("vehicles.start")}</label>
                   <Input
                     type="date"
                     value={startDate}
@@ -140,30 +143,30 @@ export default function VehicleDetail() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1 block">Fin (incluse)</label>
+                  <label className="text-sm font-medium mb-1 block">{t("vehicles.endInclusive")}</label>
                   <Input type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} required />
                 </div>
               </div>
 
               {!datesValid && (
                 <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
-                  La date de fin doit être après la date de début.
+                  {t("vehicles.endBeforeStart")}
                 </div>
               )}
               {datesValid && !checkingAvailability && availability && (
                 availability.available ? (
                   <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 p-3 rounded-lg text-sm">
-                    <CheckCircle2 className="w-4 h-4" /> Disponible sur ces dates
+                    <CheckCircle2 className="w-4 h-4" /> {t("vehicles.available")}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-lg text-sm font-medium">
-                    <XCircle className="w-4 h-4" /> Ce véhicule est déjà réservé sur ces dates. Choisissez d'autres dates.
+                    <XCircle className="w-4 h-4" /> {t("vehicles.unavailable")}
                   </div>
                 )
               )}
 
               <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20">
-                <span className="text-muted-foreground">Total estimé ({days} jour{days > 1 ? "s" : ""})</span>
+                <span className="text-muted-foreground">{t("bookings.estimatedTotal")} ({tc("vehicles.days", days)})</span>
                 <PaymentAmount amountFcfa={estimatedTotal} className="text-2xl font-bold text-primary font-mono" />
               </div>
 
@@ -178,11 +181,11 @@ export default function VehicleDetail() {
                   className="w-full h-14 text-lg font-bold"
                   disabled={!datesValid || unavailable || checkingAvailability || createBooking.isPending}
                 >
-                  Réserver
+                  {t("bookings.book")}
                 </Button>
               ) : (
                 <Button asChild size="lg" className="w-full h-14 text-lg font-bold">
-                  <Link href="/login">Se connecter pour réserver</Link>
+                  <Link href="/login">{t("bookings.loginToBook")}</Link>
                 </Button>
               )}
             </form>
