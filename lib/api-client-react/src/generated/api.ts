@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminRefundsReport,
   Agency,
   AgencyInput,
   AuthUser,
@@ -28,9 +29,13 @@ import type {
   BusInput,
   City,
   CityInput,
-  ClerkSellInput,
+  CommissionSettings,
+  CommissionSettingsInput,
   Company,
   CompanyInput,
+  CompanyPayoutAccount,
+  CompanyPayoutAccountInput,
+  CompanyPayoutStatusReport,
   CompanyStationInput,
   DashboardStats,
   ExchangeRate,
@@ -38,11 +43,14 @@ import type {
   GetAdminAgenciesParams,
   GetAdminCompaniesParams,
   GetAdminHotelsParams,
+  GetAdminRefundsParams,
   GetAdminRoutesParams,
   GetAdminTourismSpotsParams,
   GetAdminTripsParams,
   GetAdminUsersParams,
   GetAdminVehiclesParams,
+  GetCompanyPayoutStatusParams,
+  GetRevenueSplitReportParams,
   GetSalesReportParams,
   GetVehicleAvailabilityParams,
   HealthStatus,
@@ -66,10 +74,12 @@ import type {
   PaginatedUsers,
   PaginatedVehicles,
   Passenger,
+  PaydunyaRefundWebhookInput,
   PaydunyaWebhookInput,
   PaymentInput,
   PaymentResponse,
   PaymentStatusResponse,
+  RevenueSplitReport,
   Route,
   RouteInput,
   SalesReport,
@@ -89,6 +99,7 @@ import type {
   TripDetail,
   TripInput,
   TripLocation,
+  TripPricing,
   TripSummary,
   TripUpdate,
   UploadInput,
@@ -734,6 +745,83 @@ export function useGetTrip<TData = Awaited<ReturnType<typeof getTrip>>, TError =
 
 
 
+export const getGetTripPricingUrl = (tripId: number,) => {
+
+
+
+
+  return `/api/trips/${tripId}/pricing`
+}
+
+/**
+ * @summary Fare and seat selection fee for a trip (display only; the server recomputes everything at payment)
+ */
+export const getTripPricing = async (tripId: number, options?: RequestInit): Promise<TripPricing> => {
+
+  return customFetch<TripPricing>(getGetTripPricingUrl(tripId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTripPricingQueryKey = (tripId: number,) => {
+    return [
+    `/api/trips/${tripId}/pricing`
+    ] as const;
+    }
+
+
+export const getGetTripPricingQueryOptions = <TData = Awaited<ReturnType<typeof getTripPricing>>, TError = ErrorType<void>>(tripId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTripPricing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTripPricingQueryKey(tripId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTripPricing>>> = ({ signal }) => getTripPricing(tripId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: tripId !== null && tripId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTripPricing>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTripPricingQueryResult = NonNullable<Awaited<ReturnType<typeof getTripPricing>>>
+export type GetTripPricingQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fare and seat selection fee for a trip (display only; the server recomputes everything at payment)
+ */
+
+export function useGetTripPricing<TData = Awaited<ReturnType<typeof getTripPricing>>, TError = ErrorType<void>>(
+ tripId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTripPricing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTripPricingQueryOptions(tripId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetTripSeatsUrl = (tripId: number,) => {
 
 
@@ -1030,6 +1118,77 @@ export const usePaydunyaWebhook = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getPaydunyaWebhookMutationOptions(options));
+    }
+
+export const getPaydunyaRefundWebhookUrl = () => {
+
+
+
+
+  return `/api/payments/paydunya-refund-webhook`
+}
+
+/**
+ * @summary PayDunya API PUSH notification (final state of a refund). Called by PayDunya, not by the app; the state is re-checked with PayDunya's check-status API.
+ */
+export const paydunyaRefundWebhook = async (paydunyaRefundWebhookInput: PaydunyaRefundWebhookInput, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getPaydunyaRefundWebhookUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(paydunyaRefundWebhookInput)
+  }
+);}
+
+
+
+
+
+export const getPaydunyaRefundWebhookMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof paydunyaRefundWebhook>>, TError,{data: BodyType<PaydunyaRefundWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof paydunyaRefundWebhook>>, TError,{data: BodyType<PaydunyaRefundWebhookInput>}, TContext> => {
+
+const mutationKey = ['paydunyaRefundWebhook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof paydunyaRefundWebhook>>, {data: BodyType<PaydunyaRefundWebhookInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  paydunyaRefundWebhook(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PaydunyaRefundWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof paydunyaRefundWebhook>>>
+    export type PaydunyaRefundWebhookMutationBody = BodyType<PaydunyaRefundWebhookInput>
+    export type PaydunyaRefundWebhookMutationError = ErrorType<void>
+
+    /**
+ * @summary PayDunya API PUSH notification (final state of a refund). Called by PayDunya, not by the app; the state is re-checked with PayDunya's check-status API.
+ */
+export const usePaydunyaRefundWebhook = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof paydunyaRefundWebhook>>, TError,{data: BodyType<PaydunyaRefundWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof paydunyaRefundWebhook>>,
+        TError,
+        {data: BodyType<PaydunyaRefundWebhookInput>},
+        TContext
+      > => {
+      return useMutation(getPaydunyaRefundWebhookMutationOptions(options));
     }
 
 export const getGetMyTicketsUrl = () => {
@@ -2249,78 +2408,6 @@ export function useGetClerkTripSeats<TData = Awaited<ReturnType<typeof getClerkT
 
 
 
-export const getClerkSellSeatUrl = (seatId: number,) => {
-
-
-
-
-  return `/api/clerk/seats/${seatId}/sell`
-}
-
-/**
- * @summary Manually mark a seat as sold (cash payment)
- */
-export const clerkSellSeat = async (seatId: number,
-    clerkSellInput: ClerkSellInput, options?: RequestInit): Promise<Ticket> => {
-
-  return customFetch<Ticket>(getClerkSellSeatUrl(seatId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(clerkSellInput)
-  }
-);}
-
-
-
-
-
-export const getClerkSellSeatMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clerkSellSeat>>, TError,{seatId: number;data: BodyType<ClerkSellInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof clerkSellSeat>>, TError,{seatId: number;data: BodyType<ClerkSellInput>}, TContext> => {
-
-const mutationKey = ['clerkSellSeat'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clerkSellSeat>>, {seatId: number;data: BodyType<ClerkSellInput>}> = (props) => {
-          const {seatId,data} = props ?? {};
-
-          return  clerkSellSeat(seatId,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ClerkSellSeatMutationResult = NonNullable<Awaited<ReturnType<typeof clerkSellSeat>>>
-    export type ClerkSellSeatMutationBody = BodyType<ClerkSellInput>
-    export type ClerkSellSeatMutationError = ErrorType<unknown>
-
-    /**
- * @summary Manually mark a seat as sold (cash payment)
- */
-export const useClerkSellSeat = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clerkSellSeat>>, TError,{seatId: number;data: BodyType<ClerkSellInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof clerkSellSeat>>,
-        TError,
-        {seatId: number;data: BodyType<ClerkSellInput>},
-        TContext
-      > => {
-      return useMutation(getClerkSellSeatMutationOptions(options));
-    }
-
 export const getGetClerkPassengersUrl = (tripId: number,) => {
 
 
@@ -2766,6 +2853,246 @@ export const useDeleteCompany = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteCompanyMutationOptions(options));
     }
+
+export const getUpdateCompanyPayoutAccountUrl = (companyId: number,) => {
+
+
+
+
+  return `/api/admin/companies/${companyId}/payout-account`
+}
+
+/**
+ * @summary Set the PayDunya account that automatically receives the company's share (super admin)
+ */
+export const updateCompanyPayoutAccount = async (companyId: number,
+    companyPayoutAccountInput: CompanyPayoutAccountInput, options?: RequestInit): Promise<CompanyPayoutAccount> => {
+
+  return customFetch<CompanyPayoutAccount>(getUpdateCompanyPayoutAccountUrl(companyId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(companyPayoutAccountInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCompanyPayoutAccountMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCompanyPayoutAccount>>, TError,{companyId: number;data: BodyType<CompanyPayoutAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCompanyPayoutAccount>>, TError,{companyId: number;data: BodyType<CompanyPayoutAccountInput>}, TContext> => {
+
+const mutationKey = ['updateCompanyPayoutAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCompanyPayoutAccount>>, {companyId: number;data: BodyType<CompanyPayoutAccountInput>}> = (props) => {
+          const {companyId,data} = props ?? {};
+
+          return  updateCompanyPayoutAccount(companyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCompanyPayoutAccountMutationResult = NonNullable<Awaited<ReturnType<typeof updateCompanyPayoutAccount>>>
+    export type UpdateCompanyPayoutAccountMutationBody = BodyType<CompanyPayoutAccountInput>
+    export type UpdateCompanyPayoutAccountMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set the PayDunya account that automatically receives the company's share (super admin)
+ */
+export const useUpdateCompanyPayoutAccount = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCompanyPayoutAccount>>, TError,{companyId: number;data: BodyType<CompanyPayoutAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCompanyPayoutAccount>>,
+        TError,
+        {companyId: number;data: BodyType<CompanyPayoutAccountInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCompanyPayoutAccountMutationOptions(options));
+    }
+
+export const getGetCompanyPayoutStatusUrl = (params: GetCompanyPayoutStatusParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/company-payouts?${stringifiedParams}` : `/api/admin/company-payouts`
+}
+
+/**
+ * @summary Paid tickets whose company share was not transferred automatically (failed, not configured, pending) — super admin
+ */
+export const getCompanyPayoutStatus = async (params: GetCompanyPayoutStatusParams, options?: RequestInit): Promise<CompanyPayoutStatusReport> => {
+
+  return customFetch<CompanyPayoutStatusReport>(getGetCompanyPayoutStatusUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCompanyPayoutStatusQueryKey = (params?: GetCompanyPayoutStatusParams,) => {
+    return [
+    `/api/admin/company-payouts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCompanyPayoutStatusQueryOptions = <TData = Awaited<ReturnType<typeof getCompanyPayoutStatus>>, TError = ErrorType<unknown>>(params: GetCompanyPayoutStatusParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyPayoutStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCompanyPayoutStatusQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCompanyPayoutStatus>>> = ({ signal }) => getCompanyPayoutStatus(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCompanyPayoutStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCompanyPayoutStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getCompanyPayoutStatus>>>
+export type GetCompanyPayoutStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Paid tickets whose company share was not transferred automatically (failed, not configured, pending) — super admin
+ */
+
+export function useGetCompanyPayoutStatus<TData = Awaited<ReturnType<typeof getCompanyPayoutStatus>>, TError = ErrorType<unknown>>(
+ params: GetCompanyPayoutStatusParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyPayoutStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCompanyPayoutStatusQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminRefundsUrl = (params?: GetAdminRefundsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/refunds?${stringifiedParams}` : `/api/admin/refunds`
+}
+
+/**
+ * @summary Refunds not settled automatically (failed, to handle by hand, or not final yet) — super admin
+ */
+export const getAdminRefunds = async (params?: GetAdminRefundsParams, options?: RequestInit): Promise<AdminRefundsReport> => {
+
+  return customFetch<AdminRefundsReport>(getGetAdminRefundsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminRefundsQueryKey = (params?: GetAdminRefundsParams,) => {
+    return [
+    `/api/admin/refunds`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAdminRefundsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminRefunds>>, TError = ErrorType<unknown>>(params?: GetAdminRefundsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminRefunds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminRefundsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminRefunds>>> = ({ signal }) => getAdminRefunds(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminRefunds>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminRefundsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminRefunds>>>
+export type GetAdminRefundsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Refunds not settled automatically (failed, to handle by hand, or not final yet) — super admin
+ */
+
+export function useGetAdminRefunds<TData = Awaited<ReturnType<typeof getAdminRefunds>>, TError = ErrorType<unknown>>(
+ params?: GetAdminRefundsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminRefunds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminRefundsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetAdminUsersUrl = (params?: GetAdminUsersParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -3370,7 +3697,7 @@ export const getGetCompanyStationsUrl = (companyId: number,) => {
 }
 
 /**
- * @summary List stations used by a company
+ * @summary List stations used by a company — admin, or company_admin scoped to its own company
  */
 export const getCompanyStations = async (companyId: number, options?: RequestInit): Promise<Station[]> => {
 
@@ -3417,7 +3744,7 @@ export type GetCompanyStationsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List stations used by a company
+ * @summary List stations used by a company — admin, or company_admin scoped to its own company
  */
 
 export function useGetCompanyStations<TData = Awaited<ReturnType<typeof getCompanyStations>>, TError = ErrorType<unknown>>(
@@ -3447,7 +3774,7 @@ export const getAddCompanyStationUrl = (companyId: number,) => {
 }
 
 /**
- * @summary Link a station to a company
+ * @summary Link a station to a company — admin, or company_admin scoped to its own company
  */
 export const addCompanyStation = async (companyId: number,
     companyStationInput: CompanyStationInput, options?: RequestInit): Promise<Station> => {
@@ -3497,7 +3824,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AddCompanyStationMutationError = ErrorType<unknown>
 
     /**
- * @summary Link a station to a company
+ * @summary Link a station to a company — admin, or company_admin scoped to its own company
  */
 export const useAddCompanyStation = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCompanyStation>>, TError,{companyId: number;data: BodyType<CompanyStationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -3520,7 +3847,7 @@ export const getRemoveCompanyStationUrl = (companyId: number,
 }
 
 /**
- * @summary Unlink a station from a company
+ * @summary Unlink a station from a company — admin, or company_admin scoped to its own company
  */
 export const removeCompanyStation = async (companyId: number,
     stationId: number, options?: RequestInit): Promise<SuccessResponse> => {
@@ -3570,7 +3897,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RemoveCompanyStationMutationError = ErrorType<unknown>
 
     /**
- * @summary Unlink a station from a company
+ * @summary Unlink a station from a company — admin, or company_admin scoped to its own company
  */
 export const useRemoveCompanyStation = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeCompanyStation>>, TError,{companyId: number;stationId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -3592,7 +3919,7 @@ export const getGetCompanyBusesUrl = (companyId: number,) => {
 }
 
 /**
- * @summary List buses for a company
+ * @summary List buses for a company — admin, or company_admin scoped to its own company
  */
 export const getCompanyBuses = async (companyId: number, options?: RequestInit): Promise<Bus[]> => {
 
@@ -3639,7 +3966,7 @@ export type GetCompanyBusesQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List buses for a company
+ * @summary List buses for a company — admin, or company_admin scoped to its own company
  */
 
 export function useGetCompanyBuses<TData = Awaited<ReturnType<typeof getCompanyBuses>>, TError = ErrorType<unknown>>(
@@ -3669,7 +3996,7 @@ export const getCreateBusUrl = (companyId: number,) => {
 }
 
 /**
- * @summary Create a bus for a company
+ * @summary Create a bus for a company — admin, or company_admin scoped to its own company
  */
 export const createBus = async (companyId: number,
     busInput: BusInput, options?: RequestInit): Promise<Bus> => {
@@ -3719,7 +4046,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateBusMutationError = ErrorType<unknown>
 
     /**
- * @summary Create a bus for a company
+ * @summary Create a bus for a company — admin, or company_admin scoped to its own company
  */
 export const useCreateBus = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBus>>, TError,{companyId: number;data: BodyType<BusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -3741,7 +4068,7 @@ export const getUpdateBusUrl = (busId: number,) => {
 }
 
 /**
- * @summary Update a bus
+ * @summary Update a bus — admin, or company_admin scoped to its own company
  */
 export const updateBus = async (busId: number,
     busInput: BusInput, options?: RequestInit): Promise<Bus> => {
@@ -3791,7 +4118,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateBusMutationError = ErrorType<unknown>
 
     /**
- * @summary Update a bus
+ * @summary Update a bus — admin, or company_admin scoped to its own company
  */
 export const useUpdateBus = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBus>>, TError,{busId: number;data: BodyType<BusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -3813,7 +4140,7 @@ export const getDeleteBusUrl = (busId: number,) => {
 }
 
 /**
- * @summary Delete a bus
+ * @summary Delete a bus — admin, or company_admin scoped to its own company
  */
 export const deleteBus = async (busId: number, options?: RequestInit): Promise<SuccessResponse> => {
 
@@ -3862,7 +4189,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DeleteBusMutationError = ErrorType<unknown>
 
     /**
- * @summary Delete a bus
+ * @summary Delete a bus — admin, or company_admin scoped to its own company
  */
 export const useDeleteBus = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBus>>, TError,{busId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -3891,7 +4218,7 @@ export const getGetAdminRoutesUrl = (params?: GetAdminRoutesParams,) => {
 }
 
 /**
- * @summary List all routes
+ * @summary List all routes — admin, or company_admin scoped to its own company
  */
 export const getAdminRoutes = async (params?: GetAdminRoutesParams, options?: RequestInit): Promise<PaginatedRoutes> => {
 
@@ -3938,7 +4265,7 @@ export type GetAdminRoutesQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List all routes
+ * @summary List all routes — admin, or company_admin scoped to its own company
  */
 
 export function useGetAdminRoutes<TData = Awaited<ReturnType<typeof getAdminRoutes>>, TError = ErrorType<unknown>>(
@@ -3968,7 +4295,7 @@ export const getCreateRouteUrl = () => {
 }
 
 /**
- * @summary Create a route
+ * @summary Create a route — admin, or company_admin scoped to its own company
  */
 export const createRoute = async (routeInput: RouteInput, options?: RequestInit): Promise<Route> => {
 
@@ -4017,7 +4344,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateRouteMutationError = ErrorType<unknown>
 
     /**
- * @summary Create a route
+ * @summary Create a route — admin, or company_admin scoped to its own company
  */
 export const useCreateRoute = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRoute>>, TError,{data: BodyType<RouteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -4039,7 +4366,7 @@ export const getUpdateRouteUrl = (routeId: number,) => {
 }
 
 /**
- * @summary Update a route
+ * @summary Update a route — admin, or company_admin scoped to its own company
  */
 export const updateRoute = async (routeId: number,
     routeInput: RouteInput, options?: RequestInit): Promise<Route> => {
@@ -4089,7 +4416,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateRouteMutationError = ErrorType<unknown>
 
     /**
- * @summary Update a route
+ * @summary Update a route — admin, or company_admin scoped to its own company
  */
 export const useUpdateRoute = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRoute>>, TError,{routeId: number;data: BodyType<RouteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -4111,7 +4438,7 @@ export const getDeleteRouteUrl = (routeId: number,) => {
 }
 
 /**
- * @summary Delete a route
+ * @summary Delete a route — admin, or company_admin scoped to its own company
  */
 export const deleteRoute = async (routeId: number, options?: RequestInit): Promise<SuccessResponse> => {
 
@@ -4160,7 +4487,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DeleteRouteMutationError = ErrorType<unknown>
 
     /**
- * @summary Delete a route
+ * @summary Delete a route — admin, or company_admin scoped to its own company
  */
 export const useDeleteRoute = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRoute>>, TError,{routeId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -4189,7 +4516,7 @@ export const getGetAdminTripsUrl = (params?: GetAdminTripsParams,) => {
 }
 
 /**
- * @summary List all trips (admin)
+ * @summary List all trips (admin) — admin, or company_admin scoped to its own company
  */
 export const getAdminTrips = async (params?: GetAdminTripsParams, options?: RequestInit): Promise<PaginatedTrips> => {
 
@@ -4236,7 +4563,7 @@ export type GetAdminTripsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List all trips (admin)
+ * @summary List all trips (admin) — admin, or company_admin scoped to its own company
  */
 
 export function useGetAdminTrips<TData = Awaited<ReturnType<typeof getAdminTrips>>, TError = ErrorType<unknown>>(
@@ -4266,7 +4593,7 @@ export const getCreateTripUrl = () => {
 }
 
 /**
- * @summary Create a trip
+ * @summary Create a trip — admin, or company_admin scoped to its own company
  */
 export const createTrip = async (tripInput: TripInput, options?: RequestInit): Promise<TripDetail> => {
 
@@ -4315,7 +4642,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateTripMutationError = ErrorType<unknown>
 
     /**
- * @summary Create a trip
+ * @summary Create a trip — admin, or company_admin scoped to its own company
  */
 export const useCreateTrip = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTrip>>, TError,{data: BodyType<TripInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -4337,7 +4664,7 @@ export const getUpdateTripUrl = (tripId: number,) => {
 }
 
 /**
- * @summary Update a trip (including price)
+ * @summary Update a trip (including price) — admin, or company_admin scoped to its own company
  */
 export const updateTrip = async (tripId: number,
     tripUpdate: TripUpdate, options?: RequestInit): Promise<TripDetail> => {
@@ -4387,7 +4714,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateTripMutationError = ErrorType<unknown>
 
     /**
- * @summary Update a trip (including price)
+ * @summary Update a trip (including price) — admin, or company_admin scoped to its own company
  */
 export const useUpdateTrip = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTrip>>, TError,{tripId: number;data: BodyType<TripUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -4409,7 +4736,7 @@ export const getDeleteTripUrl = (tripId: number,) => {
 }
 
 /**
- * @summary Delete a trip
+ * @summary Delete a trip — admin, or company_admin scoped to its own company
  */
 export const deleteTrip = async (tripId: number, options?: RequestInit): Promise<SuccessResponse> => {
 
@@ -4458,7 +4785,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DeleteTripMutationError = ErrorType<unknown>
 
     /**
- * @summary Delete a trip
+ * @summary Delete a trip — admin, or company_admin scoped to its own company
  */
 export const useDeleteTrip = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTrip>>, TError,{tripId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -4548,6 +4875,238 @@ export function useGetAdminStats<TData = Awaited<ReturnType<typeof getAdminStats
 
 
 
+export const getGetCommissionSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/settings/commission`
+}
+
+/**
+ * @summary Platform commission and seat selection fee settings (super admin only)
+ */
+export const getCommissionSettings = async ( options?: RequestInit): Promise<CommissionSettings> => {
+
+  return customFetch<CommissionSettings>(getGetCommissionSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommissionSettingsQueryKey = () => {
+    return [
+    `/api/admin/settings/commission`
+    ] as const;
+    }
+
+
+export const getGetCommissionSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getCommissionSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommissionSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommissionSettings>>> = ({ signal }) => getCommissionSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommissionSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommissionSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getCommissionSettings>>>
+export type GetCommissionSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Platform commission and seat selection fee settings (super admin only)
+ */
+
+export function useGetCommissionSettings<TData = Awaited<ReturnType<typeof getCommissionSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommissionSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateCommissionSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/settings/commission`
+}
+
+/**
+ * @summary Update commission settings (super admin only). Only affects tickets created afterwards.
+ */
+export const updateCommissionSettings = async (commissionSettingsInput: CommissionSettingsInput, options?: RequestInit): Promise<CommissionSettings> => {
+
+  return customFetch<CommissionSettings>(getUpdateCommissionSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCommissionSettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommissionSettings>>, TError,{data: BodyType<CommissionSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCommissionSettings>>, TError,{data: BodyType<CommissionSettingsInput>}, TContext> => {
+
+const mutationKey = ['updateCommissionSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCommissionSettings>>, {data: BodyType<CommissionSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateCommissionSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCommissionSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateCommissionSettings>>>
+    export type UpdateCommissionSettingsMutationBody = BodyType<CommissionSettingsInput>
+    export type UpdateCommissionSettingsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update commission settings (super admin only). Only affects tickets created afterwards.
+ */
+export const useUpdateCommissionSettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommissionSettings>>, TError,{data: BodyType<CommissionSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCommissionSettings>>,
+        TError,
+        {data: BodyType<CommissionSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCommissionSettingsMutationOptions(options));
+    }
+
+export const getGetRevenueSplitReportUrl = (params?: GetRevenueSplitReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/reports/revenue-split?${stringifiedParams}` : `/api/admin/reports/revenue-split`
+}
+
+/**
+ * @summary Revenue split per company (admin sees every company, company_admin only its own)
+ */
+export const getRevenueSplitReport = async (params?: GetRevenueSplitReportParams, options?: RequestInit): Promise<RevenueSplitReport> => {
+
+  return customFetch<RevenueSplitReport>(getGetRevenueSplitReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRevenueSplitReportQueryKey = (params?: GetRevenueSplitReportParams,) => {
+    return [
+    `/api/admin/reports/revenue-split`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRevenueSplitReportQueryOptions = <TData = Awaited<ReturnType<typeof getRevenueSplitReport>>, TError = ErrorType<unknown>>(params?: GetRevenueSplitReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRevenueSplitReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRevenueSplitReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRevenueSplitReport>>> = ({ signal }) => getRevenueSplitReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRevenueSplitReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRevenueSplitReportQueryResult = NonNullable<Awaited<ReturnType<typeof getRevenueSplitReport>>>
+export type GetRevenueSplitReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Revenue split per company (admin sees every company, company_admin only its own)
+ */
+
+export function useGetRevenueSplitReport<TData = Awaited<ReturnType<typeof getRevenueSplitReport>>, TError = ErrorType<unknown>>(
+ params?: GetRevenueSplitReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRevenueSplitReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRevenueSplitReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetSalesReportUrl = (params?: GetSalesReportParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4564,7 +5123,7 @@ export const getGetSalesReportUrl = (params?: GetSalesReportParams,) => {
 }
 
 /**
- * @summary Sales report data
+ * @summary Sales report data — admin, or company_admin scoped to its own company
  */
 export const getSalesReport = async (params?: GetSalesReportParams, options?: RequestInit): Promise<SalesReport> => {
 
@@ -4611,7 +5170,7 @@ export type GetSalesReportQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Sales report data
+ * @summary Sales report data — admin, or company_admin scoped to its own company
  */
 
 export function useGetSalesReport<TData = Awaited<ReturnType<typeof getSalesReport>>, TError = ErrorType<unknown>>(

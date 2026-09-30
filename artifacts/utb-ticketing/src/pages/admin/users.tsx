@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetAdminUsers, useUpdateUserRole, useGetMe, getGetMeQueryKey, useGetAdminCompanies, useGetAdminAgencies } from "@workspace/api-client-react";
+import { useGetAdminUsers, useUpdateUserRole, useGetMe, getGetMeQueryKey, useGetAdminAgencies } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -13,21 +13,24 @@ import {
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { AGENCY_TYPE_LABELS } from "@/components/agency-select";
+import { SearchableSelect } from "@/components/searchable-select";
+import { useCompanyOptions } from "@/components/company-select";
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
 
 const ROLES = [
   { value: "passenger", label: "Passager" },
   { value: "clerk", label: "Guichetier" },
-  { value: "admin", label: "Admin" },
+  { value: "company_admin", label: "Admin compagnie" },
+  { value: "admin", label: "Super admin" },
 ];
+
+type UserRole = "passenger" | "clerk" | "company_admin" | "admin";
 
 const PAGE_SIZE = 20;
 
@@ -37,19 +40,31 @@ export default function AdminUsers() {
   const users = data?.items;
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
-  const { data: companiesData } = useGetAdminCompanies({ page: 1, pageSize: 100 });
-  const companies = companiesData?.items;
+  // Same query as CompanySelect: react-query shares the cached list, no extra request
+  const { options: companyOptions } = useCompanyOptions("Compagnies de bus");
+  const assignmentCompanyOptions = companyOptions.map((o) => ({ ...o, value: `company:${o.value}` }));
   const { data: agencies } = useGetAdminAgencies();
+  const agencyOptions = (agencies ?? []).map((a) => ({ value: `agency:${a.id}`, label: `${a.name} · ${AGENCY_TYPE_LABELS[a.type]}`, group: "Agences" }));
   const updateUserRole = useUpdateUserRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   // A clerk is assigned either to a bus company or to an agency (hotel / tourism / vehicle rental)
-  const saveUser = (userId: number, role: "passenger" | "clerk" | "admin", companyId: number | null, agencyId: number | null) => {
+  // Users switched to "company_admin" who still need a company (the server requires one)
+  const [pendingCompanyAdmin, setPendingCompanyAdmin] = useState<Set<number>>(new Set());
+  const setPending = (userId: number, pending: boolean) =>
+    setPendingCompanyAdmin((prev) => {
+      const next = new Set(prev);
+      if (pending) next.add(userId); else next.delete(userId);
+      return next;
+    });
+
+  const saveUser = (userId: number, role: UserRole, companyId: number | null, agencyId: number | null) => {
     updateUserRole.mutate(
       { userId, data: { role, companyId, agencyId } },
       {
         onSuccess: () => {
+          setPending(userId, false);
           queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
           toast({ title: "Utilisateur mis à jour" });
         },
@@ -65,15 +80,26 @@ export default function AdminUsers() {
   };
 
   const handleRoleChange = (userId: number, role: string, currentCompanyId: number | null, currentAgencyId: number | null) => {
+    if (role === "company_admin") {
+      // A company admin must belong to a company: keep the current one, or ask for it first
+      if (currentCompanyId) {
+        saveUser(userId, "company_admin", currentCompanyId, null);
+      } else {
+        setPending(userId, true);
+        toast({ title: "Choisissez la compagnie", description: "Sélectionnez la compagnie de cet administrateur dans la colonne Rattachement." });
+      }
+      return;
+    }
+    setPending(userId, false);
     const isClerk = role === "clerk";
-    saveUser(userId, role as "passenger" | "clerk" | "admin", isClerk ? currentCompanyId : null, isClerk ? currentAgencyId : null);
+    saveUser(userId, role as UserRole, isClerk ? currentCompanyId : null, isClerk ? currentAgencyId : null);
   };
 
   // Assignment values are "company:<id>" or "agency:<id>"
-  const handleAssignmentChange = (userId: number, value: string) => {
+  const handleAssignmentChange = (userId: number, role: UserRole, value: string) => {
     const [kind, id] = value.split(":");
     const numericId = parseInt(id, 10);
-    saveUser(userId, "clerk", kind === "company" ? numericId : null, kind === "agency" ? numericId : null);
+    saveUser(userId, role, kind === "company" ? numericId : null, kind === "agency" ? numericId : null);
   };
 
   const assignmentValue = (user: { companyId?: number | null; agencyId?: number | null }) => {
@@ -125,7 +151,7 @@ export default function AdminUsers() {
                     </TableCell>
                     <TableCell>
                       <Select
-                        value={user.role}
+                        value={pendingCompanyAdmin.has(user.id) ? "company_admin" : user.role}
                         disabled={isSelf || updateUserRole.isPending}
                         onValueChange={(role) => handleRoleChange(user.id, role, user.companyId ?? null, user.agencyId ?? null)}
                       >
@@ -141,32 +167,19 @@ export default function AdminUsers() {
                       {isSelf && <p className="text-xs text-muted-foreground mt-1">Votre compte</p>}
                     </TableCell>
                     <TableCell>
-                      {user.role === "clerk" ? (
-                        <Select
-                          value={assignmentValue(user)}
+                      {user.role === "clerk" || user.role === "company_admin" || pendingCompanyAdmin.has(user.id) ? (
+                        <SearchableSelect
+                          // Agencies are for clerks only: a company admin manages a bus company
+                          options={user.role === "clerk" && !pendingCompanyAdmin.has(user.id) ? [...assignmentCompanyOptions, ...agencyOptions] : assignmentCompanyOptions}
+                          value={pendingCompanyAdmin.has(user.id) ? "" : assignmentValue(user) ?? ""}
                           disabled={updateUserRole.isPending}
-                          onValueChange={(value) => handleAssignmentChange(user.id, value)}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Choisir..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              <SelectLabel>Compagnies de bus</SelectLabel>
-                              {companies?.map((c) => (
-                                <SelectItem key={`company:${c.id}`} value={`company:${c.id}`}>{c.name}</SelectItem>
-                              ))}
-                            </SelectGroup>
-                            <SelectGroup>
-                              <SelectLabel>Agences</SelectLabel>
-                              {agencies?.map((a) => (
-                                <SelectItem key={`agency:${a.id}`} value={`agency:${a.id}`}>
-                                  {a.name} · {AGENCY_TYPE_LABELS[a.type]}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
+                          onChange={(value) => handleAssignmentChange(user.id, user.role === "clerk" && !pendingCompanyAdmin.has(user.id) ? "clerk" : "company_admin", value)}
+                          placeholder="Choisir..."
+                          searchPlaceholder={user.role === "clerk" && !pendingCompanyAdmin.has(user.id) ? "Rechercher une compagnie ou une agence..." : "Rechercher une compagnie..."}
+                          emptyText="Aucune compagnie ne correspond à cette recherche."
+                          ariaLabel="Affectation"
+                          className="h-9"
+                        />
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
                       )}

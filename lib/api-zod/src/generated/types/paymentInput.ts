@@ -8,7 +8,9 @@
 import type { PaymentInputPaymentMethod } from './paymentInputPaymentMethod';
 
 export interface PaymentInput {
-  seatId: number;
+  tripId: number;
+  /** Chosen seat (manual selection, adds the seat selection fee). Omit for free automatic assignment. */
+  seatId?: number;
   passengerName: string;
   passengerPhone: string;
   paymentMethod: PaymentInputPaymentMethod;

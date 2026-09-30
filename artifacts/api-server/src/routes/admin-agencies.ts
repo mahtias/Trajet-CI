@@ -34,7 +34,7 @@ import {
 } from "../lib/agency-queries";
 
 const router: IRouter = Router();
-router.use(requireRole("admin"));
+router.use("/admin", requireRole("admin"));
 
 // ── Agencies ───────────────────────────────────────────────────────────────────
 

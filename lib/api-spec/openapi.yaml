@@ -180,6 +180,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/TripDetail"
 
+  /trips/{tripId}/pricing:
+    get:
+      operationId: getTripPricing
+      tags: [trips]
+      summary: Fare and seat selection fee for a trip (display only; the server recomputes everything at payment)
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pricing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripPricing"
+        "404":
+          description: Trip not found
+
   /trips/{tripId}/seats:
     get:
       operationId: getTripSeats
@@ -271,6 +292,31 @@ paths:
           description: Unknown invoice
         "502":
           description: PayDunya could not be reached to confirm (PayDunya retries)
+
+  /payments/paydunya-refund-webhook:
+    post:
+      operationId: paydunyaRefundWebhook
+      tags: [payments]
+      summary: PayDunya API PUSH notification (final state of a refund). Called by PayDunya, not by the app; the state is re-checked with PayDunya's check-status API.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaydunyaRefundWebhookInput"
+      responses:
+        "200":
+          description: Notification processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Malformed notification
+        "404":
+          description: Unknown refund
+        "502":
+          description: PayDunya could not be reached to check the refund (PayDunya retries)
 
   # Tickets
   /tickets:
@@ -620,31 +666,6 @@ paths:
                 items:
                   $ref: "#/components/schemas/Seat"
 
-  /clerk/seats/{seatId}/sell:
-    post:
-      operationId: clerkSellSeat
-      tags: [clerk]
-      summary: Manually mark a seat as sold (cash payment)
-      parameters:
-        - name: seatId
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClerkSellInput"
-      responses:
-        "200":
-          description: Seat sold
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Ticket"
-
   /clerk/trips/{tripId}/passengers:
     get:
       operationId: getClerkPassengers
@@ -702,6 +723,12 @@ paths:
           required: false
           schema:
             type: integer
+        - name: search
+          in: query
+          required: false
+          description: Filter on the company name (case and accent insensitive)
+          schema:
+            type: string
       responses:
         "200":
           description: Companies list
@@ -768,6 +795,84 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/companies/{companyId}/payout-account:
+    put:
+      operationId: updateCompanyPayoutAccount
+      tags: [admin]
+      summary: Set the PayDunya account that automatically receives the company's share (super admin)
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyPayoutAccountInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyPayoutAccount"
+
+  /admin/company-payouts:
+    get:
+      operationId: getCompanyPayoutStatus
+      tags: [admin]
+      summary: Paid tickets whose company share was not transferred automatically (failed, not configured, pending) — super admin
+      parameters:
+        - name: companyId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Untransferred amounts for this company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyPayoutStatusReport"
+
+  /admin/refunds:
+    get:
+      operationId: getAdminRefunds
+      tags: [admin]
+      summary: Refunds not settled automatically (failed, to handle by hand, or not final yet) — super admin
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Refunds to follow up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRefundsReport"
 
   # Admin - Users
   /admin/users:
@@ -929,7 +1034,7 @@ paths:
     get:
       operationId: getCompanyStations
       tags: [admin]
-      summary: List stations used by a company
+      summary: List stations used by a company — admin, or company_admin scoped to its own company
       parameters:
         - name: companyId
           in: path
@@ -948,7 +1053,7 @@ paths:
     post:
       operationId: addCompanyStation
       tags: [admin]
-      summary: Link a station to a company
+      summary: Link a station to a company — admin, or company_admin scoped to its own company
       parameters:
         - name: companyId
           in: path
@@ -973,7 +1078,7 @@ paths:
     delete:
       operationId: removeCompanyStation
       tags: [admin]
-      summary: Unlink a station from a company
+      summary: Unlink a station from a company — admin, or company_admin scoped to its own company
       parameters:
         - name: companyId
           in: path
@@ -998,7 +1103,7 @@ paths:
     get:
       operationId: getCompanyBuses
       tags: [admin]
-      summary: List buses for a company
+      summary: List buses for a company — admin, or company_admin scoped to its own company
       parameters:
         - name: companyId
           in: path
@@ -1017,7 +1122,7 @@ paths:
     post:
       operationId: createBus
       tags: [admin]
-      summary: Create a bus for a company
+      summary: Create a bus for a company — admin, or company_admin scoped to its own company
       parameters:
         - name: companyId
           in: path
@@ -1042,7 +1147,7 @@ paths:
     put:
       operationId: updateBus
       tags: [admin]
-      summary: Update a bus
+      summary: Update a bus — admin, or company_admin scoped to its own company
       parameters:
         - name: busId
           in: path
@@ -1065,7 +1170,7 @@ paths:
     delete:
       operationId: deleteBus
       tags: [admin]
-      summary: Delete a bus
+      summary: Delete a bus — admin, or company_admin scoped to its own company
       parameters:
         - name: busId
           in: path
@@ -1085,7 +1190,7 @@ paths:
     get:
       operationId: getAdminRoutes
       tags: [admin]
-      summary: List all routes
+      summary: List all routes — admin, or company_admin scoped to its own company
       parameters:
         - name: page
           in: query
@@ -1097,6 +1202,12 @@ paths:
           required: false
           schema:
             type: integer
+        - name: search
+          in: query
+          required: false
+          description: Filter on the company, departure or arrival station/city (case and accent insensitive)
+          schema:
+            type: string
       responses:
         "200":
           description: Routes list
@@ -1107,7 +1218,7 @@ paths:
     post:
       operationId: createRoute
       tags: [admin]
-      summary: Create a route
+      summary: Create a route — admin, or company_admin scoped to its own company
       requestBody:
         required: true
         content:
@@ -1126,7 +1237,7 @@ paths:
     put:
       operationId: updateRoute
       tags: [admin]
-      summary: Update a route
+      summary: Update a route — admin, or company_admin scoped to its own company
       parameters:
         - name: routeId
           in: path
@@ -1149,7 +1260,7 @@ paths:
     delete:
       operationId: deleteRoute
       tags: [admin]
-      summary: Delete a route
+      summary: Delete a route — admin, or company_admin scoped to its own company
       parameters:
         - name: routeId
           in: path
@@ -1169,7 +1280,7 @@ paths:
     get:
       operationId: getAdminTrips
       tags: [admin]
-      summary: List all trips (admin)
+      summary: List all trips (admin) — admin, or company_admin scoped to its own company
       parameters:
         - name: date
           in: query
@@ -1192,6 +1303,12 @@ paths:
           required: false
           schema:
             type: integer
+        - name: search
+          in: query
+          required: false
+          description: Filter on the route (company, stations, cities) or the bus name (case and accent insensitive)
+          schema:
+            type: string
       responses:
         "200":
           description: Trips list
@@ -1202,7 +1319,7 @@ paths:
     post:
       operationId: createTrip
       tags: [admin]
-      summary: Create a trip
+      summary: Create a trip — admin, or company_admin scoped to its own company
       requestBody:
         required: true
         content:
@@ -1221,7 +1338,7 @@ paths:
     put:
       operationId: updateTrip
       tags: [admin]
-      summary: Update a trip (including price)
+      summary: Update a trip (including price) — admin, or company_admin scoped to its own company
       parameters:
         - name: tripId
           in: path
@@ -1244,7 +1361,7 @@ paths:
     delete:
       operationId: deleteTrip
       tags: [admin]
-      summary: Delete a trip
+      summary: Delete a trip — admin, or company_admin scoped to its own company
       parameters:
         - name: tripId
           in: path
@@ -1273,11 +1390,77 @@ paths:
               schema:
                 $ref: "#/components/schemas/DashboardStats"
 
+  /admin/settings/commission:
+    get:
+      operationId: getCommissionSettings
+      tags: [admin]
+      summary: Platform commission and seat selection fee settings (super admin only)
+      responses:
+        "200":
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionSettings"
+    put:
+      operationId: updateCommissionSettings
+      tags: [admin]
+      summary: Update commission settings (super admin only). Only affects tickets created afterwards.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommissionSettingsInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionSettings"
+
+  /admin/reports/revenue-split:
+    get:
+      operationId: getRevenueSplitReport
+      tags: [admin]
+      summary: Revenue split per company (admin sees every company, company_admin only its own)
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Revenue split
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueSplitReport"
+
   /admin/reports/sales:
     get:
       operationId: getSalesReport
       tags: [admin]
-      summary: Sales report data
+      summary: Sales report data — admin, or company_admin scoped to its own company
       parameters:
         - name: from
           in: query
@@ -1996,7 +2179,7 @@ components:
           type: ["string", "null"]
         role:
           type: string
-          enum: [passenger, clerk, admin]
+          enum: [passenger, clerk, company_admin, admin]
         companyId:
           type: ["integer", "null"]
         companyName:
@@ -2029,6 +2212,80 @@ components:
         name:
           type: string
 
+    CompanyPayoutAccountInput:
+      type: object
+      required: [paydunyaAccountAlias]
+      properties:
+        paydunyaAccountAlias:
+          type: ["string", "null"]
+          maxLength: 100
+          description: Phone number or email of the company's PayDunya account; null or empty = no automatic transfer
+
+    CompanyPayoutAccount:
+      type: object
+      required: [companyId, paydunyaAccountAlias]
+      properties:
+        companyId:
+          type: integer
+        paydunyaAccountAlias:
+          type: ["string", "null"]
+
+    CompanyPayoutItem:
+      type: object
+      required: [ticketId, passengerName, departureDate, amount, clawbackAmount, netAmount, status, error, attemptedAt]
+      properties:
+        ticketId:
+          type: integer
+        passengerName:
+          type: string
+        departureDate:
+          type: string
+        amount:
+          type: number
+          description: Amount owed to the company on this ticket (company share + its part of the seat fee)
+        status:
+          type: string
+          enum: [not_configured, pending, failed, success]
+          description: success rows are listed only when part of the transfer went to the company's clawback
+        clawbackAmount:
+          type: ["number", "null"]
+          description: Taken off this transfer to settle the company's pending clawback
+        netAmount:
+          type: ["number", "null"]
+          description: Actually sent to the company (amount - clawbackAmount)
+        error:
+          type: ["string", "null"]
+        attemptedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    CompanyPayoutStatusReport:
+      type: object
+      required: [companyId, companyName, paydunyaAccountAlias, pendingClawback, items, totalAmount, total, page, pageSize]
+      properties:
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        paydunyaAccountAlias:
+          type: ["string", "null"]
+        pendingClawback:
+          type: number
+          description: Owed back by the company (shares paid for tickets cancelled since), taken off its next transfers
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyPayoutItem"
+        totalAmount:
+          type: number
+          description: Sum owed over every untransferred ticket (all pages; clawback rows not included)
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
     PaginatedCompanies:
       type: object
       required: [items, total, page, pageSize]
@@ -2057,7 +2314,7 @@ components:
           type: ["string", "null"]
         role:
           type: string
-          enum: [passenger, clerk, admin]
+          enum: [passenger, clerk, company_admin, admin]
         companyId:
           type: ["integer", "null"]
         companyName:
@@ -2079,7 +2336,7 @@ components:
       properties:
         role:
           type: string
-          enum: [passenger, clerk, admin]
+          enum: [passenger, clerk, company_admin, admin]
         companyId:
           type: ["integer", "null"]
         agencyId:
@@ -2354,10 +2611,13 @@ components:
     # Payment
     PaymentInput:
       type: object
-      required: [seatId, passengerName, passengerPhone, paymentMethod]
+      required: [tripId, passengerName, passengerPhone, paymentMethod]
       properties:
+        tripId:
+          type: integer
         seatId:
           type: integer
+          description: Chosen seat (manual selection, adds the seat selection fee). Omit for free automatic assignment.
         passengerName:
           type: string
         passengerPhone:
@@ -2381,6 +2641,15 @@ components:
           description: PayDunya checkout page to send the customer to
         ticketId:
           type: ["integer", "null"]
+        farePrice:
+          type: number
+        platformCommission:
+          type: number
+          description: Service fee added on top of the fare (shown to passengers as "Frais de service")
+        seatSelectionFeePaid:
+          type: number
+        seatNumber:
+          type: integer
 
     PaydunyaWebhookInput:
       type: object
@@ -2428,6 +2697,17 @@ components:
           type: string
         price:
           type: number
+        farePrice:
+          type: ["number", "null"]
+          description: Base fare (null on tickets created before the price breakdown existed)
+        serviceFee:
+          type: ["number", "null"]
+          description: >-
+            Service fee the passenger paid on top of the fare (price - farePrice - seatSelectionFeePaid).
+            0 on tickets sold when the commission was still deducted from the fare; null without a breakdown.
+        seatSelectionFeePaid:
+          type: ["number", "null"]
+          description: Seat selection fee paid (0 = automatic seat)
         qrCode:
           type: string
         paymentMethod:
@@ -2443,20 +2723,79 @@ components:
           format: date-time
         refundAmount:
           type: ["number", "null"]
+        refundStatus:
+          $ref: "#/components/schemas/RefundStatus"
         createdAt:
           type: string
           format: date-time
 
     TicketCancellation:
       type: object
-      required: [success, refundAmount, feePercent]
+      required: [success, refundAmount, feePercent, refundStatus]
       properties:
         success:
           type: boolean
+          description: Always true when the ticket is cancelled, whatever the refund status
         refundAmount:
           type: number
         feePercent:
           type: number
+        refundStatus:
+          $ref: "#/components/schemas/RefundStatus"
+
+    RefundStatus:
+      type: string
+      description: >-
+        not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing)
+        | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or
+        non-Ivorian number, handled by hand)
+      enum: [not_applicable, created, pending, success, failed, manual_required]
+
+    PaydunyaRefundWebhookInput:
+      type: object
+      description: Sent by PayDunya (hash, status, token, withdraw_mode, amount, disburse_id, transaction_id, disburse_tx_id…)
+      additionalProperties: true
+
+    AdminRefundItem:
+      type: object
+      required: [ticketId, passengerName, accountPhone, paymentMethod, refundAmount, status, error, cancelledAt]
+      properties:
+        ticketId:
+          type: integer
+        passengerName:
+          type: string
+        accountPhone:
+          type: ["string", "null"]
+          description: Phone of the buyer's account (where an automatic refund is sent)
+        paymentMethod:
+          type: string
+        refundAmount:
+          type: number
+        status:
+          $ref: "#/components/schemas/RefundStatus"
+        error:
+          type: ["string", "null"]
+        cancelledAt:
+          type: ["string", "null"]
+          format: date-time
+
+    AdminRefundsReport:
+      type: object
+      required: [items, totalAmount, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminRefundItem"
+        totalAmount:
+          type: number
+          description: Sum of the refund amounts over every page
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
 
     # Hotel
     Hotel:
@@ -2662,15 +3001,6 @@ components:
           type: string
         validated:
           type: boolean
-
-    ClerkSellInput:
-      type: object
-      required: [passengerName, passengerPhone]
-      properties:
-        passengerName:
-          type: string
-        passengerPhone:
-          type: string
 
     TicketValidation:
       type: object
@@ -3124,3 +3454,121 @@ components:
         fcfaPerUnit:
           type: number
           exclusiveMinimum: 0
+
+    # Pricing, commission and revenue split
+    TripPricing:
+      type: object
+      required: [tripId, farePrice, platformCommission, seatSelectionFee, totalPrice]
+      properties:
+        tripId:
+          type: integer
+        farePrice:
+          type: number
+        platformCommission:
+          type: number
+          description: Service fee added on top of the fare, at the commission rate in force
+        seatSelectionFee:
+          type: number
+        totalPrice:
+          type: number
+          description: farePrice + platformCommission, i.e. the amount due with an automatic seat (online or at the counter)
+
+    CommissionSettings:
+      type: object
+      required: [commissionPercent, seatSelectionFee, seatSelectionPlatformPercent, updatedAt]
+      properties:
+        commissionPercent:
+          type: number
+        seatSelectionFee:
+          type: number
+        seatSelectionPlatformPercent:
+          type: number
+          description: Platform share of the seat selection fee; the company gets 100 minus this
+        updatedAt:
+          type: string
+          format: date-time
+
+    CommissionSettingsInput:
+      type: object
+      required: [commissionPercent, seatSelectionFee, seatSelectionPlatformPercent]
+      properties:
+        commissionPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        seatSelectionFee:
+          type: number
+          minimum: 0
+        seatSelectionPlatformPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+
+    RevenueSplitTotals:
+      type: object
+      required: [ticketCount, totalPaid, farePrice, platformCommission, companyShare, seatSelectionFeePaid, seatFeePlatformShare, seatFeeCompanyShare]
+      properties:
+        ticketCount:
+          type: integer
+        totalPaid:
+          type: number
+          description: Sum of what customers actually paid (tickets.price) = companyShare + platformCommission + seatSelectionFeePaid
+        farePrice:
+          type: number
+        platformCommission:
+          type: number
+        companyShare:
+          type: number
+        seatSelectionFeePaid:
+          type: number
+        seatFeePlatformShare:
+          type: number
+        seatFeeCompanyShare:
+          type: number
+
+    RevenueSplitRow:
+      type: object
+      required: [companyId, companyName, ticketCount, totalPaid, farePrice, platformCommission, companyShare, seatSelectionFeePaid, seatFeePlatformShare, seatFeeCompanyShare]
+      properties:
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        ticketCount:
+          type: integer
+        totalPaid:
+          type: number
+          description: Sum of what customers actually paid (tickets.price) = companyShare + platformCommission + seatSelectionFeePaid
+        farePrice:
+          type: number
+        platformCommission:
+          type: number
+        companyShare:
+          type: number
+        seatSelectionFeePaid:
+          type: number
+        seatFeePlatformShare:
+          type: number
+        seatFeeCompanyShare:
+          type: number
+
+    RevenueSplitReport:
+      type: object
+      required: [from, to, totals, rows, total, page, pageSize]
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        totals:
+          $ref: "#/components/schemas/RevenueSplitTotals"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/RevenueSplitRow"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer

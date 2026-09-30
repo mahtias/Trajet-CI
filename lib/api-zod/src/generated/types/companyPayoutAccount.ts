@@ -6,7 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ClerkSellInput {
-  passengerName: string;
-  passengerPhone: string;
+export interface CompanyPayoutAccount {
+  companyId: number;
+  /** @nullable */
+  paydunyaAccountAlias: string | null;
 }

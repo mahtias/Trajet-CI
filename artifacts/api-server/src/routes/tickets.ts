@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { db, ticketsTable, tripsTable, seatsTable } from "@workspace/db";
 import {
   GetTicketParams,
@@ -8,9 +8,8 @@ import {
 } from "@workspace/api-zod";
 import { releaseExpiredReservations } from "../lib/seat-reservations";
 import { getTripDetails, routeLabels } from "../lib/trip-queries";
-
-const SAME_DAY_FEE_PERCENT = 25;
-const ADVANCE_FEE_PERCENT = 5;
+import { refundableBase, cancellationFeePercent, afterCancellationFee } from "../lib/pricing";
+import { initialRefundState, startRefund } from "../lib/refunds";
 
 const router: IRouter = Router();
 
@@ -35,12 +34,19 @@ async function buildTicket(ticket: any) {
     departureTime: tripData?.trip.departureTime ?? "",
     companyName: tripData?.company.name ?? "",
     price: parseFloat(ticket.price),
+    farePrice: ticket.farePrice !== null && ticket.farePrice !== undefined ? parseFloat(ticket.farePrice) : null,
+    // What was paid on top of the fare and seat fee: 0 on tickets from when the commission was deducted
+    serviceFee: ticket.farePrice !== null && ticket.farePrice !== undefined
+      ? Math.round(parseFloat(ticket.price) - parseFloat(ticket.farePrice) - parseFloat(ticket.seatSelectionFeePaid ?? "0"))
+      : null,
+    seatSelectionFeePaid: ticket.seatSelectionFeePaid !== null && ticket.seatSelectionFeePaid !== undefined ? parseFloat(ticket.seatSelectionFeePaid) : null,
     qrCode: ticket.qrCode,
     paymentMethod: ticket.paymentMethod,
     paymentStatus: ticket.paymentStatus,
     validated: ticket.validated,
     cancelledAt: ticket.cancelledAt ? ticket.cancelledAt.toISOString() : null,
     refundAmount: ticket.refundAmount !== null && ticket.refundAmount !== undefined ? parseFloat(ticket.refundAmount) : null,
+    refundStatus: ticket.refundStatus,
     createdAt: ticket.createdAt.toISOString(),
   };
 }
@@ -146,21 +152,45 @@ router.post("/tickets/:ticketId/cancel", async (req, res): Promise<void> => {
     return;
   }
 
-  const feePercent = hoursUntilDeparture >= 24 ? ADVANCE_FEE_PERCENT : SAME_DAY_FEE_PERCENT;
-  const price = parseFloat(ticket.price);
-  const refundAmount = Math.round(price * (1 - feePercent / 100) * 100) / 100;
+  // One fee tier for the whole cancellation: the passenger's refund and the company's share taken back.
+  // The percentage applies to fare + seat selection fee only: the service fee is never refunded.
+  const feePercent = cancellationFeePercent(hoursUntilDeparture);
+  const refundAmount = afterCancellationFee(refundableBase(ticket), feePercent);
+  const refund = await initialRefundState(ticket, refundAmount);
 
-  await db
-    .update(ticketsTable)
-    .set({ cancelledAt: new Date(), refundAmount: String(refundAmount) })
-    .where(eq(ticketsTable.id, ticket.id));
+  const cancelled = await db.transaction(async (tx) => {
+    // Only the first cancellation goes through (two clicks at once can't refund twice)
+    const [row] = await tx
+      .update(ticketsTable)
+      .set({ cancelledAt: new Date(), cancellationFeePercent: String(feePercent), refundAmount: String(refundAmount), refundStatus: refund.status, refundError: refund.error })
+      .where(and(eq(ticketsTable.id, ticket.id), isNull(ticketsTable.cancelledAt)))
+      .returning();
+    if (!row) return null;
 
-  await db
-    .update(seatsTable)
-    .set({ status: "available", reservedAt: null, passengerName: null, passengerPhone: null })
-    .where(eq(seatsTable.id, ticket.seatId));
+    // The company was already paid its share for this ticket: take it back from its next transfers,
+    // minus the same cancellation fee percentage as the passenger (the company keeps that part)
+    if (row.companyPayoutStatus === "success") {
+      const takenBack = afterCancellationFee(parseFloat(row.companyPayoutAmount ?? "0"), feePercent);
+      await tx.execute(sql`
+        UPDATE companies SET pending_clawback = pending_clawback + ${takenBack}
+        WHERE id = (SELECT r.company_id FROM trips tr JOIN routes r ON r.id = tr.route_id WHERE tr.id = ${row.tripId})
+      `);
+    }
 
-  res.json({ success: true, refundAmount, feePercent });
+    await tx
+      .update(seatsTable)
+      .set({ status: "available", reservedAt: null, passengerName: null, passengerPhone: null })
+      .where(eq(seatsTable.id, row.seatId));
+    return row;
+  });
+  if (!cancelled) {
+    res.status(400).json({ error: "Ce billet est déjà annulé" });
+    return;
+  }
+
+  // The ticket is cancelled whatever happens next; the answer tells the real state of the refund
+  const refundStatus = refund.status === "created" ? await startRefund(ticket.id) : refund.status;
+  res.json({ success: true, refundAmount, feePercent, refundStatus });
 });
 
 export default router;

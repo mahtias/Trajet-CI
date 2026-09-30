@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useGetAdminCompanies,
   useGetAdminStations,
@@ -31,6 +31,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
 import { useClientPagination } from "@/hooks/use-client-pagination";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { CompanySelect } from "@/components/company-select";
 
 const PAGE_SIZE = 10;
 
@@ -38,6 +40,13 @@ export default function AdminFleet() {
   const { data: companiesData } = useGetAdminCompanies({ page: 1, pageSize: 100 });
   const companies = companiesData?.items;
   const [companyId, setCompanyId] = useState("");
+  // Company admins have their company imposed: shown read-only instead of a picker
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
+  const lockedCompanyId = me?.role === "company_admin" ? me.companyId : null;
+  // A company admin only gets its own company: select it right away
+  useEffect(() => {
+    if (!companyId && companies?.length === 1) setCompanyId(String(companies[0].id));
+  }, [companies, companyId]);
   const selectedCompanyId = companyId ? parseInt(companyId) : 0;
 
   const { data: allStations } = useGetAdminStations({ query: { queryKey: getGetAdminStationsQueryKey() } });
@@ -172,16 +181,13 @@ export default function AdminFleet() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <h1 className="text-3xl font-bold text-foreground">Bus & Réseau</h1>
-        <Select value={companyId} onValueChange={(v) => { setCompanyId(v); companyStationsPage.setPage(1); busesPage.setPage(1); }}>
-          <SelectTrigger className="w-full md:w-72">
-            <SelectValue placeholder="Choisir une compagnie" />
-          </SelectTrigger>
-          <SelectContent>
-            {companies?.map(c => (
-              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="w-full md:w-72">
+          <CompanySelect
+            value={companyId}
+            onChange={(v) => { setCompanyId(v); companyStationsPage.setPage(1); busesPage.setPage(1); }}
+            lockedCompanyId={lockedCompanyId}
+          />
+        </div>
       </div>
 
       {!selectedCompanyId ? (

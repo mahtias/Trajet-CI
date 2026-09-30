@@ -1,19 +1,24 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ne, sql } from "drizzle-orm";
-import { db, seatsTable, ticketsTable, tripsTable, hotelsTable, hotelBookingsTable } from "@workspace/db";
+import { db, seatsTable, ticketsTable, tripsTable, hotelsTable, hotelBookingsTable, usersTable } from "@workspace/db";
 import { InitiatePaymentBody, PaydunyaWebhookBody } from "@workspace/api-zod";
 import { generateQrCode } from "../lib/qr";
 import { logger } from "../lib/logger";
 import { releaseExpiredReservations } from "../lib/seat-reservations";
+import { computePriceBreakdown, breakdownColumns, getPricingSettings } from "../lib/pricing";
 import { computeAvailableRooms } from "../lib/hotel-availability";
+import { payCompanyShare } from "../lib/company-payout";
 import {
   getPaydunyaConfig,
   createCheckoutInvoice,
   confirmCheckoutInvoice,
   isPaydunyaHashValid,
+  checkDisburseStatus,
   PaydunyaConfigError,
   type ConfirmedInvoice,
+  type DisburseState,
 } from "../lib/paydunya";
+import { applyDisburseState, ticketIdFromDisburseId } from "../lib/refunds";
 
 const router: IRouter = Router();
 
@@ -24,7 +29,8 @@ function getSession(req: any) {
 /**
  * Starts an online ticket purchase:
  * 1. holds the seat (atomically, so two buyers can't both get it) and creates a "pending" ticket,
- * 2. creates a PayDunya invoice for the trip price read from the database (never from the client),
+ * 2. creates a PayDunya invoice for the total computed here (fare from the database + seat selection
+ *    fee from the settings when a precise seat is chosen; never an amount from the client),
  * 3. returns the PayDunya page URL; the ticket only becomes "paid" through the webhook below.
  */
 router.post("/payments/initiate", async (req, res): Promise<void> => {
@@ -33,6 +39,13 @@ router.post("/payments/initiate", async (req, res): Promise<void> => {
 
   const { userId } = getSession(req);
   if (!userId) { res.status(401).json({ error: "Authentification requise" }); return; }
+  // A clerk account never buys nor sells: to help a customer, the clerk logs in with a passenger account
+  const [buyer] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!buyer) { res.status(401).json({ error: "Authentification requise" }); return; }
+  if (buyer.role === "clerk") {
+    res.status(403).json({ error: "Un compte guichetier ne peut pas acheter de billet : connectez-vous avec un compte passager" });
+    return;
+  }
 
   let config;
   try {
@@ -46,61 +59,87 @@ router.post("/payments/initiate", async (req, res): Promise<void> => {
     throw err;
   }
 
-  const { seatId, passengerName, passengerPhone, paymentMethod } = body.data;
+  const { tripId, seatId, passengerName, passengerPhone, paymentMethod } = body.data;
+  const manualSeatSelection = seatId !== undefined;
 
-  const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, seatId)).limit(1);
-  if (!seat) { res.status(404).json({ error: "Siège non trouvé" }); return; }
-
-  const [trip] = await db.select().from(tripsTable).where(eq(tripsTable.id, seat.tripId)).limit(1);
+  const [trip] = await db.select().from(tripsTable).where(eq(tripsTable.id, tripId)).limit(1);
   if (!trip || trip.status !== "active") { res.status(404).json({ error: "Trajet non trouvé" }); return; }
 
-  // FCFA has no subunit: the invoiced amount is an integer, and it is exactly what the ticket records
-  const amount = Math.round(parseFloat(trip.price));
-  if (!Number.isFinite(amount) || amount <= 0) { res.status(409).json({ error: "Prix du trajet invalide" }); return; }
+  if (manualSeatSelection) {
+    const [chosen] = await db.select({ tripId: seatsTable.tripId }).from(seatsTable).where(eq(seatsTable.id, seatId)).limit(1);
+    if (!chosen) { res.status(404).json({ error: "Siège non trouvé" }); return; }
+    if (chosen.tripId !== trip.id) { res.status(400).json({ error: "Ce siège n'appartient pas à ce trajet" }); return; }
+  }
 
-  await releaseExpiredReservations(seat.tripId);
+  // Fare from the database, seat fee and commission from the settings in force right now.
+  // Frozen on the ticket: later setting changes never alter it.
+  const tripPrice = parseFloat(trip.price);
+  if (!Number.isFinite(tripPrice) || Math.round(tripPrice) <= 0) { res.status(409).json({ error: "Prix du trajet invalide" }); return; }
+  const pricing = computePriceBreakdown(tripPrice, manualSeatSelection, await getPricingSettings());
 
-  const ticket = await db.transaction(async (tx) => {
-    // Claim the seat only if it's free, or held by this same user's unfinished purchase (retry after cancel)
-    const [claimed] = await tx
-      .update(seatsTable)
-      .set({ status: "reserved", reservedAt: new Date(), passengerName, passengerPhone })
-      .where(and(
-        eq(seatsTable.id, seatId),
-        sql`(${seatsTable.status} = 'available' OR (${seatsTable.status} = 'reserved' AND EXISTS (
-          SELECT 1 FROM tickets t WHERE t.seat_id = ${seatId} AND t.user_id = ${userId} AND t.payment_status = 'pending'
-        )))`,
-      ))
-      .returning();
+  await releaseExpiredReservations(trip.id);
+
+  const result = await db.transaction(async (tx) => {
+    let claimed: typeof seatsTable.$inferSelect | undefined;
+    if (manualSeatSelection) {
+      // Chosen seat: only if it's free, or held by this same user's unfinished purchase (retry after cancel)
+      [claimed] = await tx
+        .update(seatsTable)
+        .set({ status: "reserved", reservedAt: new Date(), passengerName, passengerPhone })
+        .where(and(
+          eq(seatsTable.id, seatId),
+          sql`(${seatsTable.status} = 'available' OR (${seatsTable.status} = 'reserved' AND EXISTS (
+            SELECT 1 FROM tickets t WHERE t.seat_id = ${seatId} AND t.user_id = ${userId} AND t.payment_status = 'pending'
+          )))`,
+        ))
+        .returning();
+    } else {
+      // Automatic assignment: first free seat; SKIP LOCKED so concurrent buyers never get the same one
+      [claimed] = await tx
+        .update(seatsTable)
+        .set({ status: "reserved", reservedAt: new Date(), passengerName, passengerPhone })
+        .where(sql`${seatsTable.id} = (
+          SELECT id FROM seats WHERE trip_id = ${trip.id} AND status = 'available'
+          ORDER BY seat_number LIMIT 1 FOR UPDATE SKIP LOCKED
+        )`)
+        .returning();
+    }
     if (!claimed) return null;
 
     // A retry supersedes the user's previous unfinished purchase of this seat
     await tx
       .update(ticketsTable)
       .set({ paymentStatus: "failed" })
-      .where(and(eq(ticketsTable.seatId, seatId), eq(ticketsTable.userId, userId), eq(ticketsTable.paymentStatus, "pending")));
+      .where(and(eq(ticketsTable.seatId, claimed.id), eq(ticketsTable.userId, userId), eq(ticketsTable.paymentStatus, "pending")));
 
     const [created] = await tx.insert(ticketsTable).values({
-      tripId: seat.tripId,
-      seatId: seat.id,
+      tripId: trip.id,
+      seatId: claimed.id,
       userId,
       passengerName,
       passengerPhone,
-      price: String(amount),
+      ...breakdownColumns(pricing),
       qrCode: "",
       paymentMethod, // what the customer intends to use; the actual method is chosen on the PayDunya page
       paymentStatus: "pending",
     }).returning();
-    return created;
+    return { ticket: created, seat: claimed };
   });
 
-  if (!ticket) { res.status(409).json({ error: "Ce siège n'est plus disponible" }); return; }
+  if (!result) {
+    res.status(409).json({ error: manualSeatSelection ? "Ce siège n'est plus disponible" : "Plus aucune place disponible sur ce trajet" });
+    return;
+  }
+  const { ticket, seat } = result;
+  const amount = pricing.totalPrice;
 
   let invoice: { token: string; url: string };
   try {
     invoice = await createCheckoutInvoice(config, {
       amount,
-      description: `Billet de bus ${trip.departureDate} ${trip.departureTime} – siège ${seat.seatNumber}`,
+      description: `Billet de bus ${trip.departureDate} ${trip.departureTime} – siège ${seat.seatNumber}`
+        + ` (tarif ${pricing.farePrice} FCFA + frais de service ${pricing.platformCommission} FCFA`
+        + (pricing.seatSelectionFeePaid > 0 ? ` + choix du siège ${pricing.seatSelectionFeePaid} FCFA)` : ")"),
       itemName: `Billet siège ${seat.seatNumber}`,
       customer: { name: passengerName, phone: passengerPhone },
       customData: { ticket_id: ticket.id, seat_id: seat.id, trip_id: trip.id },
@@ -122,7 +161,11 @@ router.post("/payments/initiate", async (req, res): Promise<void> => {
 
   await db.update(ticketsTable).set({ paymentId: invoice.token }).where(eq(ticketsTable.id, ticket.id));
 
-  res.json({ paymentId: invoice.token, amount, status: "pending", redirectUrl: invoice.url, ticketId: ticket.id });
+  res.json({
+    paymentId: invoice.token, amount, status: "pending", redirectUrl: invoice.url, ticketId: ticket.id,
+    farePrice: pricing.farePrice, platformCommission: pricing.platformCommission,
+    seatSelectionFeePaid: pricing.seatSelectionFeePaid, seatNumber: seat.seatNumber,
+  });
 });
 
 /** Applies the state PayDunya confirmed (server-to-server) to the ticket and its seat. Idempotent. */
@@ -273,10 +316,76 @@ router.post("/payments/paydunya-webhook", async (req, res): Promise<void> => {
   if (ticket) {
     const status = await applyPaymentOutcome(ticket.id, invoice);
     req.log.info({ ticketId: ticket.id, invoiceStatus: invoice.status, ticketStatus: status }, "PayDunya webhook processed");
-  } else {
-    const status = await applyHotelPaymentOutcome(hotelBooking!.id, invoice);
-    req.log.info({ hotelBookingId: hotelBooking!.id, invoiceStatus: invoice.status, bookingStatus: status }, "PayDunya webhook processed");
+    res.json({ success: true });
+    // After answering PayDunya: the ticket is paid whatever the transfer to the company gives
+    if (status === "paid") await payCompanyShare(ticket.id);
+    return;
   }
+  const status = await applyHotelPaymentOutcome(hotelBooking!.id, invoice);
+  req.log.info({ hotelBookingId: hotelBooking!.id, invoiceStatus: invoice.status, bookingStatus: status }, "PayDunya webhook processed");
+  res.json({ success: true });
+});
+
+/**
+ * PayDunya API PUSH callback: final state of a refund (disbursement). Public, like the payment webhook,
+ * and trusted the same way: only the disburse token is taken from the notification, the real state is
+ * fetched from PayDunya (check-status) before anything changes.
+ * Format (docs): JSON { hash, status, token, withdraw_mode, amount, disburse_id, transaction_id, disburse_tx_id, ... }.
+ * The ticket is found by its stored disburse token, or by our disburse_id "refund-ticket-<id>".
+ */
+router.post("/payments/paydunya-refund-webhook", async (req, res): Promise<void> => {
+  let data: any = req.body?.data ?? req.body;
+  if (typeof data === "string") {
+    try { data = JSON.parse(data); } catch { data = null; }
+  }
+  const token = data?.token;
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(token)) {
+    res.status(400).json({ error: "Notification invalide" });
+    return;
+  }
+
+  let config;
+  try {
+    config = getPaydunyaConfig();
+  } catch (err) {
+    req.log.error({ reason: (err as Error).message }, "PayDunya refund webhook received but PayDunya is not configured");
+    res.status(503).json({ error: "Paiement en ligne non configuré" });
+    return;
+  }
+  if (!isPaydunyaHashValid(config, data?.hash)) {
+    req.log.warn({ token }, "PayDunya refund webhook hash missing or invalid (still verified through check-status)");
+  }
+
+  const byId = ticketIdFromDisburseId(typeof data?.disburse_id === "string" ? data.disburse_id : null);
+  const [ticket] = await db
+    .select({ id: ticketsTable.id, token: ticketsTable.refundDisburseToken, refundAmount: ticketsTable.refundAmount })
+    .from(ticketsTable)
+    .where(byId !== null ? sql`${ticketsTable.refundDisburseToken} = ${token} OR ${ticketsTable.id} = ${byId}` : eq(ticketsTable.refundDisburseToken, token))
+    .limit(1);
+  // A known ticket must have asked for this very disbursement
+  if (!ticket || (ticket.token !== null && ticket.token !== token)) { res.status(404).json({ error: "Remboursement inconnu" }); return; }
+
+  let state: DisburseState;
+  try {
+    state = await checkDisburseStatus(config, token);
+  } catch (err) {
+    req.log.error({ err, token }, "PayDunya disburse check-status failed");
+    res.status(502).json({ error: "Vérification du remboursement impossible pour le moment" });
+    return;
+  }
+  if (state.token !== token) { res.status(400).json({ error: "Notification invalide" }); return; }
+  // The confirmed disbursement must be this ticket's refund (our reference) for the amount we asked
+  if (state.disburseId !== null && ticketIdFromDisburseId(state.disburseId) !== ticket.id) {
+    res.status(400).json({ error: "Notification invalide" });
+    return;
+  }
+  if (Number.isFinite(state.amount) && Math.round(state.amount) !== Math.round(parseFloat(ticket.refundAmount ?? "NaN"))) {
+    req.log.error({ ticketId: ticket.id, disbursed: state.amount, expected: ticket.refundAmount }, "PayDunya refund amount does not match the ticket's refund amount");
+  }
+
+  if (ticket.token === null) await db.update(ticketsTable).set({ refundDisburseToken: token }).where(eq(ticketsTable.id, ticket.id));
+  const status = await applyDisburseState(ticket.id, state);
+  req.log.info({ ticketId: ticket.id, disburseStatus: state.status, refundStatus: status, fees: state.fees }, "PayDunya refund webhook processed");
   res.json({ success: true });
 });
 

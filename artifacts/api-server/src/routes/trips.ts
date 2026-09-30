@@ -4,6 +4,7 @@ import { db, tripsTable, citiesTable, seatsTable } from "@workspace/db";
 import {
   GetTripParams,
   GetTripSeatsParams,
+  GetTripPricingParams,
   GetTripLocationParams,
 } from "@workspace/api-zod";
 import { z } from "zod";
@@ -18,6 +19,7 @@ import {
   destinationStation,
 } from "../lib/trip-queries";
 import { releaseExpiredReservations } from "../lib/seat-reservations";
+import { computePriceBreakdown, getPricingSettings } from "../lib/pricing";
 
 // Generated SearchTripsQueryParams expects a Date for `date`; query strings need the YYYY-MM-DD form.
 const SearchQuery = z.object({
@@ -81,6 +83,26 @@ router.get("/trips/:tripId", async (req, res): Promise<void> => {
 
   const { totalSeats, availableSeats } = await getSeatCounts(params.data.tripId);
   res.json(formatTripDetail(result, availableSeats, totalSeats));
+});
+
+// What the customer will pay (online, or cash at the counter), for the summary before payment.
+// Display only: /payments/initiate and the counter sale recompute it.
+router.get("/trips/:tripId/pricing", async (req, res): Promise<void> => {
+  const params = GetTripPricingParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [trip] = await db.select({ id: tripsTable.id, price: tripsTable.price }).from(tripsTable).where(eq(tripsTable.id, params.data.tripId)).limit(1);
+  if (!trip) { res.status(404).json({ error: "Trajet non trouvé" }); return; }
+
+  const settings = await getPricingSettings();
+  const pricing = computePriceBreakdown(parseFloat(trip.price), false, settings);
+  res.json({
+    tripId: trip.id,
+    farePrice: pricing.farePrice,
+    platformCommission: pricing.platformCommission,
+    seatSelectionFee: Math.round(settings.seatSelectionFee),
+    totalPrice: pricing.totalPrice,
+  });
 });
 
 router.get("/trips/:tripId/seats", async (req, res): Promise<void> => {

@@ -5,6 +5,7 @@
  * UTB Bus Ticketing API
  * OpenAPI spec version: 0.1.0
  */
+import type { RefundStatus } from './refundStatus';
 import type { TicketPaymentMethod } from './ticketPaymentMethod';
 import type { TicketPaymentStatus } from './ticketPaymentStatus';
 
@@ -20,6 +21,21 @@ export interface Ticket {
   departureTime: string;
   companyName: string;
   price: number;
+  /**
+     * Base fare (null on tickets created before the price breakdown existed)
+     * @nullable
+     */
+  farePrice?: number | null;
+  /**
+     * Service fee the passenger paid on top of the fare (price - farePrice - seatSelectionFeePaid). 0 on tickets sold when the commission was still deducted from the fare; null without a breakdown.
+     * @nullable
+     */
+  serviceFee?: number | null;
+  /**
+     * Seat selection fee paid (0 = automatic seat)
+     * @nullable
+     */
+  seatSelectionFeePaid?: number | null;
   qrCode: string;
   paymentMethod: TicketPaymentMethod;
   paymentStatus: TicketPaymentStatus;
@@ -28,5 +44,6 @@ export interface Ticket {
   cancelledAt?: Date | null;
   /** @nullable */
   refundAmount?: number | null;
+  refundStatus?: RefundStatus;
   createdAt: Date;
 }

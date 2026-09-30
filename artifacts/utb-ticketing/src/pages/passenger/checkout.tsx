@@ -6,9 +6,8 @@ import * as z from "zod";
 import {
   useInitiatePayment,
   useGetMe,
-  useGetTrip,
-  getGetTripQueryKey,
-  useGetTripSeats
+  useGetTripPricing,
+  getGetTripPricingQueryKey,
 } from "@workspace/api-client-react";
 import { ArrowLeft, CheckCircle2, Shield } from "lucide-react";
 
@@ -27,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, getPaymentMethod, type PaymentMethodId } from "@/lib/payment-methods";
-import { PaymentAmount } from "@/components/price";
+import { PriceBreakdown } from "@/components/price-breakdown";
 
 function buildCheckoutSchema(t: (key: string) => string) {
   return z.object({
@@ -39,10 +38,11 @@ function buildCheckoutSchema(t: (key: string) => string) {
 export default function Checkout() {
   const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
-  const seatId = searchParams.get("seatId");
+  // seatId present = seat chosen by the passenger (+ seat selection fee); absent = free automatic seat
+  const seatId = parseInt(searchParams.get("seatId") || "", 10) || null;
   const tripId = parseInt(searchParams.get("tripId") || "", 10) || 0;
-  // Shown for information only: the server charges the trip price it has in the database
-  const { data: trip } = useGetTrip(tripId, { query: { queryKey: getGetTripQueryKey(tripId), enabled: !!tripId } });
+  // Shown for information only: the server recomputes every amount when the purchase starts
+  const { data: pricing } = useGetTripPricing(tripId, { query: { queryKey: getGetTripPricingQueryKey(tripId), enabled: !!tripId } });
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -65,7 +65,7 @@ export default function Checkout() {
     },
   });
 
-  if (!seatId) {
+  if (!tripId) {
     setLocation("/");
     return null;
   }
@@ -83,7 +83,8 @@ export default function Checkout() {
     initiatePayment.mutate(
       {
         data: {
-          seatId: parseInt(seatId, 10),
+          tripId,
+          ...(seatId ? { seatId } : {}),
           passengerName: values.passengerName,
           passengerPhone: values.passengerPhone,
           paymentMethod,
@@ -136,11 +137,11 @@ export default function Checkout() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-8">
-          {trip && (
+          {pricing && (
             <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="p-6 flex items-center justify-between gap-4">
-              <span className="text-muted-foreground font-medium">{t("price.amountToPay")}</span>
-              <PaymentAmount amountFcfa={trip.price} className="text-2xl font-bold text-primary font-mono" />
+              <CardContent className="p-6">
+              <p className="font-bold mb-3">{t("price.amountToPay")}</p>
+              <PriceBreakdown farePrice={pricing.farePrice} serviceFee={pricing.platformCommission} seatSelectionFee={seatId ? pricing.seatSelectionFee : 0} paymentTotal />
             </CardContent>
             </Card>
           )}

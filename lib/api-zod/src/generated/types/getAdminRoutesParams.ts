@@ -9,4 +9,8 @@
 export type GetAdminRoutesParams = {
 page?: number;
 pageSize?: number;
+/**
+ * Filter on the company, departure or arrival station/city (case and accent insensitive)
+ */
+search?: string;
 };

@@ -31,7 +31,6 @@ import PaymentReturn from '@/pages/passenger/payment-return';
 
 import ClerkDashboard from '@/pages/clerk/dashboard';
 import ClerkTripDetail from '@/pages/clerk/trip-detail';
-import ClerkSell from '@/pages/clerk/sell';
 import ClerkValidate from '@/pages/clerk/validate';
 import ClerkAgencyBookings from '@/pages/clerk/agency-bookings';
 import ClerkShareLocation from '@/pages/clerk/share-location';
@@ -49,6 +48,9 @@ import AdminAgencies from '@/pages/admin/agencies';
 import AdminTourismSpots from '@/pages/admin/tourism-spots';
 import AdminVehicles from '@/pages/admin/vehicles';
 import AdminExchangeRates from '@/pages/admin/exchange-rates';
+import AdminRevenue from '@/pages/admin/revenue';
+import AdminRefunds from '@/pages/admin/refunds';
+import AdminCommission from '@/pages/admin/commission';
 
 const queryClient = new QueryClient();
 
@@ -87,25 +89,22 @@ function Router() {
         <Route path="/clerk/trips/:id">
           <RequireRole roles={['clerk', 'admin']}><ClerkTripDetail /></RequireRole>
         </Route>
-        <Route path="/clerk/trips/:id/sell">
-          <RequireRole roles={['clerk', 'admin']}><ClerkSell /></RequireRole>
-        </Route>
 
         {/* Admin */}
         <Route path="/admin">
-          <RequireRole roles={['admin']}><AdminDashboard /></RequireRole>
+          <RequireRole roles={['admin', 'company_admin']}><AdminDashboard /></RequireRole>
         </Route>
         <Route path="/admin/companies">
           <RequireRole roles={['admin']}><AdminCompanies /></RequireRole>
         </Route>
         <Route path="/admin/routes">
-          <RequireRole roles={['admin']}><AdminRoutes /></RequireRole>
+          <RequireRole roles={['admin', 'company_admin']}><AdminRoutes /></RequireRole>
         </Route>
         <Route path="/admin/trips">
-          <RequireRole roles={['admin']}><AdminTrips /></RequireRole>
+          <RequireRole roles={['admin', 'company_admin']}><AdminTrips /></RequireRole>
         </Route>
         <Route path="/admin/reports">
-          <RequireRole roles={['admin']}><AdminReports /></RequireRole>
+          <RequireRole roles={['admin', 'company_admin']}><AdminReports /></RequireRole>
         </Route>
         <Route path="/admin/users">
           <RequireRole roles={['admin']}><AdminUsers /></RequireRole>
@@ -114,10 +113,19 @@ function Router() {
           <RequireRole roles={['admin']}><AdminStations /></RequireRole>
         </Route>
         <Route path="/admin/fleet">
-          <RequireRole roles={['admin']}><AdminFleet /></RequireRole>
+          <RequireRole roles={['admin', 'company_admin']}><AdminFleet /></RequireRole>
         </Route>
         <Route path="/admin/hotels">
           <RequireRole roles={['admin']}><AdminHotels /></RequireRole>
+        </Route>
+        <Route path="/admin/refunds">
+          <RequireRole roles={['admin']}><AdminRefunds /></RequireRole>
+        </Route>
+        <Route path="/admin/revenue">
+          <RequireRole roles={['admin', 'company_admin']}><AdminRevenue /></RequireRole>
+        </Route>
+        <Route path="/admin/settings">
+          <RequireRole roles={['admin']}><AdminCommission /></RequireRole>
         </Route>
         <Route path="/admin/exchange-rates">
           <RequireRole roles={['admin']}><AdminExchangeRates /></RequireRole>

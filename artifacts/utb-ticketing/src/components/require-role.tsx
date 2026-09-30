@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { useGetMe } from '@workspace/api-client-react';
 import { Spinner } from '@/components/ui/spinner';
 
-type Role = 'passenger' | 'clerk' | 'admin';
+type Role = 'passenger' | 'clerk' | 'company_admin' | 'admin';
 
 interface RequireRoleProps {
   roles: Role[];

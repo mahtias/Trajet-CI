@@ -4,6 +4,8 @@ import {
   useGetTrip,
   useGetTripSeats,
   getGetTripSeatsQueryKey,
+  useGetTripPricing,
+  getGetTripPricingQueryKey,
 } from "@workspace/api-client-react";
 import { Clock, Info, ShieldCheck, ArrowRight, UserRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { Price } from "@/components/price";
+import { PriceBreakdown } from "@/components/price-breakdown";
 import { formatShortDate } from "@/lib/dates";
 
 export default function TripDetail() {
@@ -24,6 +27,9 @@ export default function TripDetail() {
   const queryClient = useQueryClient();
 
   const [selectedSeatId, setSelectedSeatId] = useState<number | null>(null);
+  // Automatic seat assignment is free; choosing a precise seat adds the seat selection fee
+  const [seatMode, setSeatMode] = useState<"auto" | "manual">("auto");
+  const { data: pricing } = useGetTripPricing(tripId, { query: { queryKey: getGetTripPricingQueryKey(tripId), enabled: !!tripId } });
 
   const { data: trip, isLoading: isLoadingTrip } = useGetTrip(tripId, {
     query: { enabled: !!tripId }
@@ -37,15 +43,21 @@ export default function TripDetail() {
   });
 
   const handleSeatClick = (seatId: number, status: string) => {
-    if (status !== "available") return;
+    if (status !== "available" || seatMode !== "manual") return;
     setSelectedSeatId(seatId);
   };
 
+  const chooseMode = (mode: "auto" | "manual") => {
+    setSeatMode(mode);
+    if (mode === "auto") setSelectedSeatId(null);
+  };
+
+  const canContinue = seatMode === "auto" || !!selectedSeatId;
+
   const handleContinue = () => {
-    if (!selectedSeatId) return;
-    
-    // The seat is held atomically by POST /payments/initiate when the checkout starts
-    setLocation(`/checkout?tripId=${tripId}&seatId=${selectedSeatId}`);
+    if (!canContinue) return;
+    // The seat (chosen or automatic) is held atomically by POST /payments/initiate when the checkout starts
+    setLocation(seatMode === "manual" ? `/checkout?tripId=${tripId}&seatId=${selectedSeatId}` : `/checkout?tripId=${tripId}`);
   };
 
   if (isLoadingTrip || isLoadingSeats) {
@@ -132,10 +144,12 @@ export default function TripDetail() {
                       bgColor = "bg-primary border-primary text-primary-foreground shadow-md scale-105";
                     }
 
+                    if (seatMode === "auto" && seat.status === "available") cursor = "cursor-default";
+
                     return (
                       <button
                         key={seat.id}
-                        disabled={seat.status !== "available"}
+                        disabled={seat.status !== "available" || seatMode !== "manual"}
                         onClick={() => handleSeatClick(seat.id, seat.status)}
                         className={`relative z-10 w-full aspect-square rounded-xl border-2 flex items-center justify-center font-bold text-lg transition-all ${bgColor} ${cursor}`}
                       >
@@ -174,32 +188,54 @@ export default function TripDetail() {
                 <div className="bg-muted p-4 border-b border-border flex items-center gap-2 font-bold text-foreground">
                   <UserRound className="w-5 h-5 text-primary" /> {t("tripDetail.selectionTitle")}
                 </div>
-                <CardContent className="p-6">
-                  {selectedSeatId ? (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center pb-4 border-b border-border">
-                        <span className="text-muted-foreground">{t("tripDetail.seatNumber")}</span>
-                        <span className="font-bold text-2xl bg-secondary/10 text-secondary w-12 h-12 flex items-center justify-center rounded-xl">{selectedSeat?.seatNumber}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-4 border-b border-border">
-                        <span className="text-muted-foreground">{t("tripDetail.fare")}</span>
-                        <Price amountFcfa={trip.price} align="right" className="font-bold font-mono text-lg" />
-                      </div>
-                      <div className="flex justify-between items-center font-bold text-xl text-primary pt-2">
-                        <span>{t("common.total")}</span>
-                        <Price amountFcfa={trip.price} align="right" className="font-mono" />
-                      </div>
+                <CardContent className="p-6 space-y-5">
+                  {/* Seat mode: free automatic assignment or paid seat choice */}
+                  <div className="space-y-2" role="radiogroup" aria-label={t("tripDetail.seatModeTitle")}>
+                    {([
+                      ["auto", t("tripDetail.seatModeAuto"), t("tripDetail.seatModeAutoDesc")],
+                      ["manual", t("tripDetail.seatModeManual"), t("tripDetail.seatModeManualDesc", { fee: (pricing?.seatSelectionFee ?? 0).toLocaleString(numberLocale) })],
+                    ] as const).map(([mode, label, desc]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="radio"
+                        aria-checked={seatMode === mode}
+                        onClick={() => chooseMode(mode)}
+                        className={`w-full flex items-center justify-between gap-3 rounded-xl border-2 p-3 text-left transition-colors ${seatMode === mode ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+                      >
+                        <span className="font-medium text-sm">{label}</span>
+                        <span className={`text-xs font-bold shrink-0 ${mode === "auto" ? "text-green-700" : "text-accent"}`}>{desc}</span>
+                      </button>
+                    ))}
+                  </div>
 
-                      <Button onClick={handleContinue} className="w-full h-14 text-lg mt-6" size="lg">
-                        {t("common.continue")} <ArrowRight className="w-5 h-5 ml-2" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
+                  {seatMode === "manual" && !selectedSeatId ? (
+                    <div className="text-center py-6 text-muted-foreground">
                       <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                         <Info className="w-8 h-8 text-muted-foreground/50" />
                       </div>
                       <p>{t("tripDetail.selectSeatPrompt")}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center pb-4 border-b border-border">
+                        <span className="text-muted-foreground">{t("tripDetail.seatNumber")}</span>
+                        {seatMode === "manual" ? (
+                          <span className="font-bold text-2xl bg-secondary/10 text-secondary w-12 h-12 flex items-center justify-center rounded-xl">{selectedSeat?.seatNumber}</span>
+                        ) : (
+                          <span className="text-sm font-medium text-muted-foreground">{t("tripDetail.seatAssignedAtPayment")}</span>
+                        )}
+                      </div>
+                      <PriceBreakdown
+                        farePrice={pricing?.farePrice ?? trip.price}
+                        serviceFee={pricing?.platformCommission ?? 0}
+                        seatSelectionFee={seatMode === "manual" ? pricing?.seatSelectionFee ?? 0 : 0}
+                      />
+                      {seatMode === "auto" && <p className="text-xs text-muted-foreground">{t("tripDetail.autoSeatInfo")}</p>}
+
+                      <Button onClick={handleContinue} disabled={!canContinue || !pricing} className="w-full h-14 text-lg mt-2" size="lg">
+                        {t("common.continue")} <ArrowRight className="w-5 h-5 ml-2" />
+                      </Button>
                     </div>
                   )}
                 </CardContent>

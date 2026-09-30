@@ -5,7 +5,7 @@ import {
   useUpdateCompany, 
   useDeleteCompany 
 } from "@workspace/api-client-react";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Wallet } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -27,12 +27,16 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
+import { ListSearch, useDebouncedValue } from "@/components/list-search";
+import { CompanyPayoutDialog } from "@/components/company-payout-dialog";
 
 const PAGE_SIZE = 20;
 
 export default function AdminCompanies() {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useGetAdminCompanies({ page, pageSize: PAGE_SIZE });
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const { data, isLoading } = useGetAdminCompanies({ page, pageSize: PAGE_SIZE, search: debouncedSearch || undefined });
   const companies = data?.items;
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const createCompany = useCreateCompany();
@@ -44,6 +48,7 @@ export default function AdminCompanies() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
+  const [payoutCompany, setPayoutCompany] = useState<{ id: number; name: string } | null>(null);
 
   const resetForm = () => {
     setName("");
@@ -135,6 +140,8 @@ export default function AdminCompanies() {
         </Dialog>
       </div>
 
+      <ListSearch value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Rechercher une compagnie..." className="mb-4" />
+
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/50">
@@ -152,7 +159,7 @@ export default function AdminCompanies() {
               </TableRow>
             ) : companies?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Aucune compagnie.</TableCell>
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">{debouncedSearch ? "Aucune compagnie ne correspond à cette recherche." : "Aucune compagnie."}</TableCell>
               </TableRow>
             ) : (
               companies?.map((company) => (
@@ -163,6 +170,9 @@ export default function AdminCompanies() {
                     {company.createdAt ? new Date(company.createdAt).toLocaleDateString("fr-CI") : "-"}
                   </TableCell>
                   <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" onClick={() => setPayoutCompany(company)} className="text-muted-foreground hover:text-primary" title="Paiements PayDunya" aria-label="Paiements PayDunya">
+                      <Wallet className="w-4 h-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(company)} className="text-muted-foreground hover:text-primary">
                       <Edit2 className="w-4 h-4" />
                     </Button>
@@ -177,6 +187,8 @@ export default function AdminCompanies() {
         </Table>
         <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
+
+      <CompanyPayoutDialog company={payoutCompany} onClose={() => setPayoutCompany(null)} />
     </div>
   );
 }

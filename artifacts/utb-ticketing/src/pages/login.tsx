@@ -91,7 +91,7 @@ export default function Login() {
       {
         onSuccess: async (user) => {
           await refetchMe();
-          if (user.role === "admin") {
+          if (user.role === "admin" || user.role === "company_admin") {
             setLocation("/admin");
           } else if (user.role === "clerk") {
             setLocation("/clerk");

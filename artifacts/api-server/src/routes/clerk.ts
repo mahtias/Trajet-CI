@@ -7,8 +7,6 @@ import {
 } from "@workspace/db";
 import {
   GetClerkTripSeatsParams,
-  ClerkSellSeatParams,
-  ClerkSellSeatBody,
   GetClerkPassengersParams,
   ValidateTicketParams,
   UpdateClerkAgencyTourismBookingStatusParams,
@@ -18,7 +16,6 @@ import {
   UpdateClerkAgencyHotelBookingStatusParams,
   UpdateClerkAgencyHotelBookingStatusBody,
 } from "@workspace/api-zod";
-import { generateQrCode } from "../lib/qr";
 import { requireRole } from "../middlewares/require-role";
 import {
   isAllowedForAgency,
@@ -33,8 +30,14 @@ import {
 import { selectTrips, getTripDetails, getTripCompanyId, isAllowed, getSeatCounts, formatTripSummary, routeLabels } from "../lib/trip-queries";
 import { releaseExpiredReservations } from "../lib/seat-reservations";
 
+/**
+ * Clerk area: a clerk never sells or collects money. The only way to buy a ticket is online, from a
+ * passenger account, through PayDunya (/payments/initiate). Clerks see their company's trips and
+ * passengers and validate tickets at boarding (plus agency bookings for agency clerks).
+ */
 const router: IRouter = Router();
-router.use(requireRole("clerk", "admin"));
+// Scoped to /clerk so it doesn't also run on requests meant for routers mounted after this one
+router.use("/clerk", requireRole("clerk", "admin"));
 
 function currentUser(req: any): User {
   return req.currentUser;
@@ -102,82 +105,6 @@ router.get("/clerk/trips/:tripId/seats", async (req, res): Promise<void> => {
       passengerName: s.passengerName,
     }))
   );
-});
-
-// Manually sell a seat (cash at station)
-router.post("/clerk/seats/:seatId/sell", async (req, res): Promise<void> => {
-  const params = ClerkSellSeatParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const body = ClerkSellSeatBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-
-  const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, params.data.seatId)).limit(1);
-  if (!seat) {
-    res.status(404).json({ error: "Siège non trouvé" });
-    return;
-  }
-
-  const user = currentUser(req);
-  const tripCompanyId = await getTripCompanyId(seat.tripId);
-  if (!isAllowed(user, tripCompanyId)) {
-    res.status(403).json({ error: "Ce trajet appartient à une autre compagnie" });
-    return;
-  }
-
-  if (seat.status === "sold") {
-    res.status(409).json({ error: "Ce siège est déjà vendu" });
-    return;
-  }
-
-  const trip = await getTripDetails(seat.tripId);
-
-  const paymentId = `CASH-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-  const qrCode = await generateQrCode(JSON.stringify({ seatId: seat.id, tripId: seat.tripId, paymentId }));
-
-  const [ticket] = await db
-    .insert(ticketsTable)
-    .values({
-      tripId: seat.tripId,
-      seatId: seat.id,
-      userId: null,
-      passengerName: body.data.passengerName,
-      passengerPhone: body.data.passengerPhone,
-      price: trip?.trip.price ?? "0",
-      qrCode,
-      paymentStatus: "paid",
-      paymentId,
-    })
-    .returning();
-
-  await db
-    .update(seatsTable)
-    .set({ status: "sold", passengerName: body.data.passengerName, passengerPhone: body.data.passengerPhone })
-    .where(eq(seatsTable.id, params.data.seatId));
-
-  res.json({
-    id: ticket.id,
-    tripId: ticket.tripId,
-    seatNumber: seat.seatNumber,
-    passengerName: ticket.passengerName,
-    passengerPhone: ticket.passengerPhone,
-    origin: trip ? routeLabels(trip).origin : "",
-    destination: trip ? routeLabels(trip).destination : "",
-    departureDate: trip?.trip.departureDate ?? "",
-    departureTime: trip?.trip.departureTime ?? "",
-    companyName: trip?.company.name ?? "",
-    price: parseFloat(ticket.price),
-    qrCode: ticket.qrCode,
-    paymentStatus: ticket.paymentStatus,
-    validated: ticket.validated,
-    createdAt: ticket.createdAt.toISOString(),
-  });
 });
 
 // Passenger list for a trip

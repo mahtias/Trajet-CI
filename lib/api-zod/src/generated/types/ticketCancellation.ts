@@ -5,9 +5,12 @@
  * UTB Bus Ticketing API
  * OpenAPI spec version: 0.1.0
  */
+import type { RefundStatus } from './refundStatus';
 
 export interface TicketCancellation {
+  /** Always true when the ticket is cancelled, whatever the refund status */
   success: boolean;
   refundAmount: number;
   feePercent: number;
+  refundStatus: RefundStatus;
 }

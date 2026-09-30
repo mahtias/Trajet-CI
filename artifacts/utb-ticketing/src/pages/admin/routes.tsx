@@ -24,12 +24,17 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
+import { ListSearch, useDebouncedValue } from "@/components/list-search";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { CompanySelect } from "@/components/company-select";
 
 const PAGE_SIZE = 20;
 
 export default function AdminRoutes() {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useGetAdminRoutes({ page, pageSize: PAGE_SIZE });
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const { data, isLoading } = useGetAdminRoutes({ page, pageSize: PAGE_SIZE, search: debouncedSearch || undefined });
   const routes = data?.items;
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const { data: companiesData } = useGetAdminCompanies({ page: 1, pageSize: 100 });
@@ -49,6 +54,11 @@ export default function AdminRoutes() {
   const [destinationStationId, setDestinationStationId] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [companyId, setCompanyId] = useState("");
+  // Company admins have their company imposed: shown read-only instead of a picker
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false } });
+  const lockedCompanyId = me?.role === "company_admin" ? me.companyId : null;
+  // A company admin only gets its own company: preselect it in the form
+  const onlyCompanyId = companies?.length === 1 ? String(companies[0].id) : "";
 
   // Only stations linked to the selected company can be used on its routes
   const selectedCompanyId = companyId ? parseInt(companyId) : 0;
@@ -64,7 +74,7 @@ export default function AdminRoutes() {
     setOriginStationId("");
     setDestinationStationId("");
     setDurationMinutes("");
-    setCompanyId("");
+    setCompanyId(onlyCompanyId);
     setEditingId(null);
   };
 
@@ -141,7 +151,7 @@ export default function AdminRoutes() {
           setIsDialogOpen(open);
           if (!open) resetForm();
         }}>
-          <DialogTrigger asChild>
+          <DialogTrigger asChild onClick={() => { if (!editingId && !companyId) setCompanyId(onlyCompanyId); }}>
             <Button className="gap-2"><Plus className="w-4 h-4" /> Nouvelle Ligne</Button>
           </DialogTrigger>
           <DialogContent>
@@ -151,16 +161,11 @@ export default function AdminRoutes() {
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">Compagnie</label>
-                <Select value={companyId} onValueChange={(v) => { setCompanyId(v); setOriginStationId(""); setDestinationStationId(""); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir une compagnie" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies?.map(c => (
-                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <CompanySelect
+                  value={companyId}
+                  onChange={(v) => { setCompanyId(v); setOriginStationId(""); setDestinationStationId(""); }}
+                  lockedCompanyId={lockedCompanyId}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -207,6 +212,8 @@ export default function AdminRoutes() {
         </Dialog>
       </div>
 
+      <ListSearch value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Rechercher (ville, gare, compagnie)..." className="mb-4" />
+
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/50">
@@ -225,7 +232,7 @@ export default function AdminRoutes() {
               </TableRow>
             ) : routes?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Aucune ligne configurée.</TableCell>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{debouncedSearch ? "Aucune ligne ne correspond à cette recherche." : "Aucune ligne configurée."}</TableCell>
               </TableRow>
             ) : (
               routes?.map((route) => {

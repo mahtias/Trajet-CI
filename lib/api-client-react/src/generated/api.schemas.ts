@@ -35,6 +35,7 @@ export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
 export const AuthUserRole = {
   passenger: 'passenger',
   clerk: 'clerk',
+  company_admin: 'company_admin',
   admin: 'admin',
 } as const;
 
@@ -78,6 +79,73 @@ export interface CompanyInput {
   name: string;
 }
 
+export interface CompanyPayoutAccountInput {
+  /**
+     * Phone number or email of the company's PayDunya account; null or empty = no automatic transfer
+     * @maxLength 100
+     * @nullable
+     */
+  paydunyaAccountAlias: string | null;
+}
+
+export interface CompanyPayoutAccount {
+  companyId: number;
+  /** @nullable */
+  paydunyaAccountAlias: string | null;
+}
+
+/**
+ * success rows are listed only when part of the transfer went to the company's clawback
+ */
+export type CompanyPayoutItemStatus = typeof CompanyPayoutItemStatus[keyof typeof CompanyPayoutItemStatus];
+
+
+export const CompanyPayoutItemStatus = {
+  not_configured: 'not_configured',
+  pending: 'pending',
+  failed: 'failed',
+  success: 'success',
+} as const;
+
+export interface CompanyPayoutItem {
+  ticketId: number;
+  passengerName: string;
+  departureDate: string;
+  /** Amount owed to the company on this ticket (company share + its part of the seat fee) */
+  amount: number;
+  /** success rows are listed only when part of the transfer went to the company's clawback */
+  status: CompanyPayoutItemStatus;
+  /**
+     * Taken off this transfer to settle the company's pending clawback
+     * @nullable
+     */
+  clawbackAmount: number | null;
+  /**
+     * Actually sent to the company (amount - clawbackAmount)
+     * @nullable
+     */
+  netAmount: number | null;
+  /** @nullable */
+  error: string | null;
+  /** @nullable */
+  attemptedAt: string | null;
+}
+
+export interface CompanyPayoutStatusReport {
+  companyId: number;
+  companyName: string;
+  /** @nullable */
+  paydunyaAccountAlias: string | null;
+  /** Owed back by the company (shares paid for tickets cancelled since), taken off its next transfers */
+  pendingClawback: number;
+  items: CompanyPayoutItem[];
+  /** Sum owed over every untransferred ticket (all pages; clawback rows not included) */
+  totalAmount: number;
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface PaginatedCompanies {
   items: Company[];
   total: number;
@@ -91,6 +159,7 @@ export type UserRole = typeof UserRole[keyof typeof UserRole];
 export const UserRole = {
   passenger: 'passenger',
   clerk: 'clerk',
+  company_admin: 'company_admin',
   admin: 'admin',
 } as const;
 
@@ -131,6 +200,7 @@ export type UserRoleInputRole = typeof UserRoleInputRole[keyof typeof UserRoleIn
 export const UserRoleInputRole = {
   passenger: 'passenger',
   clerk: 'clerk',
+  company_admin: 'company_admin',
   admin: 'admin',
 } as const;
 
@@ -314,7 +384,9 @@ export const PaymentInputPaymentMethod = {
 } as const;
 
 export interface PaymentInput {
-  seatId: number;
+  tripId: number;
+  /** Chosen seat (manual selection, adds the seat selection fee). Omit for free automatic assignment. */
+  seatId?: number;
   passengerName: string;
   passengerPhone: string;
   paymentMethod: PaymentInputPaymentMethod;
@@ -331,6 +403,11 @@ export interface PaymentResponse {
   redirectUrl?: string | null;
   /** @nullable */
   ticketId?: number | null;
+  farePrice?: number;
+  /** Service fee added on top of the fare (shown to passengers as "Frais de service") */
+  platformCommission?: number;
+  seatSelectionFeePaid?: number;
+  seatNumber?: number;
 }
 
 export type PaydunyaWebhookInputData = { [key: string]: unknown };
@@ -380,6 +457,21 @@ export const TicketPaymentStatus = {
   refund_required: 'refund_required',
 } as const;
 
+/**
+ * not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)
+ */
+export type RefundStatus = typeof RefundStatus[keyof typeof RefundStatus];
+
+
+export const RefundStatus = {
+  not_applicable: 'not_applicable',
+  created: 'created',
+  pending: 'pending',
+  success: 'success',
+  failed: 'failed',
+  manual_required: 'manual_required',
+} as const;
+
 export interface Ticket {
   id: number;
   tripId: number;
@@ -392,6 +484,21 @@ export interface Ticket {
   departureTime: string;
   companyName: string;
   price: number;
+  /**
+     * Base fare (null on tickets created before the price breakdown existed)
+     * @nullable
+     */
+  farePrice?: number | null;
+  /**
+     * Service fee the passenger paid on top of the fare (price - farePrice - seatSelectionFeePaid). 0 on tickets sold when the commission was still deducted from the fare; null without a breakdown.
+     * @nullable
+     */
+  serviceFee?: number | null;
+  /**
+     * Seat selection fee paid (0 = automatic seat)
+     * @nullable
+     */
+  seatSelectionFeePaid?: number | null;
   qrCode: string;
   paymentMethod: TicketPaymentMethod;
   paymentStatus: TicketPaymentStatus;
@@ -400,13 +507,47 @@ export interface Ticket {
   cancelledAt?: string | null;
   /** @nullable */
   refundAmount?: number | null;
+  refundStatus?: RefundStatus;
   createdAt: string;
 }
 
 export interface TicketCancellation {
+  /** Always true when the ticket is cancelled, whatever the refund status */
   success: boolean;
   refundAmount: number;
   feePercent: number;
+  refundStatus: RefundStatus;
+}
+
+/**
+ * Sent by PayDunya (hash, status, token, withdraw_mode, amount, disburse_id, transaction_id, disburse_tx_id…)
+ */
+export interface PaydunyaRefundWebhookInput { [key: string]: unknown }
+
+export interface AdminRefundItem {
+  ticketId: number;
+  passengerName: string;
+  /**
+     * Phone of the buyer's account (where an automatic refund is sent)
+     * @nullable
+     */
+  accountPhone: string | null;
+  paymentMethod: string;
+  refundAmount: number;
+  status: RefundStatus;
+  /** @nullable */
+  error: string | null;
+  /** @nullable */
+  cancelledAt: string | null;
+}
+
+export interface AdminRefundsReport {
+  items: AdminRefundItem[];
+  /** Sum of the refund amounts over every page */
+  totalAmount: number;
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface Hotel {
@@ -569,11 +710,6 @@ export interface Passenger {
   seatNumber: number;
   paymentStatus: string;
   validated: boolean;
-}
-
-export interface ClerkSellInput {
-  passengerName: string;
-  passengerPhone: string;
 }
 
 export interface TicketValidation {
@@ -843,6 +979,75 @@ export interface ExchangeRateInput {
   fcfaPerUnit: number;
 }
 
+export interface TripPricing {
+  tripId: number;
+  farePrice: number;
+  /** Service fee added on top of the fare, at the commission rate in force */
+  platformCommission: number;
+  seatSelectionFee: number;
+  /** farePrice + platformCommission, i.e. the amount due with an automatic seat (online or at the counter) */
+  totalPrice: number;
+}
+
+export interface CommissionSettings {
+  commissionPercent: number;
+  seatSelectionFee: number;
+  /** Platform share of the seat selection fee; the company gets 100 minus this */
+  seatSelectionPlatformPercent: number;
+  updatedAt: string;
+}
+
+export interface CommissionSettingsInput {
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  commissionPercent: number;
+  /** @minimum 0 */
+  seatSelectionFee: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  seatSelectionPlatformPercent: number;
+}
+
+export interface RevenueSplitTotals {
+  ticketCount: number;
+  /** Sum of what customers actually paid (tickets.price) = companyShare + platformCommission + seatSelectionFeePaid */
+  totalPaid: number;
+  farePrice: number;
+  platformCommission: number;
+  companyShare: number;
+  seatSelectionFeePaid: number;
+  seatFeePlatformShare: number;
+  seatFeeCompanyShare: number;
+}
+
+export interface RevenueSplitRow {
+  companyId: number;
+  companyName: string;
+  ticketCount: number;
+  /** Sum of what customers actually paid (tickets.price) = companyShare + platformCommission + seatSelectionFeePaid */
+  totalPaid: number;
+  farePrice: number;
+  platformCommission: number;
+  companyShare: number;
+  seatSelectionFeePaid: number;
+  seatFeePlatformShare: number;
+  seatFeeCompanyShare: number;
+}
+
+export interface RevenueSplitReport {
+  from: string;
+  to: string;
+  totals: RevenueSplitTotals;
+  rows: RevenueSplitRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export type SearchTripsParams = {
 originCityId: number;
 destinationCityId: number;
@@ -864,6 +1069,21 @@ pageSize?: number;
 export type GetAdminCompaniesParams = {
 page?: number;
 pageSize?: number;
+/**
+ * Filter on the company name (case and accent insensitive)
+ */
+search?: string;
+};
+
+export type GetCompanyPayoutStatusParams = {
+companyId: number;
+page?: number;
+pageSize?: number;
+};
+
+export type GetAdminRefundsParams = {
+page?: number;
+pageSize?: number;
 };
 
 export type GetAdminUsersParams = {
@@ -874,11 +1094,26 @@ pageSize?: number;
 export type GetAdminRoutesParams = {
 page?: number;
 pageSize?: number;
+/**
+ * Filter on the company, departure or arrival station/city (case and accent insensitive)
+ */
+search?: string;
 };
 
 export type GetAdminTripsParams = {
 date?: string;
 routeId?: number;
+page?: number;
+pageSize?: number;
+/**
+ * Filter on the route (company, stations, cities) or the bus name (case and accent insensitive)
+ */
+search?: string;
+};
+
+export type GetRevenueSplitReportParams = {
+from?: string;
+to?: string;
 page?: number;
 pageSize?: number;
 };

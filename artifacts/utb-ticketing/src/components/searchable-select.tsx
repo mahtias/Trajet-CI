@@ -16,6 +16,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 export interface SearchableSelectOption {
   value: string;
   label: string;
+  /** Optional heading: options sharing a group are listed under it (e.g. "Compagnies", "Agences") */
+  group?: string;
 }
 
 interface SearchableSelectProps {
@@ -26,6 +28,8 @@ interface SearchableSelectProps {
   searchPlaceholder?: string;
   emptyText?: string;
   className?: string;
+  disabled?: boolean;
+  ariaLabel?: string;
 }
 
 /** Lowercase and strip accents, so typing "bouake" finds "Bouaké". */
@@ -38,7 +42,7 @@ function filterOptions(_value: string, search: string, keywords?: string[]) {
   return keywords?.some((k) => k.includes(normalize(search))) ? 1 : 0;
 }
 
-/** A dropdown like <Select>, with a search box to filter long lists (cities, stations…). */
+/** A dropdown like <Select>, with a search box to filter long lists (cities, stations, companies…). */
 export function SearchableSelect({
   options,
   value,
@@ -47,9 +51,18 @@ export function SearchableSelect({
   searchPlaceholder = 'Rechercher...',
   emptyText = 'Aucun résultat.',
   className,
+  disabled = false,
+  ariaLabel,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
+  // Keep the options' order, grouped by heading (ungrouped options come as one untitled group)
+  const groups = options.reduce<Array<{ heading?: string; options: SearchableSelectOption[] }>>((acc, option) => {
+    const group = acc.find((g) => g.heading === option.group);
+    if (group) group.options.push(option);
+    else acc.push({ heading: option.group, options: [option] });
+    return acc;
+  }, []);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -59,6 +72,8 @@ export function SearchableSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label={ariaLabel}
+          disabled={disabled}
           className={cn('w-full justify-between font-normal', className)}
         >
           <span className={cn('truncate', !selected && 'text-muted-foreground')}>
@@ -72,22 +87,24 @@ export function SearchableSelect({
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  keywords={[normalize(option.label)]}
-                  onSelect={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                >
-                  <Check className={cn('h-4 w-4', value === option.value ? 'opacity-100' : 'opacity-0')} />
-                  {option.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {groups.map((group) => (
+              <CommandGroup key={group.heading ?? ''} heading={group.heading}>
+                {group.options.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={option.value}
+                    keywords={[normalize(option.label)]}
+                    onSelect={() => {
+                      onChange(option.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={cn('h-4 w-4', value === option.value ? 'opacity-100' : 'opacity-0')} />
+                    {option.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

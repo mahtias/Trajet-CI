@@ -11,4 +11,8 @@ date?: Date;
 routeId?: number;
 page?: number;
 pageSize?: number;
+/**
+ * Filter on the route (company, stations, cities) or the bus name (case and accent insensitive)
+ */
+search?: string;
 };

@@ -17,4 +17,9 @@ export interface PaymentResponse {
   redirectUrl?: string | null;
   /** @nullable */
   ticketId?: number | null;
+  farePrice?: number;
+  /** Service fee added on top of the fare (shown to passengers as "Frais de service") */
+  platformCommission?: number;
+  seatSelectionFeePaid?: number;
+  seatNumber?: number;
 }

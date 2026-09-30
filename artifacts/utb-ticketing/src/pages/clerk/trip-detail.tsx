@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link } from "wouter";
 import { 
   useGetTrip, 
   useGetClerkTripSeats, 
@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 export default function ClerkTripDetail() {
   const { id } = useParams<{ id: string }>();
   const tripId = parseInt(id, 10);
-  const [, setLocation] = useLocation();
 
   const { data: trip } = useGetTrip(tripId, { query: { enabled: !!tripId } });
   const { data: seats } = useGetClerkTripSeats(tripId, { 
@@ -24,11 +23,6 @@ export default function ClerkTripDetail() {
   const { data: passengers } = useGetClerkPassengers(tripId, {
     query: { enabled: !!tripId, refetchInterval: 10000 }
   });
-
-  const handleSeatClick = (seatId: number, status: string) => {
-    if (status !== "available") return;
-    setLocation(`/clerk/trips/${tripId}/sell?seatId=${seatId}`);
-  };
 
   if (!trip || !seats) {
     return <div className="p-8 text-center">Chargement...</div>;
@@ -61,7 +55,7 @@ export default function ClerkTripDetail() {
             <p className="text-2xl font-bold text-green-400">{trip.availableSeats}</p>
           </div>
           <div className="text-center px-4">
-            <p className="text-sm text-secondary-foreground/60 uppercase">Vendues</p>
+            <p className="text-sm text-secondary-foreground/60 uppercase">Payées</p>
             <p className="text-2xl font-bold">{soldCount}</p>
           </div>
         </div>
@@ -98,23 +92,23 @@ export default function ClerkTripDetail() {
                 
                 <div className="grid grid-cols-4 gap-4 relative z-10">
                   {seats.map((seat) => {
-                    let bgColor = "bg-white hover:bg-green-50 border-green-200 text-foreground cursor-pointer shadow-sm";
+                    // Read-only map: tickets are only bought online, from a passenger account
+                    let bgColor = "bg-white border-green-200 text-foreground shadow-sm";
                     
                     if (seat.status === "sold") {
-                      bgColor = "bg-destructive/10 border-destructive/30 text-destructive cursor-not-allowed";
+                      bgColor = "bg-destructive/10 border-destructive/30 text-destructive";
                     } else if (seat.status === "reserved") {
-                      bgColor = "bg-accent/20 border-accent/40 text-accent-foreground cursor-not-allowed";
+                      bgColor = "bg-accent/20 border-accent/40 text-accent-foreground";
                     }
 
                     return (
-                      <button
+                      <div
                         key={seat.id}
-                        onClick={() => handleSeatClick(seat.id, seat.status)}
-                        className={`aspect-square rounded-xl border-2 flex items-center justify-center font-bold text-lg transition-all ${bgColor}`}
+                        className={`aspect-square rounded-xl border-2 flex items-center justify-center font-bold text-lg ${bgColor}`}
                         title={seat.passengerName ? `Place ${seat.seatNumber} - ${seat.passengerName}` : `Place ${seat.seatNumber} libre`}
                       >
                         {seat.seatNumber}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>

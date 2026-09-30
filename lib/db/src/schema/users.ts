@@ -8,8 +8,9 @@ export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   phone: text("phone").notNull().unique(),
   name: text("name"),
-  role: text("role").notNull().default("passenger"), // passenger | clerk | admin
-  companyId: integer("company_id").references(() => companiesTable.id), // clerk's assigned company; null = unassigned/admin
+  role: text("role").notNull().default("passenger"), // passenger | clerk | company_admin | admin
+  // Company of a clerk or company_admin (scopes what they can see and manage); null = unassigned / super admin
+  companyId: integer("company_id").references(() => companiesTable.id),
   // Clerk's assigned agency (hotel / tourism / vehicle rental). A clerk has either companyId or agencyId, never both.
   agencyId: integer("agency_id").references(() => agenciesTable.id, { onDelete: "set null" }),
   otpCode: text("otp_code"),

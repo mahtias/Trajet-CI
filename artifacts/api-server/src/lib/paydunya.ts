@@ -3,6 +3,8 @@ import { logger } from "./logger";
 
 /**
  * PayDunya "Checkout Invoice" (HTTP/JSON API): https://developers.paydunya.com/doc/EN/http_json
+ * "Paiement et Redistribution" (direct-pay/credit-account) and "API PUSH" (disburse/*, refunds:
+ * https://developers.paydunya.com/doc/EN/api_deboursement), both to be enabled on the account.
  *
  * Configuration (environment):
  *   PAYDUNYA_MASTER_KEY, PAYDUNYA_PRIVATE_KEY, PAYDUNYA_TOKEN  – from the PayDunya account (Intégration API)
@@ -19,6 +21,8 @@ export interface PaydunyaConfig {
   mode: PaydunyaMode;
   appPublicUrl: string;
   baseUrl: string;
+  /** API PUSH (disbursements) lives under /api/v2, the rest under /api/v1 */
+  disburseBaseUrl: string;
 }
 
 export class PaydunyaConfigError extends Error {}
@@ -27,6 +31,11 @@ export class PaydunyaApiError extends Error {}
 /** The single place that decides sandbox vs production URLs. */
 export function paydunyaBaseUrl(mode: PaydunyaMode): string {
   return mode === "live" ? "https://app.paydunya.com/api/v1" : "https://app.paydunya.com/sandbox-api/v1";
+}
+
+/** API PUSH: the documentation only gives the live URL (api/v2); the sandbox one follows the v1 pattern. */
+export function paydunyaDisburseBaseUrl(mode: PaydunyaMode): string {
+  return mode === "live" ? "https://app.paydunya.com/api/v2" : "https://app.paydunya.com/sandbox-api/v2";
 }
 
 function readMode(): PaydunyaMode {
@@ -50,6 +59,7 @@ export function getPaydunyaConfig(): PaydunyaConfig {
     mode,
     appPublicUrl: process.env.APP_PUBLIC_URL!.trim().replace(/\/+$/, ""),
     baseUrl: process.env.PAYDUNYA_API_BASE_URL?.trim().replace(/\/+$/, "") || paydunyaBaseUrl(mode),
+    disburseBaseUrl: process.env.PAYDUNYA_API_BASE_URL?.trim().replace(/\/+$/, "") || paydunyaDisburseBaseUrl(mode),
   };
 }
 
@@ -75,15 +85,18 @@ function headers(config: PaydunyaConfig) {
   };
 }
 
-async function callApi(config: PaydunyaConfig, path: string, init: RequestInit): Promise<any> {
+async function callApi(config: PaydunyaConfig, path: string, init: RequestInit, baseUrl = config.baseUrl): Promise<any> {
   let response: Response;
   try {
-    response = await fetch(`${config.baseUrl}${path}`, { ...init, headers: headers(config), signal: AbortSignal.timeout(15_000) });
+    response = await fetch(`${baseUrl}${path}`, { ...init, headers: headers(config), signal: AbortSignal.timeout(15_000) });
   } catch (err) {
     throw new PaydunyaApiError(`PayDunya injoignable : ${(err as Error).message}`);
   }
-  const body = await response.json().catch(() => null);
-  if (!response.ok || !body) throw new PaydunyaApiError(`PayDunya a répondu ${response.status}`);
+  const body: any = await response.json().catch(() => null);
+  if (!response.ok || !body) {
+    const detail = body?.response_text ?? body?.description;
+    throw new PaydunyaApiError(`PayDunya a répondu ${response.status}${detail ? ` : ${detail}` : ""}`);
+  }
   return body;
 }
 
@@ -143,6 +156,94 @@ export async function confirmCheckoutInvoice(config: PaydunyaConfig, token: stri
     token: String(body.invoice?.token ?? token),
     totalAmount: Number(body.invoice?.total_amount),
     customData: body.custom_data ?? {},
+  };
+}
+
+/**
+ * Sends money from our PayDunya balance to another PayDunya account ("Paiement et Redistribution").
+ * accountAlias: phone number or email of the receiving account. Returns PayDunya's transaction id.
+ * Throws PaydunyaApiError when PayDunya refuses (feature not enabled, unknown account, balance…)
+ * or can't be reached.
+ */
+export async function creditCompanyAccount(config: PaydunyaConfig, accountAlias: string, amount: number): Promise<{ transactionId: string }> {
+  const body = await callApi(config, "/direct-pay/credit-account", {
+    method: "POST",
+    body: JSON.stringify({ account_alias: accountAlias, amount }),
+  });
+  if (body.response_code !== "00") {
+    throw new PaydunyaApiError(`Transfert refusé : ${body.response_text ?? body.description ?? "réponse inattendue"}`);
+  }
+  return { transactionId: String(body.transaction_id ?? "") };
+}
+
+// ── API PUSH (disbursement): refunds to the passenger's mobile money ────────────────
+
+export type DisburseStatus = "created" | "pending" | "success" | "failed";
+
+/** Step 1: creates the disbursement request (nothing is sent yet). Returns the disburse token. */
+export async function getDisburseInvoice(config: PaydunyaConfig, input: {
+  accountAlias: string; // phone number without country code
+  amount: number; // integer FCFA
+  withdrawMode: string; // e.g. orange-money-ci
+  callbackUrl: string;
+  disburseId: string; // our own reference, unique (PayDunya refuses a duplicate)
+}): Promise<{ disburseToken: string }> {
+  const body = await callApi(config, "/disburse/get-invoice", {
+    method: "POST",
+    body: JSON.stringify({
+      account_alias: input.accountAlias,
+      amount: input.amount,
+      withdraw_mode: input.withdrawMode,
+      callback_url: input.callbackUrl,
+      disburse_id: input.disburseId,
+    }),
+  }, config.disburseBaseUrl);
+  if (body.response_code !== "00" || typeof body.disburse_token !== "string") {
+    throw new PaydunyaApiError(`Demande de remboursement refusée : ${body.response_text ?? body.description ?? "réponse inattendue"}`);
+  }
+  return { disburseToken: body.disburse_token };
+}
+
+/** Step 2: executes the disbursement. "pending" = the operator is still processing (final state via callback / check-status). */
+export async function submitDisburseInvoice(config: PaydunyaConfig, disburseToken: string, disburseId: string): Promise<{ status: "success" | "pending"; transactionId: string | null }> {
+  const body = await callApi(config, "/disburse/submit-invoice", {
+    method: "POST",
+    body: JSON.stringify({ disburse_invoice: disburseToken, disburse_id: disburseId }),
+  }, config.disburseBaseUrl);
+  if (body.response_code !== "00") {
+    throw new PaydunyaApiError(`Remboursement refusé : ${body.response_text ?? body.description ?? "réponse inattendue"}`);
+  }
+  if (body.status === "failed") throw new PaydunyaApiError(`Remboursement échoué : ${body.response_text ?? body.description ?? "échec"}`);
+  return { status: body.status === "pending" ? "pending" : "success", transactionId: body.transaction_id ? String(body.transaction_id) : null };
+}
+
+export interface DisburseState {
+  status: DisburseStatus;
+  token: string;
+  amount: number;
+  fees: number | null;
+  transactionId: string | null;
+  disburseId: string | null;
+}
+
+/** Real state of a disbursement (server-to-server): the source of truth, like confirm() for payments. */
+export async function checkDisburseStatus(config: PaydunyaConfig, disburseToken: string): Promise<DisburseState> {
+  const body = await callApi(config, "/disburse/check-status", {
+    method: "POST",
+    body: JSON.stringify({ disburse_invoice: disburseToken }),
+  }, config.disburseBaseUrl);
+  const status = body.status;
+  if (body.response_code !== "00" || !["created", "pending", "success", "failed"].includes(status)) {
+    throw new PaydunyaApiError(`Statut du remboursement indisponible : ${body.response_text ?? "réponse inattendue"}`);
+  }
+  const fees = body.fees !== undefined && body.fees !== null && body.fees !== "" ? Number(body.fees) : null;
+  return {
+    status,
+    token: String(body.token ?? disburseToken),
+    amount: Number(body.amount),
+    fees: Number.isFinite(fees) ? fees : null,
+    transactionId: body.transaction_id ? String(body.transaction_id) : null,
+    disburseId: body.disburse_id ? String(body.disburse_id) : null,
   };
 }
 

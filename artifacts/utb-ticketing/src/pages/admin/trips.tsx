@@ -27,18 +27,23 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { ListPagination } from "@/components/list-pagination";
+import { ListSearch, useDebouncedValue } from "@/components/list-search";
+import { SearchableSelect } from "@/components/searchable-select";
 
 const PAGE_SIZE = 20;
 
 export default function AdminTrips() {
   const [dateFilter, setDateFilter] = useState(format(new Date(), "yyyy-MM-dd"));
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim());
 
-  const { data, isLoading } = useGetAdminTrips({ date: dateFilter, page, pageSize: PAGE_SIZE });
+  const { data, isLoading } = useGetAdminTrips({ date: dateFilter, search: debouncedSearch || undefined, page, pageSize: PAGE_SIZE });
   const trips = data?.items;
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const { data: routesData } = useGetAdminRoutes({ page: 1, pageSize: 100 });
   const routes = routesData?.items;
+  const routeOptions = (routes ?? []).map((r) => ({ value: r.id.toString(), label: `${r.origin} - ${r.destination} (${r.companyName})` }));
 
   const createTrip = useCreateTrip();
   const updateTrip = useUpdateTrip();
@@ -165,18 +170,15 @@ export default function AdminTrips() {
                 {!editingId && (
                   <div>
                     <label className="text-sm font-medium mb-1 block">Ligne</label>
-                    <Select value={routeId} onValueChange={(v) => { setRouteId(v); setBusId(""); }}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choisir une ligne" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {routes?.map(r => (
-                          <SelectItem key={r.id} value={r.id.toString()}>
-                            {r.origin} - {r.destination} ({r.companyName})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={routeOptions}
+                      value={routeId}
+                      onChange={(v) => { setRouteId(v); setBusId(""); }}
+                      placeholder="Choisir une ligne"
+                      searchPlaceholder="Rechercher (ville, gare, compagnie)..."
+                      emptyText="Aucune ligne ne correspond à cette recherche."
+                      ariaLabel="Ligne"
+                    />
                   </div>
                 )}
 
@@ -226,6 +228,8 @@ export default function AdminTrips() {
         </div>
       </div>
 
+      <ListSearch value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Rechercher (ville, gare, compagnie, bus)..." className="mb-4" />
+
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/50">
@@ -247,7 +251,7 @@ export default function AdminTrips() {
               </TableRow>
             ) : trips?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Aucun voyage pour cette date.</TableCell>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">{debouncedSearch ? "Aucun voyage ne correspond à cette recherche pour cette date." : "Aucun voyage pour cette date."}</TableCell>
               </TableRow>
             ) : (
               trips?.map((trip) => (

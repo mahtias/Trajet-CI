@@ -42,7 +42,7 @@ export const VerifyOtpResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
   "agencyId": zod.number().nullish(),
@@ -66,7 +66,7 @@ export const GetMeResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
   "agencyId": zod.number().nullish(),
@@ -135,6 +135,22 @@ export const GetTripResponse = zod.object({
 
 
 /**
+ * @summary Fare and seat selection fee for a trip (display only; the server recomputes everything at payment)
+ */
+export const GetTripPricingParams = zod.object({
+  "tripId": zod.coerce.number()
+})
+
+export const GetTripPricingResponse = zod.object({
+  "tripId": zod.number(),
+  "farePrice": zod.number(),
+  "platformCommission": zod.number().describe('Service fee added on top of the fare, at the commission rate in force'),
+  "seatSelectionFee": zod.number(),
+  "totalPrice": zod.number().describe('farePrice + platformCommission, i.e. the amount due with an automatic seat (online or at the counter)')
+})
+
+
+/**
  * @summary Get seat map for a trip
  */
 export const GetTripSeatsParams = zod.object({
@@ -170,7 +186,8 @@ export const GetTripLocationResponse = zod.object({
  * @summary Initiate mobile money payment (Wave, Orange Money, or MTN Money)
  */
 export const InitiatePaymentBody = zod.object({
-  "seatId": zod.number(),
+  "tripId": zod.number(),
+  "seatId": zod.number().optional().describe('Chosen seat (manual selection, adds the seat selection fee). Omit for free automatic assignment.'),
   "passengerName": zod.string(),
   "passengerPhone": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card'])
@@ -181,7 +198,11 @@ export const InitiatePaymentResponse = zod.object({
   "amount": zod.number(),
   "status": zod.string(),
   "redirectUrl": zod.string().nullish().describe('PayDunya checkout page to send the customer to'),
-  "ticketId": zod.number().nullish()
+  "ticketId": zod.number().nullish(),
+  "farePrice": zod.number().optional(),
+  "platformCommission": zod.number().optional().describe('Service fee added on top of the fare (shown to passengers as \"Frais de service\")'),
+  "seatSelectionFeePaid": zod.number().optional(),
+  "seatNumber": zod.number().optional()
 })
 
 
@@ -193,6 +214,16 @@ export const PaydunyaWebhookBody = zod.object({
 }).describe('Sent by PayDunya; \"data\" holds the invoice object (status, hash, invoice.token, invoice.total_amount, custom_data…)')
 
 export const PaydunyaWebhookResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary PayDunya API PUSH notification (final state of a refund). Called by PayDunya, not by the app; the state is re-checked with PayDunya's check-status API.
+ */
+export const PaydunyaRefundWebhookBody = zod.record(zod.string(), zod.unknown()).describe('Sent by PayDunya (hash, status, token, withdraw_mode, amount, disburse_id, transaction_id, disburse_tx_id…)')
+
+export const PaydunyaRefundWebhookResponse = zod.object({
   "success": zod.boolean()
 })
 
@@ -212,12 +243,16 @@ export const GetMyTicketsResponseItem = zod.object({
   "departureTime": zod.string(),
   "companyName": zod.string(),
   "price": zod.number(),
+  "farePrice": zod.number().nullish().describe('Base fare (null on tickets created before the price breakdown existed)'),
+  "serviceFee": zod.number().nullish().describe('Service fee the passenger paid on top of the fare (price - farePrice - seatSelectionFeePaid). 0 on tickets sold when the commission was still deducted from the fare; null without a breakdown.'),
+  "seatSelectionFeePaid": zod.number().nullish().describe('Seat selection fee paid (0 = automatic seat)'),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
+  "refundStatus": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).optional().describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)'),
   "createdAt": zod.coerce.date()
 })
 export const GetMyTicketsResponse = zod.array(GetMyTicketsResponseItem)
@@ -242,12 +277,16 @@ export const GetTicketResponse = zod.object({
   "departureTime": zod.string(),
   "companyName": zod.string(),
   "price": zod.number(),
+  "farePrice": zod.number().nullish().describe('Base fare (null on tickets created before the price breakdown existed)'),
+  "serviceFee": zod.number().nullish().describe('Service fee the passenger paid on top of the fare (price - farePrice - seatSelectionFeePaid). 0 on tickets sold when the commission was still deducted from the fare; null without a breakdown.'),
+  "seatSelectionFeePaid": zod.number().nullish().describe('Seat selection fee paid (0 = automatic seat)'),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
+  "refundStatus": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).optional().describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)'),
   "createdAt": zod.coerce.date()
 })
 
@@ -273,9 +312,10 @@ export const CancelTicketParams = zod.object({
 })
 
 export const CancelTicketResponse = zod.object({
-  "success": zod.boolean(),
+  "success": zod.boolean().describe('Always true when the ticket is cancelled, whatever the refund status'),
   "refundAmount": zod.number(),
-  "feePercent": zod.number()
+  "feePercent": zod.number(),
+  "refundStatus": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)')
 })
 
 
@@ -554,40 +594,6 @@ export const GetClerkTripSeatsResponse = zod.array(GetClerkTripSeatsResponseItem
 
 
 /**
- * @summary Manually mark a seat as sold (cash payment)
- */
-export const ClerkSellSeatParams = zod.object({
-  "seatId": zod.coerce.number()
-})
-
-export const ClerkSellSeatBody = zod.object({
-  "passengerName": zod.string(),
-  "passengerPhone": zod.string()
-})
-
-export const ClerkSellSeatResponse = zod.object({
-  "id": zod.number(),
-  "tripId": zod.number(),
-  "seatNumber": zod.number(),
-  "passengerName": zod.string(),
-  "passengerPhone": zod.string(),
-  "origin": zod.string(),
-  "destination": zod.string(),
-  "departureDate": zod.string(),
-  "departureTime": zod.string(),
-  "companyName": zod.string(),
-  "price": zod.number(),
-  "qrCode": zod.string(),
-  "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required']),
-  "validated": zod.boolean().optional(),
-  "cancelledAt": zod.coerce.date().nullish(),
-  "refundAmount": zod.number().nullish(),
-  "createdAt": zod.coerce.date()
-})
-
-
-/**
  * @summary List of passengers for a trip
  */
 export const GetClerkPassengersParams = zod.object({
@@ -626,12 +632,16 @@ export const ValidateTicketResponse = zod.object({
   "departureTime": zod.string(),
   "companyName": zod.string(),
   "price": zod.number(),
+  "farePrice": zod.number().nullish().describe('Base fare (null on tickets created before the price breakdown existed)'),
+  "serviceFee": zod.number().nullish().describe('Service fee the passenger paid on top of the fare (price - farePrice - seatSelectionFeePaid). 0 on tickets sold when the commission was still deducted from the fare; null without a breakdown.'),
+  "seatSelectionFeePaid": zod.number().nullish().describe('Seat selection fee paid (0 = automatic seat)'),
   "qrCode": zod.string(),
   "paymentMethod": zod.enum(['wave', 'orange_money', 'mtn_money', 'moov_money', 'card']),
   "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'expired', 'refund_required']),
   "validated": zod.boolean().optional(),
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
+  "refundStatus": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).optional().describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)'),
   "createdAt": zod.coerce.date()
 }),
   "message": zod.string().nullish()
@@ -643,7 +653,8 @@ export const ValidateTicketResponse = zod.object({
  */
 export const GetAdminCompaniesQueryParams = zod.object({
   "page": zod.coerce.number().optional(),
-  "pageSize": zod.coerce.number().optional()
+  "pageSize": zod.coerce.number().optional(),
+  "search": zod.coerce.string().optional().describe('Filter on the company name (case and accent insensitive)')
 })
 
 export const GetAdminCompaniesResponse = zod.object({
@@ -703,6 +714,85 @@ export const DeleteCompanyResponse = zod.object({
 
 
 /**
+ * @summary Set the PayDunya account that automatically receives the company's share (super admin)
+ */
+export const UpdateCompanyPayoutAccountParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const updateCompanyPayoutAccountBodyPaydunyaAccountAliasMax = 100;
+
+
+
+export const UpdateCompanyPayoutAccountBody = zod.object({
+  "paydunyaAccountAlias": zod.string().max(updateCompanyPayoutAccountBodyPaydunyaAccountAliasMax).nullable().describe('Phone number or email of the company\'s PayDunya account; null or empty = no automatic transfer')
+})
+
+export const UpdateCompanyPayoutAccountResponse = zod.object({
+  "companyId": zod.number(),
+  "paydunyaAccountAlias": zod.string().nullable()
+})
+
+
+/**
+ * @summary Paid tickets whose company share was not transferred automatically (failed, not configured, pending) — super admin
+ */
+export const GetCompanyPayoutStatusQueryParams = zod.object({
+  "companyId": zod.coerce.number(),
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetCompanyPayoutStatusResponse = zod.object({
+  "companyId": zod.number(),
+  "companyName": zod.string(),
+  "paydunyaAccountAlias": zod.string().nullable(),
+  "pendingClawback": zod.number().describe('Owed back by the company (shares paid for tickets cancelled since), taken off its next transfers'),
+  "items": zod.array(zod.object({
+  "ticketId": zod.number(),
+  "passengerName": zod.string(),
+  "departureDate": zod.string(),
+  "amount": zod.number().describe('Amount owed to the company on this ticket (company share + its part of the seat fee)'),
+  "status": zod.enum(['not_configured', 'pending', 'failed', 'success']).describe('success rows are listed only when part of the transfer went to the company\'s clawback'),
+  "clawbackAmount": zod.number().nullable().describe('Taken off this transfer to settle the company\'s pending clawback'),
+  "netAmount": zod.number().nullable().describe('Actually sent to the company (amount - clawbackAmount)'),
+  "error": zod.string().nullable(),
+  "attemptedAt": zod.coerce.date().nullable()
+})),
+  "totalAmount": zod.number().describe('Sum owed over every untransferred ticket (all pages; clawback rows not included)'),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Refunds not settled automatically (failed, to handle by hand, or not final yet) — super admin
+ */
+export const GetAdminRefundsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetAdminRefundsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "ticketId": zod.number(),
+  "passengerName": zod.string(),
+  "accountPhone": zod.string().nullable().describe('Phone of the buyer\'s account (where an automatic refund is sent)'),
+  "paymentMethod": zod.string(),
+  "refundAmount": zod.number(),
+  "status": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)'),
+  "error": zod.string().nullable(),
+  "cancelledAt": zod.coerce.date().nullable()
+})),
+  "totalAmount": zod.number().describe('Sum of the refund amounts over every page'),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
  * @summary List all users
  */
 export const GetAdminUsersQueryParams = zod.object({
@@ -715,7 +805,7 @@ export const GetAdminUsersResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
   "agencyId": zod.number().nullish(),
@@ -737,7 +827,7 @@ export const UpdateUserRoleParams = zod.object({
 })
 
 export const UpdateUserRoleBody = zod.object({
-  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "agencyId": zod.number().nullish()
 })
@@ -746,7 +836,7 @@ export const UpdateUserRoleResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['passenger', 'clerk', 'admin']),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
   "agencyId": zod.number().nullish(),
@@ -832,7 +922,7 @@ export const DeleteStationResponse = zod.object({
 
 
 /**
- * @summary List stations used by a company
+ * @summary List stations used by a company — admin, or company_admin scoped to its own company
  */
 export const GetCompanyStationsParams = zod.object({
   "companyId": zod.coerce.number()
@@ -848,7 +938,7 @@ export const GetCompanyStationsResponse = zod.array(GetCompanyStationsResponseIt
 
 
 /**
- * @summary Link a station to a company
+ * @summary Link a station to a company — admin, or company_admin scoped to its own company
  */
 export const AddCompanyStationParams = zod.object({
   "companyId": zod.coerce.number()
@@ -867,7 +957,7 @@ export const AddCompanyStationResponse = zod.object({
 
 
 /**
- * @summary Unlink a station from a company
+ * @summary Unlink a station from a company — admin, or company_admin scoped to its own company
  */
 export const RemoveCompanyStationParams = zod.object({
   "companyId": zod.coerce.number(),
@@ -880,7 +970,7 @@ export const RemoveCompanyStationResponse = zod.object({
 
 
 /**
- * @summary List buses for a company
+ * @summary List buses for a company — admin, or company_admin scoped to its own company
  */
 export const GetCompanyBusesParams = zod.object({
   "companyId": zod.coerce.number()
@@ -897,7 +987,7 @@ export const GetCompanyBusesResponse = zod.array(GetCompanyBusesResponseItem)
 
 
 /**
- * @summary Create a bus for a company
+ * @summary Create a bus for a company — admin, or company_admin scoped to its own company
  */
 export const CreateBusParams = zod.object({
   "companyId": zod.coerce.number()
@@ -919,7 +1009,7 @@ export const CreateBusResponse = zod.object({
 
 
 /**
- * @summary Update a bus
+ * @summary Update a bus — admin, or company_admin scoped to its own company
  */
 export const UpdateBusParams = zod.object({
   "busId": zod.coerce.number()
@@ -941,7 +1031,7 @@ export const UpdateBusResponse = zod.object({
 
 
 /**
- * @summary Delete a bus
+ * @summary Delete a bus — admin, or company_admin scoped to its own company
  */
 export const DeleteBusParams = zod.object({
   "busId": zod.coerce.number()
@@ -953,11 +1043,12 @@ export const DeleteBusResponse = zod.object({
 
 
 /**
- * @summary List all routes
+ * @summary List all routes — admin, or company_admin scoped to its own company
  */
 export const GetAdminRoutesQueryParams = zod.object({
   "page": zod.coerce.number().optional(),
-  "pageSize": zod.coerce.number().optional()
+  "pageSize": zod.coerce.number().optional(),
+  "search": zod.coerce.string().optional().describe('Filter on the company, departure or arrival station\/city (case and accent insensitive)')
 })
 
 export const GetAdminRoutesResponse = zod.object({
@@ -978,7 +1069,7 @@ export const GetAdminRoutesResponse = zod.object({
 
 
 /**
- * @summary Create a route
+ * @summary Create a route — admin, or company_admin scoped to its own company
  */
 export const CreateRouteBody = zod.object({
   "originStationId": zod.number(),
@@ -1000,7 +1091,7 @@ export const CreateRouteResponse = zod.object({
 
 
 /**
- * @summary Update a route
+ * @summary Update a route — admin, or company_admin scoped to its own company
  */
 export const UpdateRouteParams = zod.object({
   "routeId": zod.coerce.number()
@@ -1026,7 +1117,7 @@ export const UpdateRouteResponse = zod.object({
 
 
 /**
- * @summary Delete a route
+ * @summary Delete a route — admin, or company_admin scoped to its own company
  */
 export const DeleteRouteParams = zod.object({
   "routeId": zod.coerce.number()
@@ -1038,13 +1129,14 @@ export const DeleteRouteResponse = zod.object({
 
 
 /**
- * @summary List all trips (admin)
+ * @summary List all trips (admin) — admin, or company_admin scoped to its own company
  */
 export const GetAdminTripsQueryParams = zod.object({
   "date": zod.date().optional(),
   "routeId": zod.coerce.number().optional(),
   "page": zod.coerce.number().optional(),
-  "pageSize": zod.coerce.number().optional()
+  "pageSize": zod.coerce.number().optional(),
+  "search": zod.coerce.string().optional().describe('Filter on the route (company, stations, cities) or the bus name (case and accent insensitive)')
 })
 
 export const GetAdminTripsResponse = zod.object({
@@ -1072,7 +1164,7 @@ export const GetAdminTripsResponse = zod.object({
 
 
 /**
- * @summary Create a trip
+ * @summary Create a trip — admin, or company_admin scoped to its own company
  */
 export const CreateTripBody = zod.object({
   "routeId": zod.number(),
@@ -1102,7 +1194,7 @@ export const CreateTripResponse = zod.object({
 
 
 /**
- * @summary Update a trip (including price)
+ * @summary Update a trip (including price) — admin, or company_admin scoped to its own company
  */
 export const UpdateTripParams = zod.object({
   "tripId": zod.coerce.number()
@@ -1136,7 +1228,7 @@ export const UpdateTripResponse = zod.object({
 
 
 /**
- * @summary Delete a trip
+ * @summary Delete a trip — admin, or company_admin scoped to its own company
  */
 export const DeleteTripParams = zod.object({
   "tripId": zod.coerce.number()
@@ -1169,7 +1261,86 @@ export const GetAdminStatsResponse = zod.object({
 
 
 /**
- * @summary Sales report data
+ * @summary Platform commission and seat selection fee settings (super admin only)
+ */
+export const GetCommissionSettingsResponse = zod.object({
+  "commissionPercent": zod.number(),
+  "seatSelectionFee": zod.number(),
+  "seatSelectionPlatformPercent": zod.number().describe('Platform share of the seat selection fee; the company gets 100 minus this'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update commission settings (super admin only). Only affects tickets created afterwards.
+ */
+export const updateCommissionSettingsBodyCommissionPercentMin = 0;
+export const updateCommissionSettingsBodyCommissionPercentMax = 100;
+
+export const updateCommissionSettingsBodySeatSelectionFeeMin = 0;
+
+export const updateCommissionSettingsBodySeatSelectionPlatformPercentMin = 0;
+export const updateCommissionSettingsBodySeatSelectionPlatformPercentMax = 100;
+
+
+
+export const UpdateCommissionSettingsBody = zod.object({
+  "commissionPercent": zod.number().min(updateCommissionSettingsBodyCommissionPercentMin).max(updateCommissionSettingsBodyCommissionPercentMax),
+  "seatSelectionFee": zod.number().min(updateCommissionSettingsBodySeatSelectionFeeMin),
+  "seatSelectionPlatformPercent": zod.number().min(updateCommissionSettingsBodySeatSelectionPlatformPercentMin).max(updateCommissionSettingsBodySeatSelectionPlatformPercentMax)
+})
+
+export const UpdateCommissionSettingsResponse = zod.object({
+  "commissionPercent": zod.number(),
+  "seatSelectionFee": zod.number(),
+  "seatSelectionPlatformPercent": zod.number().describe('Platform share of the seat selection fee; the company gets 100 minus this'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Revenue split per company (admin sees every company, company_admin only its own)
+ */
+export const GetRevenueSplitReportQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional(),
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetRevenueSplitReportResponse = zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "totals": zod.object({
+  "ticketCount": zod.number(),
+  "totalPaid": zod.number().describe('Sum of what customers actually paid (tickets.price) = companyShare + platformCommission + seatSelectionFeePaid'),
+  "farePrice": zod.number(),
+  "platformCommission": zod.number(),
+  "companyShare": zod.number(),
+  "seatSelectionFeePaid": zod.number(),
+  "seatFeePlatformShare": zod.number(),
+  "seatFeeCompanyShare": zod.number()
+}),
+  "rows": zod.array(zod.object({
+  "companyId": zod.number(),
+  "companyName": zod.string(),
+  "ticketCount": zod.number(),
+  "totalPaid": zod.number().describe('Sum of what customers actually paid (tickets.price) = companyShare + platformCommission + seatSelectionFeePaid'),
+  "farePrice": zod.number(),
+  "platformCommission": zod.number(),
+  "companyShare": zod.number(),
+  "seatSelectionFeePaid": zod.number(),
+  "seatFeePlatformShare": zod.number(),
+  "seatFeeCompanyShare": zod.number()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Sales report data — admin, or company_admin scoped to its own company
  */
 export const GetSalesReportQueryParams = zod.object({
   "from": zod.date().optional(),

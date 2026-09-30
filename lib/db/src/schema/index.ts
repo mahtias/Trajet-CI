@@ -18,3 +18,4 @@ export * from "./vehicles";
 export * from "./vehicle-bookings";
 export * from "./payments";
 export * from "./exchange-rates";
+export * from "./platform-settings";

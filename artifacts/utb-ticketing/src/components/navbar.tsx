@@ -91,6 +91,37 @@ export function Navbar() {
       );
     }
 
+    // Company admin: the admin screens of its own company only (the server filters the data);
+    // users, cities/stations, agencies, exchange rates and commission stay with the super admin
+    if (user.role === "company_admin") {
+      return (
+        <>
+          <Link href="/admin" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4" /> {t("nav.adminDashboard")}
+          </Link>
+          {user.companyName && <span className="text-xs font-bold px-2 py-1 bg-secondary/10 text-secondary rounded-md">{user.companyName}</span>}
+          <Link href="/admin/fleet" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminFleet")}
+          </Link>
+          <Link href="/admin/routes" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminRoutes")}
+          </Link>
+          <Link href="/admin/trips" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminTrips")}
+          </Link>
+          <Link href="/admin/reports" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminReports")}
+          </Link>
+          <Link href="/admin/revenue" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminRevenue")}
+          </Link>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
+            <LogOut className="h-4 w-4 mr-2" /> {t("nav.logout")}
+          </Button>
+        </>
+      );
+    }
+
     if (user.role === "admin") {
       return (
         <>
@@ -112,15 +143,21 @@ export function Navbar() {
           <Link href="/admin/trips" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             {t("nav.adminTrips")}
           </Link>
-          <Link href="/admin/reports" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            {t("nav.adminReports")}
-          </Link>
           <Link href="/admin/users" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             {t("nav.adminUsers")}
           </Link>
-          <Link href="/admin/exchange-rates" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-            {t("nav.adminExchangeRates")}
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1 outline-none">
+              {t("nav.adminFinance")} <ChevronDown className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setLocation("/admin/reports")}>{t("nav.adminReports")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/admin/revenue")}>{t("nav.adminRevenue")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/admin/refunds")}>{t("nav.adminRefunds")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/admin/settings")}>{t("nav.adminCommission")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/admin/exchange-rates")}>{t("nav.adminExchangeRates")}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-1 outline-none">
               {t("nav.adminCatalog")} <ChevronDown className="h-4 w-4" />
@@ -157,7 +194,7 @@ export function Navbar() {
       return (
         <>
           <Link href="/clerk" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
-            <LayoutDashboard className="h-4 w-4" /> {t("nav.clerkSales")}
+            <LayoutDashboard className="h-4 w-4" /> {t("nav.clerkTrips")}
           </Link>
           <Link href="/clerk/validate" className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2">
             <QrCode className="h-4 w-4" /> {t("nav.clerkValidate")}

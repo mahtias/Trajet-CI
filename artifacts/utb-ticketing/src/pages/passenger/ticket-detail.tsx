@@ -22,6 +22,16 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getPaymentMethod } from "@/lib/payment-methods";
 import { formatShortDate } from "@/lib/dates";
+import { Price } from "@/components/price";
+import { PriceBreakdown } from "@/components/price-breakdown";
+
+/** What the passenger is told about the refund: its real state, never more than what is guaranteed. */
+function refundMessageKey(status: string | undefined) {
+  if (status === "success") return "ticketDetail.refundDone";
+  if (status === "created" || status === "pending") return "ticketDetail.refundInProgress";
+  if (status === "failed" || status === "manual_required") return "ticketDetail.refundManual";
+  return "ticketDetail.refundNone";
+}
 
 const ADVANCE_FEE_PERCENT = 5;
 const SAME_DAY_FEE_PERCENT = 25;
@@ -62,7 +72,11 @@ export default function TicketDetail() {
   const isPaid = ticket.paymentStatus === "paid";
   const canCancel = isPaid && !isCancelled && !ticket.validated && hoursUntilDeparture > 0;
   const previewFeePercent = hoursUntilDeparture >= 24 ? ADVANCE_FEE_PERCENT : SAME_DAY_FEE_PERCENT;
-  const previewRefund = Math.round(ticket.price * (1 - previewFeePercent / 100) * 100) / 100;
+  // Same rule as the server: the percentage applies to fare + seat fee, the service fee is never refunded
+  const hasBreakdown = ticket.farePrice !== null && ticket.farePrice !== undefined;
+  const refundableBase = hasBreakdown ? ticket.farePrice! + (ticket.seatSelectionFeePaid ?? 0) : ticket.price;
+  const nonRefundableServiceFee = hasBreakdown ? ticket.serviceFee ?? 0 : 0;
+  const previewRefund = Math.round(refundableBase * (1 - previewFeePercent / 100)); // whole FCFA, as the server
 
   const handleCancel = () => {
     cancelTicket.mutate(
@@ -72,7 +86,7 @@ export default function TicketDetail() {
           queryClient.invalidateQueries({ queryKey: getGetTicketQueryKey(ticketId) });
           toast({
             title: t("ticketDetail.cancelSuccessTitle"),
-            description: t("ticketDetail.cancelSuccessDesc", { amount: res.refundAmount.toLocaleString("fr-CI") }),
+            description: t(refundMessageKey(res.refundStatus), { amount: res.refundAmount.toLocaleString("fr-CI") }),
           });
         },
         onError: (err: any) => {
@@ -158,6 +172,18 @@ export default function TicketDetail() {
               </div>
             </div>
 
+            {/* Price detail: fare, seat selection fee if any, total (tickets from before the breakdown only have a total) */}
+            <div className="mb-6 p-4 rounded-xl border border-border">
+              {ticket.farePrice !== null && ticket.farePrice !== undefined ? (
+                <PriceBreakdown farePrice={ticket.farePrice} serviceFee={ticket.serviceFee ?? 0} seatSelectionFee={ticket.seatSelectionFeePaid ?? 0} />
+              ) : (
+                <div className="flex justify-between items-center font-bold text-lg text-primary">
+                  <span>{t("common.total")}</span>
+                  <Price amountFcfa={ticket.price} align="right" className="font-mono" />
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between mb-6">
               <span className="text-xs text-muted-foreground uppercase">{t("ticketDetail.paymentMethod")}</span>
               <span className={cn("text-xs font-bold px-2 py-1 rounded-full", method.badgeClass)}>
@@ -188,6 +214,11 @@ export default function TicketDetail() {
                 <XCircle className="w-5 h-5" />
                 <span className="font-semibold text-sm">{t("ticketDetail.cancelledBanner")}</span>
               </div>
+            )}
+            {isCancelled && ticket.refundStatus && ticket.refundStatus !== "not_applicable" && (
+              <p className="mt-2 text-sm text-center text-muted-foreground">
+                {t(refundMessageKey(ticket.refundStatus), { amount: (ticket.refundAmount ?? 0).toLocaleString("fr-CI") })}
+              </p>
             )}
           </div>
         </CardContent>
@@ -228,8 +259,14 @@ export default function TicketDetail() {
                   feePercent: previewFeePercent,
                   hoursNote: t(hoursUntilDeparture >= 24 ? "ticketDetail.cancelHoursNoteAdvance" : "ticketDetail.cancelHoursNoteSameDay"),
                   refundAmount: previewRefund.toLocaleString("fr-CI"),
-                  price: ticket.price.toLocaleString("fr-CI"),
+                  price: refundableBase.toLocaleString("fr-CI"),
                 })}
+                {nonRefundableServiceFee > 0 && (
+                  <>
+                    {" "}
+                    {t("ticketDetail.cancelServiceFeeNote", { serviceFee: nonRefundableServiceFee.toLocaleString("fr-CI") })}
+                  </>
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

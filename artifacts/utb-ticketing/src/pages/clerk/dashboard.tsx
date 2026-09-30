@@ -28,7 +28,7 @@ export default function ClerkDashboard() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Ventes au Guichet</h1>
+          <h1 className="text-3xl font-bold text-foreground">Voyages du jour</h1>
           <p className="text-muted-foreground capitalize">{todayStr}</p>
           {me?.companyName && (
             <p className="text-sm font-semibold text-primary flex items-center gap-1 mt-1">
@@ -37,7 +37,7 @@ export default function ClerkDashboard() {
           )}
         </div>
         <Button asChild variant="outline">
-          <Link href="/clerk/validate">Validation QR Code</Link>
+          <Link href="/clerk/validate">Validation des billets</Link>
         </Button>
       </div>
 
@@ -80,7 +80,7 @@ export default function ClerkDashboard() {
 
                 <Button asChild className="w-full" disabled={trip.status === "cancelled"}>
                   <Link href={`/clerk/trips/${trip.id}`}>
-                    Gérer le voyage
+                    Passagers et plan du bus
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full mt-2 gap-2">

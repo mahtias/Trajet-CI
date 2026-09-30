@@ -9,4 +9,8 @@
 export type GetAdminCompaniesParams = {
 page?: number;
 pageSize?: number;
+/**
+ * Filter on the company name (case and accent insensitive)
+ */
+search?: string;
 };
