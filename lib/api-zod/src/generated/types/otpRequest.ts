@@ -9,4 +9,10 @@
 export interface OtpRequest {
   phone: string;
   name?: string;
+  /**
+     * Used when the code can't go by SMS (non-Ivorian number) and the account has no e-mail yet: saved on the account, then the code is sent to it. Only for an account without any ticket or booking (otherwise IDENTITY_VERIFICATION_REQUIRED). Never replaces an existing e-mail. Ignored in every other case.
+     * @maxLength 254
+     * @nullable
+     */
+  email?: string | null;
 }

@@ -66,6 +66,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OtpResponse"
+        "400":
+          description: Invalid phone or e-mail, or e-mail required for a non-Ivorian number (code EMAIL_REQUIRED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpError"
+        "403":
+          description: >-
+            The account has no e-mail and can't attach one at this step: staff account, or account with
+            existing tickets or bookings (code IDENTITY_VERIFICATION_REQUIRED). An administrator must add it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpError"
+        "409":
+          description: E-mail already used by another account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpError"
+        "429":
+          description: Too many code requests (3 per number or 10 per IP address per hour)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpError"
+        "503":
+          description: The code could not be delivered by any channel (code DELIVERY_FAILED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpError"
 
   /auth/verify-otp:
     post:
@@ -85,6 +117,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Wrong, expired or missing code
+        "429":
+          description: Too many wrong codes, a new one must be requested
 
   /auth/logout:
     post:
@@ -111,6 +147,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthUser"
+    put:
+      operationId: updateMe
+      tags: [auth]
+      summary: Update the logged-in user's own profile (e-mail only for now)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Invalid e-mail
+        "401":
+          description: Not logged in
+        "409":
+          description: E-mail already used by another account
 
   # Cities (public, for search forms)
   /cities:
@@ -923,6 +982,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+
+  /admin/users/{userId}/email:
+    put:
+      operationId: updateUserEmail
+      tags: [admin]
+      summary: Set a user's e-mail by hand, once their identity was checked outside the app
+      description: >-
+        For accounts that can't attach an e-mail themselves at login (existing activity:
+        IDENTITY_VERIFICATION_REQUIRED). The administrator does the identity check (phone call, ID card…) first.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid e-mail
+        "403":
+          description: Not an administrator
+        "404":
+          description: User not found
+        "409":
+          description: E-mail already used by another account
 
 
   # Admin - Cities
@@ -2148,15 +2243,44 @@ components:
           type: string
         name:
           type: string
+        email:
+          type: ["string", "null"]
+          maxLength: 254
+          description: >-
+            Used when the code can't go by SMS (non-Ivorian number) and the account has no e-mail yet:
+            saved on the account, then the code is sent to it. Only for an account without any ticket or
+            booking (otherwise IDENTITY_VERIFICATION_REQUIRED). Never replaces an existing e-mail.
+            Ignored in every other case.
 
     OtpResponse:
       type: object
-      required: [message]
+      required: [message, deliveryChannel, smsFailed]
       properties:
         message:
           type: string
+        deliveryChannel:
+          type: string
+          enum: [sms, email]
+          description: Channel the code was actually sent through
+        smsFailed:
+          type: boolean
+          description: True when the SMS failed and the code went to the account's e-mail instead
+        emailHint:
+          type: ["string", "null"]
+          description: Masked e-mail the code was sent to (e.g. je***@gmail.com), null for SMS
         devOtp:
           type: ["string", "null"]
+
+    OtpError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          enum: [EMAIL_REQUIRED, DELIVERY_FAILED, IDENTITY_VERIFICATION_REQUIRED]
+          description: Machine-readable reason, for the cases the login screen handles specially
 
     OtpVerify:
       type: object
@@ -2166,6 +2290,19 @@ components:
           type: string
         otp:
           type: string
+        email:
+          type: ["string", "null"]
+          maxLength: 254
+          description: Optional e-mail, saved on the account once the code is verified (empty = unchanged)
+
+    ProfileInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: ["string", "null"]
+          maxLength: 254
+          description: New e-mail; null or empty removes it
 
     AuthUser:
       type: object
@@ -2176,6 +2313,8 @@ components:
         phone:
           type: string
         name:
+          type: ["string", "null"]
+        email:
           type: ["string", "null"]
         role:
           type: string
@@ -2311,6 +2450,8 @@ components:
         phone:
           type: string
         name:
+          type: ["string", "null"]
+        email:
           type: ["string", "null"]
         role:
           type: string

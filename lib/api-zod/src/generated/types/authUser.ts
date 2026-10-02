@@ -13,6 +13,8 @@ export interface AuthUser {
   phone: string;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  email?: string | null;
   role: AuthUserRole;
   /** @nullable */
   companyId?: number | null;

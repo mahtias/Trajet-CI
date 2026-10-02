@@ -24,6 +24,8 @@ import {
   DeleteTripParams,
   UpdateUserRoleParams,
   UpdateUserRoleBody,
+  UpdateUserEmailParams,
+  UpdateUserEmailBody,
   GetAdminCompaniesQueryParams,
   GetAdminRoutesQueryParams,
   GetAdminUsersQueryParams,
@@ -51,6 +53,7 @@ import {
 import { requireRole } from "../middlewares/require-role";
 import { formatStation } from "../lib/stations";
 import { parsePagination } from "../lib/pagination";
+import { EMAIL_TAKEN, emailTaken, isUniqueViolation, parseEmail } from "../lib/user-email";
 import { checkAgencyType, checkImageUrls } from "../lib/agency-queries";
 import {
   selectRoutes,
@@ -210,7 +213,7 @@ function formatUser(
   agency: typeof agenciesTable.$inferSelect | null | undefined,
 ) {
   return {
-    id: u.id, phone: u.phone, name: u.name, role: u.role,
+    id: u.id, phone: u.phone, name: u.name, email: u.email, role: u.role,
     companyId: u.companyId, companyName: company?.name ?? null,
     agencyId: u.agencyId, agencyName: agency?.name ?? null, agencyType: agency?.type ?? null,
     createdAt: u.createdAt.toISOString(),
@@ -278,6 +281,38 @@ router.put("/admin/users/:userId/role", async (req, res): Promise<void> => {
     .where(eq(usersTable.id, params.data.userId))
     .returning();
   if (!u) { res.status(404).json({ error: "Utilisateur non trouvé" }); return; }
+
+  const [company] = u.companyId
+    ? await db.select().from(companiesTable).where(eq(companiesTable.id, u.companyId)).limit(1)
+    : [undefined];
+  const [agency] = u.agencyId
+    ? await db.select().from(agenciesTable).where(eq(agenciesTable.id, u.agencyId)).limit(1)
+    : [undefined];
+
+  res.json(formatUser(u, company, agency));
+});
+
+// Sets (or removes) a user's e-mail by hand, after the administrator checked the person's identity outside the app.
+// The way in for accounts that can't attach one at login (existing tickets or bookings, staff accounts).
+router.put("/admin/users/:userId/email", async (req, res): Promise<void> => {
+  const params = UpdateUserEmailParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = UpdateUserEmailBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  const email = parseEmail(body.data.email);
+  if (!email.ok) { res.status(400).json({ error: email.error }); return; }
+
+  if (email.email && await emailTaken(email.email, params.data.userId)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
+  let u;
+  try {
+    [u] = await db.update(usersTable).set({ email: email.email }).where(eq(usersTable.id, params.data.userId)).returning();
+  } catch (err) {
+    if (isUniqueViolation(err)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
+    throw err;
+  }
+  if (!u) { res.status(404).json({ error: "Utilisateur non trouvé" }); return; }
+  // Who changed whose login e-mail: kept in the logs, since this e-mail then receives the login codes
+  req.log.info({ adminId: getSession(req).userId, userId: u.id, emailSet: !!email.email }, "User e-mail set by admin");
 
   const [company] = u.companyId
     ? await db.select().from(companiesTable).where(eq(companiesTable.id, u.companyId)).limit(1)

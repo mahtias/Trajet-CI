@@ -19,11 +19,9 @@ import {
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger 
 } from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
+import { StationSelect } from "@/components/station-select";
 import { ListSearch, useDebouncedValue } from "@/components/list-search";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { CompanySelect } from "@/components/company-select";
@@ -170,29 +168,16 @@ export default function AdminRoutes() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-1 block">Gare de départ</label>
-                  <Select value={originStationId} onValueChange={setOriginStationId} disabled={!companyId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir une gare" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companyStations?.map(s => (
-                        <SelectItem key={s.id} value={s.id.toString()}>{s.name}, {s.cityName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <StationSelect stations={companyStations} value={originStationId} onChange={setOriginStationId} disabled={!companyId} />
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1 block">Gare d'arrivée</label>
-                  <Select value={destinationStationId} onValueChange={setDestinationStationId} disabled={!companyId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir une gare" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companyStations?.filter(s => s.id.toString() !== originStationId).map(s => (
-                        <SelectItem key={s.id} value={s.id.toString()}>{s.name}, {s.cityName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <StationSelect
+                    stations={companyStations?.filter(s => s.id.toString() !== originStationId)}
+                    value={destinationStationId}
+                    onChange={setDestinationStationId}
+                    disabled={!companyId}
+                  />
                 </div>
               </div>
               {companyId && companyStations?.length === 0 && (

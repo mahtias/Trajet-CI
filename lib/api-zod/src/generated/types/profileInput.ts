@@ -6,13 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface OtpVerify {
-  phone: string;
-  otp: string;
+export interface ProfileInput {
   /**
-     * Optional e-mail, saved on the account once the code is verified (empty = unchanged)
+     * New e-mail; null or empty removes it
      * @maxLength 254
      * @nullable
      */
-  email?: string | null;
+  email: string | null;
 }

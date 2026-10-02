@@ -1,19 +1,47 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { rateLimit } from "express-rate-limit";
+import { eq, and, isNotNull, lt, sql } from "drizzle-orm";
 import { db, usersTable, companiesTable, agenciesTable } from "@workspace/db";
 import {
   RequestOtpBody,
   VerifyOtpBody,
+  UpdateMeBody,
 } from "@workspace/api-zod";
+import { sendSms } from "../lib/orange-sms";
+import { sendOtpEmail } from "../lib/email";
+import { EMAIL_TAKEN, emailTaken, hasAccountActivity, isUniqueViolation, parseEmail } from "../lib/user-email";
+import {
+  OTP_MAX_ATTEMPTS,
+  OTP_TTL_MINUTES,
+  classifyPhone,
+  generateOtp,
+  hashOtp,
+  isDevOtpEnabled,
+  maskEmail,
+  otpMatches,
+  phoneRateKey,
+} from "../lib/otp";
 
 const router: IRouter = Router();
 
-// In-memory OTP store for MVP (phone -> {otp, expiresAt})
-const otpStore = new Map<string, { otp: string; expiresAt: number }>();
-
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
+// Code requests: 10 per IP address and 3 per number per hour (in memory: reset when the server restarts).
+// The per-number limit only counts codes actually issued, so a "give your e-mail" answer doesn't use one up.
+const otpIpLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Trop de demandes de code depuis cette connexion. Réessayez dans une heure." },
+});
+const otpPhoneLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 3,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skipFailedRequests: true,
+  keyGenerator: (req) => `phone:${phoneRateKey(String(req.body?.phone ?? ""))}`,
+  message: { error: "Trop de codes demandés pour ce numéro (3 par heure). Réessayez plus tard." },
+});
 
 function getSession(req: any) {
   return req.session as { userId?: number };
@@ -31,6 +59,7 @@ async function formatAuthUser(user: typeof usersTable.$inferSelect) {
     id: user.id,
     phone: user.phone,
     name: user.name,
+    email: user.email,
     role: user.role,
     companyId: user.companyId,
     companyName: company?.name ?? null,
@@ -40,7 +69,7 @@ async function formatAuthUser(user: typeof usersTable.$inferSelect) {
   };
 }
 
-router.post("/auth/request-otp", async (req, res): Promise<void> => {
+router.post("/auth/request-otp", otpIpLimiter, otpPhoneLimiter, async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -49,21 +78,106 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
 
   const phone = parsed.data.phone.trim();
   const { name } = parsed.data;
-  const otp = generateOtp();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+  const target = classifyPhone(phone);
+  if (target.kind === "ci_invalid") {
+    res.status(400).json({ error: "Numéro ivoirien invalide : 10 chiffres attendus après +225 (exemple : +225 07 00 00 00 00)" });
+    return;
+  }
+  const providedEmail = parseEmail(parsed.data.email);
+  if (!providedEmail.ok) { res.status(400).json({ error: providedEmail.error }); return; }
 
-  otpStore.set(phone, { otp, expiresAt });
+  // Upsert user (the phone as typed stays the account key, as before)
+  await db.insert(usersTable).values({ phone, name: name ?? null, role: "passenger" }).onConflictDoNothing({ target: usersTable.phone });
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
 
-  // Upsert user
-  const existing = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
-  if (existing.length === 0) {
-    await db.insert(usersTable).values({ phone, name: name ?? null, role: "passenger" });
+  // No SMS possible for this number (Orange only reaches +225): the code can only go by e-mail, so ask for one first
+  if (target.kind === "foreign" && !user.email) {
+    if (!providedEmail.email) {
+      res.status(400).json({ error: "Pour recevoir votre code de connexion, indiquez votre adresse e-mail : l'envoi par SMS n'est pas disponible pour ce numéro.", code: "EMAIL_REQUIRED" });
+      return;
+    }
+    // Whoever sets the e-mail receives the login codes, and nothing proves yet that this person owns the number.
+    // Only a brand-new passenger account (nothing to steal) may attach one here; otherwise an administrator
+    // sets it after checking the person's identity (PUT /admin/users/:id/email). Nothing is changed or sent.
+    if (user.role !== "passenger") {
+      res.status(403).json({ error: "Ce compte n'a pas d'e-mail enregistré. Demandez à un administrateur de l'ajouter.", code: "IDENTITY_VERIFICATION_REQUIRED" });
+      return;
+    }
+    if (await hasAccountActivity(user.id)) {
+      req.log.warn({ phone, userId: user.id }, "E-mail attach refused at login: account has activity");
+      res.status(403).json({ error: "Ce compte a déjà des billets ou des réservations : pour y ajouter une adresse e-mail, contactez le support afin de vérifier votre identité.", code: "IDENTITY_VERIFICATION_REQUIRED" });
+      return;
+    }
+    if (await emailTaken(providedEmail.email, user.id)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
+    try {
+      [user] = await db.update(usersTable).set({ email: providedEmail.email }).where(eq(usersTable.id, user.id)).returning();
+    } catch (err) {
+      if (isUniqueViolation(err)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
+      throw err;
+    }
   }
 
-  req.log.info({ phone }, "OTP generated");
+  // A new code replaces the previous one and resets the try counter; only its hash is stored
+  const otp = generateOtp();
+  await db.update(usersTable).set({
+    otpCode: hashOtp(phone, otp),
+    otpExpiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000),
+    otpAttempts: 0,
+  }).where(eq(usersTable.id, user.id));
+  const clearOtp = () => db.update(usersTable).set({ otpCode: null, otpExpiresAt: null }).where(eq(usersTable.id, user.id));
 
-  // In production, send via SMS. For MVP return it in response for dev.
-  res.json(process.env.ALLOW_DEV_OTP === "true" ? { message: "OTP sent", devOtp: otp } : { message: "OTP sent" });
+  // Dev: nothing is sent (no SMS/e-mail cost, works without keys); the channel that would have been used is reported
+  if (isDevOtpEnabled()) {
+    req.log.info({ phone }, "OTP generated (ALLOW_DEV_OTP: not sent)");
+    const deliveryChannel = target.kind === "ci" ? "sms" : "email";
+    res.json({
+      message: "OTP sent",
+      deliveryChannel,
+      smsFailed: false,
+      emailHint: deliveryChannel === "email" && user.email ? maskEmail(user.email) : null,
+      devOtp: otp,
+    });
+    return;
+  }
+
+  let smsFailed = false;
+  if (target.kind === "ci") {
+    try {
+      await sendSms(target.e164, `Votre code ChapVoyage : ${otp}. Valable ${OTP_TTL_MINUTES} minutes. Ne le communiquez a personne.`);
+      req.log.info({ phone }, "OTP sent by SMS");
+      res.json({ message: "Code envoyé par SMS", deliveryChannel: "sms", smsFailed: false, emailHint: null });
+      return;
+    } catch (err) {
+      smsFailed = true;
+      req.log.warn({ phone, reason: (err as Error).message }, "OTP SMS failed");
+      if (!user.email) {
+        await clearOtp();
+        res.status(503).json({ error: "Impossible d'envoyer le SMS pour le moment et aucun e-mail n'est enregistré sur ce compte. Réessayez dans quelques minutes.", code: "DELIVERY_FAILED" });
+        return;
+      }
+    }
+  }
+
+  try {
+    await sendOtpEmail(user.email!, otp, OTP_TTL_MINUTES);
+  } catch (err) {
+    req.log.error({ phone, reason: (err as Error).message }, "OTP e-mail failed");
+    await clearOtp();
+    res.status(503).json({
+      error: smsFailed
+        ? "Impossible d'envoyer le code par SMS ni par e-mail pour le moment. Réessayez dans quelques minutes."
+        : "Impossible d'envoyer le code par e-mail pour le moment. Réessayez dans quelques minutes.",
+      code: "DELIVERY_FAILED",
+    });
+    return;
+  }
+  req.log.info({ phone, smsFailed }, "OTP sent by e-mail");
+  res.json({
+    message: smsFailed ? "Le SMS n'a pas pu être envoyé, code envoyé par e-mail" : "Code envoyé par e-mail",
+    deliveryChannel: "email",
+    smsFailed,
+    emailHint: maskEmail(user.email!),
+  });
 });
 
 router.post("/auth/verify-otp", async (req, res): Promise<void> => {
@@ -75,21 +189,58 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 
   const phone = parsed.data.phone.trim();
   const { otp } = parsed.data;
-  const stored = otpStore.get(phone);
+  // Optional e-mail, checked before the code so a typo doesn't burn it
+  const email = parseEmail(parsed.data.email);
+  if (!email.ok) { res.status(400).json({ error: email.error }); return; }
 
-  if (!stored || stored.otp !== otp || Date.now() > stored.expiresAt) {
+  // Count the try before checking it, in one statement, so parallel guesses can't go past the limit
+  const [attempt] = await db.update(usersTable)
+    .set({ otpAttempts: sql`${usersTable.otpAttempts} + 1` })
+    .where(and(eq(usersTable.phone, phone), isNotNull(usersTable.otpCode), lt(usersTable.otpAttempts, OTP_MAX_ATTEMPTS)))
+    .returning();
+  if (!attempt) {
+    const [user] = await db.select({ otpAttempts: usersTable.otpAttempts }).from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
+    if (user && user.otpAttempts >= OTP_MAX_ATTEMPTS) {
+      res.status(429).json({ error: "Trop de codes incorrects. Demandez un nouveau code." });
+      return;
+    }
     res.status(401).json({ error: "Code invalide ou expiré" });
     return;
   }
 
-  otpStore.delete(phone);
-
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
-  if (!user) {
-    res.status(404).json({ error: "Utilisateur non trouvé" });
+  if (!attempt.otpExpiresAt || attempt.otpExpiresAt.getTime() < Date.now()) {
+    await db.update(usersTable).set({ otpCode: null, otpExpiresAt: null }).where(eq(usersTable.id, attempt.id));
+    res.status(401).json({ error: "Code expiré. Demandez un nouveau code." });
     return;
   }
 
+  if (!otpMatches(attempt.otpCode!, phone, otp)) {
+    const remaining = OTP_MAX_ATTEMPTS - attempt.otpAttempts;
+    if (remaining <= 0) {
+      // Code dropped; otpAttempts stays at the limit so the next try gets a clear 429 until a new code is requested
+      await db.update(usersTable).set({ otpCode: null, otpExpiresAt: null }).where(eq(usersTable.id, attempt.id));
+      res.status(401).json({ error: "Code incorrect. Trop de tentatives : demandez un nouveau code." });
+      return;
+    }
+    res.status(401).json({ error: `Code incorrect (${remaining} essai${remaining > 1 ? "s" : ""} restant${remaining > 1 ? "s" : ""})` });
+    return;
+  }
+
+  let user = attempt;
+
+  // Saved only once the phone is proven; an e-mail already on another account keeps the code valid to retry
+  if (email.email && email.email !== user.email) {
+    if (await emailTaken(email.email, user.id)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
+    try {
+      [user] = await db.update(usersTable).set({ email: email.email }).where(eq(usersTable.id, user.id)).returning();
+    } catch (err) {
+      if (isUniqueViolation(err)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
+      throw err;
+    }
+  }
+
+  // Single use
+  await db.update(usersTable).set({ otpCode: null, otpExpiresAt: null, otpAttempts: 0 }).where(eq(usersTable.id, user.id));
   getSession(req).userId = user.id;
 
   res.json(await formatAuthUser(user));
@@ -112,6 +263,29 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Utilisateur non trouvé" });
     return;
   }
+
+  res.json(await formatAuthUser(user));
+});
+
+// The logged-in user edits their own profile (e-mail only for now); never another account
+router.put("/auth/me", async (req, res): Promise<void> => {
+  const { userId } = getSession(req);
+  if (!userId) { res.status(401).json({ error: "Non authentifié" }); return; }
+
+  const body = UpdateMeBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  const email = parseEmail(body.data.email);
+  if (!email.ok) { res.status(400).json({ error: email.error }); return; }
+
+  if (email.email && await emailTaken(email.email, userId)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
+  let user;
+  try {
+    [user] = await db.update(usersTable).set({ email: email.email }).where(eq(usersTable.id, userId)).returning();
+  } catch (err) {
+    if (isUniqueViolation(err)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
+    throw err;
+  }
+  if (!user) { res.status(404).json({ error: "Utilisateur non trouvé" }); return; }
 
   res.json(await formatAuthUser(user));
 });

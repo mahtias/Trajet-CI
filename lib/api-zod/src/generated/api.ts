@@ -19,13 +19,21 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Request OTP for phone number
  */
+export const requestOtpBodyEmailMax = 254;
+
+
+
 export const RequestOtpBody = zod.object({
   "phone": zod.string(),
-  "name": zod.string().optional()
+  "name": zod.string().optional(),
+  "email": zod.string().max(requestOtpBodyEmailMax).nullish().describe('Used when the code can\'t go by SMS (non-Ivorian number) and the account has no e-mail yet: saved on the account, then the code is sent to it. Only for an account without any ticket or booking (otherwise IDENTITY_VERIFICATION_REQUIRED). Never replaces an existing e-mail. Ignored in every other case.')
 })
 
 export const RequestOtpResponse = zod.object({
   "message": zod.string(),
+  "deliveryChannel": zod.enum(['sms', 'email']).describe('Channel the code was actually sent through'),
+  "smsFailed": zod.boolean().describe('True when the SMS failed and the code went to the account\'s e-mail instead'),
+  "emailHint": zod.string().nullish().describe('Masked e-mail the code was sent to (e.g. je\*\*\*@gmail.com), null for SMS'),
   "devOtp": zod.string().nullish()
 })
 
@@ -33,15 +41,21 @@ export const RequestOtpResponse = zod.object({
 /**
  * @summary Verify OTP and create session
  */
+export const verifyOtpBodyEmailMax = 254;
+
+
+
 export const VerifyOtpBody = zod.object({
   "phone": zod.string(),
-  "otp": zod.string()
+  "otp": zod.string(),
+  "email": zod.string().max(verifyOtpBodyEmailMax).nullish().describe('Optional e-mail, saved on the account once the code is verified (empty = unchanged)')
 })
 
 export const VerifyOtpResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
   "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
@@ -66,6 +80,32 @@ export const GetMeResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
+  "companyId": zod.number().nullish(),
+  "companyName": zod.string().nullish(),
+  "agencyId": zod.number().nullish(),
+  "agencyName": zod.string().nullish(),
+  "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish()
+})
+
+
+/**
+ * @summary Update the logged-in user's own profile (e-mail only for now)
+ */
+export const updateMeBodyEmailMax = 254;
+
+
+
+export const UpdateMeBody = zod.object({
+  "email": zod.string().max(updateMeBodyEmailMax).nullable().describe('New e-mail; null or empty removes it')
+})
+
+export const UpdateMeResponse = zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
   "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
@@ -805,6 +845,7 @@ export const GetAdminUsersResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
   "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),
@@ -836,6 +877,38 @@ export const UpdateUserRoleResponse = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
+  "companyId": zod.number().nullish(),
+  "companyName": zod.string().nullish(),
+  "agencyId": zod.number().nullish(),
+  "agencyName": zod.string().nullish(),
+  "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * For accounts that can't attach an e-mail themselves at login (existing activity: IDENTITY_VERIFICATION_REQUIRED). The administrator does the identity check (phone call, ID card…) first.
+ * @summary Set a user's e-mail by hand, once their identity was checked outside the app
+ */
+export const UpdateUserEmailParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const updateUserEmailBodyEmailMax = 254;
+
+
+
+export const UpdateUserEmailBody = zod.object({
+  "email": zod.string().max(updateUserEmailBodyEmailMax).nullable().describe('New e-mail; null or empty removes it')
+})
+
+export const UpdateUserEmailResponse = zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
   "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
   "companyId": zod.number().nullish(),
   "companyName": zod.string().nullish(),

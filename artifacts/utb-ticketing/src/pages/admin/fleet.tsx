@@ -25,14 +25,12 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
 } from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
 import { useClientPagination } from "@/hooks/use-client-pagination";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { CompanySelect } from "@/components/company-select";
+import { StationSelect } from "@/components/station-select";
 
 const PAGE_SIZE = 10;
 
@@ -203,16 +201,7 @@ export default function AdminFleet() {
                 <MapPin className="w-5 h-5 text-primary" /> Gares desservies
               </h2>
               <form onSubmit={handleLinkStation} className="flex gap-2">
-                <Select value={stationToLink} onValueChange={setStationToLink}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Rattacher une gare" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {unlinkedStations?.map(s => (
-                      <SelectItem key={s.id} value={s.id.toString()}>{s.name}, {s.cityName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <StationSelect stations={unlinkedStations} value={stationToLink} onChange={setStationToLink} placeholder="Rattacher une gare" />
                 <Button type="submit" size="icon" disabled={!stationToLink || addCompanyStation.isPending} aria-label="Rattacher la gare">
                   <Plus className="w-4 h-4" />
                 </Button>

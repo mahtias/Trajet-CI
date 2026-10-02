@@ -5,9 +5,19 @@
  * UTB Bus Ticketing API
  * OpenAPI spec version: 0.1.0
  */
+import type { OtpResponseDeliveryChannel } from './otpResponseDeliveryChannel';
 
 export interface OtpResponse {
   message: string;
+  /** Channel the code was actually sent through */
+  deliveryChannel: OtpResponseDeliveryChannel;
+  /** True when the SMS failed and the code went to the account's e-mail instead */
+  smsFailed: boolean;
+  /**
+     * Masked e-mail the code was sent to (e.g. je***@gmail.com), null for SMS
+     * @nullable
+     */
+  emailHint?: string | null;
   /** @nullable */
   devOtp?: string | null;
 }

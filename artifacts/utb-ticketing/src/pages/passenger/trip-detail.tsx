@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { Price } from "@/components/price";
 import { PriceBreakdown } from "@/components/price-breakdown";
+import { useSeatPages, SeatPageTabs } from "@/components/seat-pages";
 import { formatShortDate } from "@/lib/dates";
 
 export default function TripDetail() {
@@ -41,6 +42,8 @@ export default function TripDetail() {
       refetchInterval: 15000 // Poll every 15s
     }
   });
+  // Long buses are shown in parts (pages sized from the bus's real capacity)
+  const seatPages = useSeatPages(seats);
 
   const handleSeatClick = (seatId: number, status: string) => {
     if (status !== "available" || seatMode !== "manual") return;
@@ -122,12 +125,20 @@ export default function TripDetail() {
                   </div>
                 </div>
 
+                <SeatPageTabs
+                  pages={seatPages.pages}
+                  page={seatPages.page}
+                  onPageChange={seatPages.setPage}
+                  label={(p) => t("tripDetail.seatPage", { from: p.from, to: p.to, free: p.free })}
+                  className="mb-6"
+                />
+
                 {/* 4 columns layout: [Seat] [Seat]  (Aisle)  [Seat] [Seat] */}
                 <div className="grid grid-cols-4 gap-x-4 gap-y-4 max-w-md mx-auto relative">
                   {/* Aisle vertical line for visual clarity */}
                   <div className="absolute top-0 bottom-0 left-1/2 w-8 -ml-4 bg-muted/20 rounded-full z-0"></div>
                   
-                  {seats.map((seat) => {
+                  {seatPages.pageSeats.map((seat) => {
                     const isSelected = selectedSeatId === seat.id;
                     let bgColor = "bg-green-100 hover:bg-green-200 border-green-300 text-green-800";
                     let cursor = "cursor-pointer";

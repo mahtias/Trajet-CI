@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { useSeatPages, SeatPageTabs } from "@/components/seat-pages";
 
 export default function ClerkTripDetail() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,8 @@ export default function ClerkTripDetail() {
   const { data: seats } = useGetClerkTripSeats(tripId, { 
     query: { enabled: !!tripId, refetchInterval: 5000 } 
   });
+  // Long buses are shown in parts (pages sized from the bus's real capacity)
+  const seatPages = useSeatPages(seats);
   const { data: passengers } = useGetClerkPassengers(tripId, {
     query: { enabled: !!tripId, refetchInterval: 10000 }
   });
@@ -90,8 +93,16 @@ export default function ClerkTripDetail() {
                   <span>Porte</span>
                 </div>
                 
+                <SeatPageTabs
+                  pages={seatPages.pages}
+                  page={seatPages.page}
+                  onPageChange={seatPages.setPage}
+                  label={(p) => `Places ${p.from}–${p.to} · ${p.free} libres`}
+                  className="mb-6 relative z-10"
+                />
+
                 <div className="grid grid-cols-4 gap-4 relative z-10">
-                  {seats.map((seat) => {
+                  {seatPages.pageSeats.map((seat) => {
                     // Read-only map: tickets are only bought online, from a passenger account
                     let bgColor = "bg-white border-green-200 text-foreground shadow-sm";
                     

@@ -13,6 +13,8 @@ export interface User {
   phone: string;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  email?: string | null;
   role: UserRole;
   /** @nullable */
   companyId?: number | null;

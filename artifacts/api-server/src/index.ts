@@ -4,6 +4,9 @@ import { logger } from "./lib/logger";
 import { initSocket } from "./lib/socket";
 import { seedDefaultExchangeRates } from "./lib/exchange-rates";
 import { checkPaydunyaConfigAtStartup } from "./lib/paydunya";
+import { checkOrangeSmsConfigAtStartup } from "./lib/orange-sms";
+import { checkEmailConfigAtStartup } from "./lib/email";
+import { checkDevOtpAtStartup } from "./lib/otp";
 
 const rawPort = process.env["PORT"];
 
@@ -22,6 +25,10 @@ if (Number.isNaN(port) || port <= 0) {
 // Pre-fill the fixed EUR rate if missing (idempotent). Not fatal: prices still show in FCFA without it.
 // Online ticket payment is disabled (with a clear log line) when PayDunya isn't configured
 checkPaydunyaConfigAtStartup();
+// Login codes: SMS (Orange, Ivorian numbers) and e-mail (Resend). Missing keys only disable that channel
+checkOrangeSmsConfigAtStartup();
+checkEmailConfigAtStartup();
+checkDevOtpAtStartup();
 
 seedDefaultExchangeRates().catch((err) => logger.error({ err }, "Could not seed default exchange rates"));
 

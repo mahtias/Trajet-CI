@@ -16,17 +16,76 @@ export interface SuccessResponse {
 export interface OtpRequest {
   phone: string;
   name?: string;
+  /**
+     * Used when the code can't go by SMS (non-Ivorian number) and the account has no e-mail yet: saved on the account, then the code is sent to it. Only for an account without any ticket or booking (otherwise IDENTITY_VERIFICATION_REQUIRED). Never replaces an existing e-mail. Ignored in every other case.
+     * @maxLength 254
+     * @nullable
+     */
+  email?: string | null;
 }
+
+/**
+ * Channel the code was actually sent through
+ */
+export type OtpResponseDeliveryChannel = typeof OtpResponseDeliveryChannel[keyof typeof OtpResponseDeliveryChannel];
+
+
+export const OtpResponseDeliveryChannel = {
+  sms: 'sms',
+  email: 'email',
+} as const;
 
 export interface OtpResponse {
   message: string;
+  /** Channel the code was actually sent through */
+  deliveryChannel: OtpResponseDeliveryChannel;
+  /** True when the SMS failed and the code went to the account's e-mail instead */
+  smsFailed: boolean;
+  /**
+     * Masked e-mail the code was sent to (e.g. je***@gmail.com), null for SMS
+     * @nullable
+     */
+  emailHint?: string | null;
   /** @nullable */
   devOtp?: string | null;
+}
+
+/**
+ * Machine-readable reason, for the cases the login screen handles specially
+ */
+export type OtpErrorCode = typeof OtpErrorCode[keyof typeof OtpErrorCode];
+
+
+export const OtpErrorCode = {
+  EMAIL_REQUIRED: 'EMAIL_REQUIRED',
+  DELIVERY_FAILED: 'DELIVERY_FAILED',
+  IDENTITY_VERIFICATION_REQUIRED: 'IDENTITY_VERIFICATION_REQUIRED',
+} as const;
+
+export interface OtpError {
+  error: string;
+  /** Machine-readable reason, for the cases the login screen handles specially */
+  code?: OtpErrorCode;
 }
 
 export interface OtpVerify {
   phone: string;
   otp: string;
+  /**
+     * Optional e-mail, saved on the account once the code is verified (empty = unchanged)
+     * @maxLength 254
+     * @nullable
+     */
+  email?: string | null;
+}
+
+export interface ProfileInput {
+  /**
+     * New e-mail; null or empty removes it
+     * @maxLength 254
+     * @nullable
+     */
+  email: string | null;
 }
 
 export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
@@ -56,6 +115,8 @@ export interface AuthUser {
   phone: string;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  email?: string | null;
   role: AuthUserRole;
   /** @nullable */
   companyId?: number | null;
@@ -180,6 +241,8 @@ export interface User {
   phone: string;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  email?: string | null;
   role: UserRole;
   /** @nullable */
   companyId?: number | null;

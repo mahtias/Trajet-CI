@@ -63,6 +63,7 @@ import type {
   HotelSearchResult,
   ListTourismSpotsParams,
   ListVehiclesParams,
+  OtpError,
   OtpRequest,
   OtpResponse,
   OtpVerify,
@@ -79,6 +80,7 @@ import type {
   PaymentInput,
   PaymentResponse,
   PaymentStatusResponse,
+  ProfileInput,
   RevenueSplitReport,
   Route,
   RouteInput,
@@ -243,7 +245,7 @@ export const requestOtp = async (otpRequest: OtpRequest, options?: RequestInit):
 
 
 
-export const getRequestOtpMutationOptions = <TError = ErrorType<unknown>,
+export const getRequestOtpMutationOptions = <TError = ErrorType<OtpError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<OtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<OtpRequest>}, TContext> => {
 
@@ -272,12 +274,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RequestOtpMutationResult = NonNullable<Awaited<ReturnType<typeof requestOtp>>>
     export type RequestOtpMutationBody = BodyType<OtpRequest>
-    export type RequestOtpMutationError = ErrorType<unknown>
+    export type RequestOtpMutationError = ErrorType<OtpError>
 
     /**
  * @summary Request OTP for phone number
  */
-export const useRequestOtp = <TError = ErrorType<unknown>,
+export const useRequestOtp = <TError = ErrorType<OtpError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<OtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof requestOtp>>,
@@ -314,7 +316,7 @@ export const verifyOtp = async (otpVerify: OtpVerify, options?: RequestInit): Pr
 
 
 
-export const getVerifyOtpMutationOptions = <TError = ErrorType<unknown>,
+export const getVerifyOtpMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: BodyType<OtpVerify>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: BodyType<OtpVerify>}, TContext> => {
 
@@ -343,12 +345,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type VerifyOtpMutationResult = NonNullable<Awaited<ReturnType<typeof verifyOtp>>>
     export type VerifyOtpMutationBody = BodyType<OtpVerify>
-    export type VerifyOtpMutationError = ErrorType<unknown>
+    export type VerifyOtpMutationError = ErrorType<void>
 
     /**
  * @summary Verify OTP and create session
  */
-export const useVerifyOtp = <TError = ErrorType<unknown>,
+export const useVerifyOtp = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: BodyType<OtpVerify>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof verifyOtp>>,
@@ -506,6 +508,77 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
 
 
+
+export const getUpdateMeUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * @summary Update the logged-in user's own profile (e-mail only for now)
+ */
+export const updateMe = async (profileInput: ProfileInput, options?: RequestInit): Promise<AuthUser> => {
+
+  return customFetch<AuthUser>(getUpdateMeUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(profileInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateMeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMe>>, TError,{data: BodyType<ProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMe>>, TError,{data: BodyType<ProfileInput>}, TContext> => {
+
+const mutationKey = ['updateMe'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMe>>, {data: BodyType<ProfileInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMe(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMeMutationResult = NonNullable<Awaited<ReturnType<typeof updateMe>>>
+    export type UpdateMeMutationBody = BodyType<ProfileInput>
+    export type UpdateMeMutationError = ErrorType<void>
+
+    /**
+ * @summary Update the logged-in user's own profile (e-mail only for now)
+ */
+export const useUpdateMe = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMe>>, TError,{data: BodyType<ProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMe>>,
+        TError,
+        {data: BodyType<ProfileInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateMeMutationOptions(options));
+    }
 
 export const getListCitiesUrl = () => {
 
@@ -3248,6 +3321,79 @@ export const useUpdateUserRole = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateUserRoleMutationOptions(options));
+    }
+
+export const getUpdateUserEmailUrl = (userId: number,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/email`
+}
+
+/**
+ * For accounts that can't attach an e-mail themselves at login (existing activity: IDENTITY_VERIFICATION_REQUIRED). The administrator does the identity check (phone call, ID card…) first.
+ * @summary Set a user's e-mail by hand, once their identity was checked outside the app
+ */
+export const updateUserEmail = async (userId: number,
+    profileInput: ProfileInput, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getUpdateUserEmailUrl(userId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(profileInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateUserEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUserEmail>>, TError,{userId: number;data: BodyType<ProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateUserEmail>>, TError,{userId: number;data: BodyType<ProfileInput>}, TContext> => {
+
+const mutationKey = ['updateUserEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateUserEmail>>, {userId: number;data: BodyType<ProfileInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  updateUserEmail(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateUserEmailMutationResult = NonNullable<Awaited<ReturnType<typeof updateUserEmail>>>
+    export type UpdateUserEmailMutationBody = BodyType<ProfileInput>
+    export type UpdateUserEmailMutationError = ErrorType<void>
+
+    /**
+ * @summary Set a user's e-mail by hand, once their identity was checked outside the app
+ */
+export const useUpdateUserEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUserEmail>>, TError,{userId: number;data: BodyType<ProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateUserEmail>>,
+        TError,
+        {userId: number;data: BodyType<ProfileInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateUserEmailMutationOptions(options));
     }
 
 export const getGetAdminCitiesUrl = () => {
