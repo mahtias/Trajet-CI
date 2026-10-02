@@ -71,6 +71,8 @@ export default function Login() {
     },
   });
 
+  const otpValue = otpForm.watch("otp");
+
   const onPhoneSubmit = (values: z.infer<typeof phoneSchema>) => {
     const typedEmail = values.email?.trim() ?? "";
     setPhone(values.phone);
@@ -194,8 +196,10 @@ export default function Login() {
             </Alert>
           )}
 
+          {/* Distinct keys: without them React reuses the "phone" field instance for "otp" (same position), and
+              react-hook-form's useController keeps its first registration, so typing went to the phone form */}
           {step === "phone" ? (
-            <Form {...phoneForm}>
+            <Form key="phone-step" {...phoneForm}>
               <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="space-y-6">
                 <FormField
                   control={phoneForm.control}
@@ -257,7 +261,7 @@ export default function Login() {
               </form>
             </Form>
           ) : (
-            <Form {...otpForm}>
+            <Form key="otp-step" {...otpForm}>
               <form onSubmit={otpForm.handleSubmit(onOtpSubmit)} className="space-y-6">
                 <FormField
                   control={otpForm.control}
@@ -268,6 +272,8 @@ export default function Login() {
                       <FormControl>
                         <Input
                           placeholder="123456"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
                           {...field}
                           className="h-12 text-center text-2xl tracking-widest font-mono"
                           maxLength={6}
@@ -278,7 +284,7 @@ export default function Login() {
                   )}
                 />
                 <div className="flex flex-col gap-3">
-                  <Button type="submit" className="w-full h-12 text-base font-bold" disabled={verifyOtp.isPending}>
+                  <Button type="submit" className="w-full h-12 text-base font-bold" disabled={verifyOtp.isPending || otpValue.length !== 6}>
                     {verifyOtp.isPending ? t("login.verifying") : t("login.verify")}
                   </Button>
                   <Button
