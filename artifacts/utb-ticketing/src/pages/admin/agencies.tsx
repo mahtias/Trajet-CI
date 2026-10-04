@@ -7,6 +7,8 @@ import {
   type AgencyType,
 } from "@workspace/api-client-react";
 import { Plus, Edit2, Trash2, Phone } from "lucide-react";
+import { PhoneInput } from "@/components/phone-input";
+import { isValidPhone, normalizePhone, formatPhoneForDisplay } from "@/lib/phone";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -65,7 +67,7 @@ export default function AdminAgencies() {
     setType(agency.type);
     setName(agency.name);
     setCity(agency.city);
-    setPhone(agency.phone || "");
+    setPhone(normalizePhone(agency.phone));
     setEditingId(agency.id);
     setIsDialogOpen(true);
   };
@@ -73,6 +75,11 @@ export default function AdminAgencies() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!type || !name.trim() || !city.trim()) return;
+    // Optional, but a typed number must be complete (sent as +225XXXXXXXXXX / +…)
+    if (phone && !isValidPhone(phone)) {
+      toast({ title: "Numéro de téléphone invalide", description: "Vérifiez le numéro ou laissez le champ vide.", variant: "destructive" });
+      return;
+    }
 
     const data = { type: type as AgencyType, name, city, phone: phone || null };
 
@@ -174,7 +181,7 @@ export default function AdminAgencies() {
                   </div>
                   <div>
                     <label className="text-sm font-medium mb-1 block">Téléphone (optionnel)</label>
-                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex: 07 00 00 00 00" />
+                    <PhoneInput value={phone} onChange={setPhone} countryLabel="Indicatif pays" />
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={!type || createAgency.isPending || updateAgency.isPending}>
@@ -217,7 +224,7 @@ export default function AdminAgencies() {
                   </TableCell>
                   <TableCell>{agency.city}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {agency.phone ? <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {agency.phone}</span> : "—"}
+                    {agency.phone ? <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {formatPhoneForDisplay(agency.phone)}</span> : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(agency)} className="text-muted-foreground hover:text-primary">

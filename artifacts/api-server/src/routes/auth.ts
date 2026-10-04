@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { rateLimit } from "express-rate-limit";
-import { eq, and, isNotNull, lt, sql } from "drizzle-orm";
+import { eq, and, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { db, usersTable, companiesTable, agenciesTable } from "@workspace/db";
 import {
   RequestOtpBody,
@@ -46,6 +46,38 @@ const otpPhoneLimiter = rateLimit({
 
 function getSession(req: any) {
   return req.session as { userId?: number };
+}
+
+type AttachResult =
+  | { ok: true; user: typeof usersTable.$inferSelect }
+  | { ok: false; status: number; body: { error: string; code?: string } };
+
+/**
+ * First e-mail of an account, given at login BEFORE the phone is proven (the code then goes to it): only
+ * for a passenger account with no e-mail and no activity yet (nothing to steal). Otherwise refused without
+ * changing anything; an administrator sets it after an identity check (PUT /admin/users/:id/email).
+ * Never replaces an e-mail already on the account.
+ */
+async function attachFirstEmail(user: typeof usersTable.$inferSelect, email: string, log: { warn: (o: object, m: string) => void }): Promise<AttachResult> {
+  if (user.email) return { ok: true, user };
+  if (user.role !== "passenger") {
+    return { ok: false, status: 403, body: { error: "Ce compte n'a pas d'e-mail enregistré. Demandez à un administrateur de l'ajouter.", code: "IDENTITY_VERIFICATION_REQUIRED" } };
+  }
+  if (await hasAccountActivity(user.id)) {
+    log.warn({ userId: user.id }, "E-mail attach refused at login: account has activity");
+    return { ok: false, status: 403, body: { error: "Ce compte a déjà des billets ou des réservations : pour y ajouter une adresse e-mail, contactez le support afin de vérifier votre identité.", code: "IDENTITY_VERIFICATION_REQUIRED" } };
+  }
+  if (await emailTaken(email, user.id)) return { ok: false, status: 409, body: { error: EMAIL_TAKEN } };
+  try {
+    // Only while still empty: two requests at once can't both set one
+    const [updated] = await db.update(usersTable).set({ email }).where(and(eq(usersTable.id, user.id), isNull(usersTable.email))).returning();
+    if (updated) return { ok: true, user: updated };
+    const [current] = await db.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+    return { ok: true, user: current };
+  } catch (err) {
+    if (isUniqueViolation(err)) return { ok: false, status: 409, body: { error: EMAIL_TAKEN } };
+    throw err;
+  }
 }
 
 async function formatAuthUser(user: typeof usersTable.$inferSelect) {
@@ -97,25 +129,9 @@ router.post("/auth/request-otp", otpIpLimiter, otpPhoneLimiter, async (req, res)
       res.status(400).json({ error: "Pour recevoir votre code de connexion, indiquez votre adresse e-mail : l'envoi par SMS n'est pas disponible pour ce numéro.", code: "EMAIL_REQUIRED" });
       return;
     }
-    // Whoever sets the e-mail receives the login codes, and nothing proves yet that this person owns the number.
-    // Only a brand-new passenger account (nothing to steal) may attach one here; otherwise an administrator
-    // sets it after checking the person's identity (PUT /admin/users/:id/email). Nothing is changed or sent.
-    if (user.role !== "passenger") {
-      res.status(403).json({ error: "Ce compte n'a pas d'e-mail enregistré. Demandez à un administrateur de l'ajouter.", code: "IDENTITY_VERIFICATION_REQUIRED" });
-      return;
-    }
-    if (await hasAccountActivity(user.id)) {
-      req.log.warn({ phone, userId: user.id }, "E-mail attach refused at login: account has activity");
-      res.status(403).json({ error: "Ce compte a déjà des billets ou des réservations : pour y ajouter une adresse e-mail, contactez le support afin de vérifier votre identité.", code: "IDENTITY_VERIFICATION_REQUIRED" });
-      return;
-    }
-    if (await emailTaken(providedEmail.email, user.id)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
-    try {
-      [user] = await db.update(usersTable).set({ email: providedEmail.email }).where(eq(usersTable.id, user.id)).returning();
-    } catch (err) {
-      if (isUniqueViolation(err)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
-      throw err;
-    }
+    const attached = await attachFirstEmail(user, providedEmail.email, req.log);
+    if (!attached.ok) { res.status(attached.status).json(attached.body); return; }
+    user = attached.user;
   }
 
   // A new code replaces the previous one and resets the try counter; only its hash is stored
@@ -151,6 +167,14 @@ router.post("/auth/request-otp", otpIpLimiter, otpPhoneLimiter, async (req, res)
     } catch (err) {
       smsFailed = true;
       req.log.warn({ phone, reason: (err as Error).message }, "OTP SMS failed");
+      // No e-mail yet but one typed in the form (e.g. first sign-up): it becomes the account's e-mail, under the
+      // same rule as for non-Ivorian numbers, since the code can only go there. With SMS working, it is saved
+      // at verify-otp instead, once the phone is proven.
+      if (!user.email && providedEmail.email) {
+        const attached = await attachFirstEmail(user, providedEmail.email, req.log);
+        if (!attached.ok) { await clearOtp(); res.status(attached.status).json(attached.body); return; }
+        user = attached.user;
+      }
       if (!user.email) {
         await clearOtp();
         res.status(503).json({ error: "Impossible d'envoyer le SMS pour le moment et aucun e-mail n'est enregistré sur ce compte. Réessayez dans quelques minutes.", code: "DELIVERY_FAILED" });
@@ -238,8 +262,10 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  // Saved only once the phone is proven; an e-mail already on another account keeps the code valid to retry
-  if (email.email && email.email !== user.email) {
+  // Fills an empty e-mail once the code is proven; an e-mail already on the account is never replaced here
+  // (retyping it, or another one, is simply ignored: changing it is done from the profile). An e-mail of
+  // another account keeps the code valid to retry.
+  if (email.email && !user.email) {
     if (await emailTaken(email.email, user.id)) { res.status(409).json({ error: EMAIL_TAKEN }); return; }
     try {
       [user] = await db.update(usersTable).set({ email: email.email }).where(eq(usersTable.id, user.id)).returning();

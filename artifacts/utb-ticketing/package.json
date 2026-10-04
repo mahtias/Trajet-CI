@@ -79,7 +79,9 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "country-flag-icons": "^1.6.20",
     "leaflet": "^1.9.4",
+    "libphonenumber-js": "^1.13.14",
     "socket.io-client": "^4.8.4"
   }
 }

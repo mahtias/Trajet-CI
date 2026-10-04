@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,12 +26,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHODS, getPaymentMethod, type PaymentMethodId } from "@/lib/payment-methods";
+import { PhoneInput } from "@/components/phone-input";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { PriceBreakdown } from "@/components/price-breakdown";
 
 function buildCheckoutSchema(t: (key: string) => string) {
   return z.object({
     passengerName: z.string().min(2, t("checkout.nameRequired")),
-    passengerPhone: z.string().min(8, t("common.invalidPhone")),
+    passengerPhone: z.string().refine(isValidPhone, t("common.invalidPhone")),
   });
 }
 
@@ -61,9 +63,18 @@ export default function Checkout() {
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
       passengerName: user?.name || "",
-      passengerPhone: user?.phone || "",
+      // The account's number, whatever format it was stored in, as the full +… number
+      passengerPhone: normalizePhone(user?.phone),
     },
   });
+
+  // The account often loads after the first render (page opened directly): fill the fields then,
+  // unless the person already typed something
+  useEffect(() => {
+    if (!user) return;
+    if (!form.getValues("passengerName") && user.name) form.setValue("passengerName", user.name);
+    if (!form.getValues("passengerPhone") && user.phone) form.setValue("passengerPhone", normalizePhone(user.phone));
+  }, [user, form]);
 
   if (!tripId) {
     setLocation("/");
@@ -200,7 +211,7 @@ export default function Checkout() {
                       <FormItem>
                         <FormLabel>{t("checkout.phoneLabel")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="07 XX XX XX XX" {...field} className="h-12" />
+                          <PhoneInput {...field} countryLabel={t("common.phoneCountry")} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

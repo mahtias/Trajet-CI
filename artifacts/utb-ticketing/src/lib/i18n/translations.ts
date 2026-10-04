@@ -19,6 +19,7 @@ const fr: Dictionary = {
     passenger: 'Passager',
     seat: 'Place',
     invalidPhone: 'Numéro de téléphone invalide',
+    phoneCountry: 'Indicatif pays',
   },
   nav: {
     login: 'Se connecter',
@@ -375,6 +376,7 @@ const en: Dictionary = {
     passenger: 'Passenger',
     seat: 'Seat',
     invalidPhone: 'Invalid phone number',
+    phoneCountry: 'Country code',
   },
   nav: {
     login: 'Log in',
@@ -731,6 +733,7 @@ const zh: Dictionary = {
     passenger: '乘客',
     seat: '座位',
     invalidPhone: '电话号码无效',
+    phoneCountry: '国家/地区代码',
   },
   nav: {
     login: '登录',

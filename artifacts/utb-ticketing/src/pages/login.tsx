@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +15,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/phone-input";
+import { isValidPhone, formatPhoneForDisplay } from "@/lib/phone";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
@@ -23,7 +25,8 @@ import { BusFront, ArrowLeft, Mail, MailWarning, ShieldAlert, Ban } from "lucide
 function buildSchemas(t: (key: string) => string) {
   return {
     phoneSchema: z.object({
-      phone: z.string().min(8, t("common.invalidPhone")),
+      // Full E.164 number built by PhoneInput ("+2250700000001"): the format the server expects
+      phone: z.string().refine(isValidPhone, t("common.invalidPhone")),
       name: z.string().optional(),
       // Optional: only checked when filled (same rule as the server)
       email: z.string().trim().max(254, t("login.invalidEmail")).refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v), t("login.invalidEmail")).optional(),
@@ -75,6 +78,10 @@ export default function Login() {
 
   const otpValue = otpForm.watch("otp");
 
+  // Another number: the "give an e-mail" request was about the previous one
+  const watchedPhone = phoneForm.watch("phone");
+  useEffect(() => { setEmailRequired(false); }, [watchedPhone]);
+
   const onPhoneSubmit = (values: z.infer<typeof phoneSchema>) => {
     const typedEmail = values.email?.trim() ?? "";
     setPhone(values.phone);
@@ -98,7 +105,7 @@ export default function Login() {
           } else if (!res.smsFailed) {
             // A failed SMS is explained on the code screen itself, which stays visible
             toast(res.deliveryChannel === "sms"
-              ? { title: t("login.codeSentSmsTitle"), description: t("login.codeSentSmsDesc", { phone: values.phone }) }
+              ? { title: t("login.codeSentSmsTitle"), description: t("login.codeSentSmsDesc", { phone: formatPhoneForDisplay(values.phone) }) }
               : { title: t("login.codeSentEmailTitle"), description: t("login.codeSentEmailDesc", { email: res.emailHint ?? typedEmail }) });
           }
         },
@@ -193,7 +200,7 @@ export default function Login() {
                 ? t("login.enterPhone")
                 : delivery?.deliveryChannel === "email"
                   ? t("login.enterOtpEmail", { email: delivery.emailHint ?? email })
-                  : t("login.enterOtp", { phone })}
+                  : t("login.enterOtp", { phone: formatPhoneForDisplay(phone) })}
             </p>
           </div>
 
@@ -217,7 +224,7 @@ export default function Login() {
                     <FormItem>
                       <FormLabel>{t("login.phoneLabel")}</FormLabel>
                       <FormControl>
-                        <Input placeholder="07 XX XX XX XX" {...field} className="h-12" />
+                        <PhoneInput {...field} countryLabel={t("common.phoneCountry")} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
