@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import { Server, type Socket } from "socket.io";
 import { z } from "zod";
 import { logger } from "./logger";
+import { getAccountSuspension } from "./account-status";
 import {
   getUserById,
   getTrackingAccess,
@@ -55,10 +56,11 @@ export function initSocket(server: HttpServer, sessionMiddleware: RequestHandler
   io.on("connection", (socket) => {
     const lastUpdateAt = new Map<number, number>();
 
-    // Re-read the user on every action: role / company / tickets may have changed since the handshake
+    // Re-read the user on every action: role / company / tickets / suspension may have changed since the handshake
     const currentUser = async () => {
       const userId = sessionUserId(socket);
-      return userId ? await getUserById(userId) : undefined;
+      const user = userId ? await getUserById(userId) : undefined;
+      return user && !(await getAccountSuspension(user)) ? user : undefined;
     };
 
     socket.on("trip:join", async (payload: unknown, ack?: Ack) => {

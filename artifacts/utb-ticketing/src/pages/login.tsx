@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
-import { BusFront, ArrowLeft, Mail, MailWarning, ShieldAlert } from "lucide-react";
+import { BusFront, ArrowLeft, Mail, MailWarning, ShieldAlert, Ban } from "lucide-react";
 
 function buildSchemas(t: (key: string) => string) {
   return {
@@ -46,6 +46,8 @@ export default function Login() {
   const [emailRequired, setEmailRequired] = useState(false);
   // Account with tickets or bookings: an e-mail can't be attached at login, only by support after an identity check
   const [identityCheck, setIdentityCheck] = useState<string | null>(null);
+  // Login refused: the account (or the company of a company admin / clerk) is suspended
+  const [suspension, setSuspension] = useState<{ scope: "user" | "company"; reason: string | null } | null>(null);
   // How the code was actually delivered (SMS, e-mail, or e-mail after a failed SMS)
   const [delivery, setDelivery] = useState<OtpResponse | null>(null);
 
@@ -78,6 +80,7 @@ export default function Login() {
     setPhone(values.phone);
     setEmail(typedEmail);
     setIdentityCheck(null);
+    setSuspension(null);
     requestOtp.mutate(
       // The server only uses this e-mail when the code can't go by SMS and the account has none yet
       { data: { phone: values.phone, name: values.name, ...(typedEmail ? { email: typedEmail } : {}) } },
@@ -143,6 +146,12 @@ export default function Login() {
           if (email && (err?.status === 400 || err?.status === 409)) {
             setStep("phone");
             phoneForm.setError("email", { message: err?.data?.error ?? t("login.invalidEmail") });
+            return;
+          }
+          if (err?.data?.code === "ACCOUNT_SUSPENDED") {
+            setSuspension({ scope: err.data.scope === "company" ? "company" : "user", reason: err.data.reason ?? null });
+            setStep("phone");
+            otpForm.reset({ otp: "" });
             return;
           }
           // Too many wrong codes: this one is dropped, back to the first step to ask for a new one
@@ -227,6 +236,16 @@ export default function Login() {
                     </FormItem>
                   )}
                 />
+                {suspension && (
+                  <Alert variant="destructive">
+                    <Ban className="h-4 w-4" />
+                    <AlertTitle>{t(suspension.scope === "company" ? "login.companySuspendedTitle" : "login.accountSuspendedTitle")}</AlertTitle>
+                    <AlertDescription>
+                      {suspension.reason && <p className="font-medium">{t("login.suspendedReason", { reason: suspension.reason })}</p>}
+                      <p>{t("login.suspendedContact")}</p>
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {identityCheck && (
                   <Alert variant="destructive">
                     <ShieldAlert className="h-4 w-4" />

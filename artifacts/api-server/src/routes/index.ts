@@ -13,8 +13,12 @@ import adminRouter from "./admin";
 import adminAgenciesRouter from "./admin-agencies";
 import uploadsRouter from "./uploads";
 import exchangeRatesRouter from "./exchange-rates";
+import { accountStatusGuard } from "../middlewares/account-status";
 
 const router: IRouter = Router();
+
+// Before any route: suspended accounts (or staff of a suspended company) are logged out and refused
+router.use(accountStatusGuard);
 
 router.use(healthRouter);
 router.use(authRouter);

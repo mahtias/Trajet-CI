@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { companiesTable } from "./companies";
@@ -22,6 +22,11 @@ export const usersTable = pgTable("users", {
   otpAttempts: integer("otp_attempts").notNull().default(0),
   // Company admin closed the commission change banner at this time (shown again for a change announced later)
   commissionNoticeSeenAt: timestamp("commission_notice_seen_at", { withTimezone: true }),
+  // active | suspended (super admin, e.g. abuse): a suspended account can't log in. Never for a super admin.
+  status: text("status").notNull().default("active"),
+  suspendedReason: text("suspended_reason"),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+  suspendedBy: integer("suspended_by").references((): AnyPgColumn => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

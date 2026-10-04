@@ -12,6 +12,9 @@ export const tripsTable = pgTable("trips", {
   departureTime: text("departure_time").notNull(),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("active"), // active | cancelled
+  // Why it was cancelled: "company_suspension" = cancelled by the suspension of its company, every paid
+  // ticket refunded in full; such a trip can never be made active again. NULL = cancelled by hand (or active).
+  cancelledReason: text("cancelled_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

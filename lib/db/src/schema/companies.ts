@@ -1,6 +1,7 @@
-import { pgTable, serial, text, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const companiesTable = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -11,6 +12,12 @@ export const companiesTable = pgTable("companies", {
   // Owed back by the company: shares it was already paid for tickets cancelled afterwards.
   // Deducted automatically from its next transfers (never below 0 per transfer).
   pendingClawback: numeric("pending_clawback", { precision: 12, scale: 2 }).notNull().default("0"),
+  // active | suspended. Suspended by the super admin: hidden from search, its future trips cancelled and
+  // refunded in full, its company admins and clerks can't log in. Never deleted (history is kept).
+  status: text("status").notNull().default("active"),
+  suspendedReason: text("suspended_reason"),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+  suspendedBy: integer("suspended_by").references((): AnyPgColumn => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

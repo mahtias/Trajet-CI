@@ -8,6 +8,8 @@ import { releaseExpiredReservations } from "../lib/seat-reservations";
 import { computePriceBreakdown, breakdownColumns, getPricingSettings } from "../lib/pricing";
 import { computeAvailableRooms } from "../lib/hotel-availability";
 import { payCompanyShare } from "../lib/company-payout";
+import { getTripCompanyId } from "../lib/trip-queries";
+import { isCompanySuspended } from "../lib/company-suspension";
 import {
   getPaydunyaConfig,
   createCheckoutInvoice,
@@ -64,6 +66,11 @@ router.post("/payments/initiate", async (req, res): Promise<void> => {
 
   const [trip] = await db.select().from(tripsTable).where(eq(tripsTable.id, tripId)).limit(1);
   if (!trip || trip.status !== "active") { res.status(404).json({ error: "Trajet non trouvé" }); return; }
+  const tripCompanyId = await getTripCompanyId(trip.id);
+  if (tripCompanyId === null || await isCompanySuspended(tripCompanyId)) {
+    res.status(409).json({ error: "Cette compagnie est suspendue : ses voyages ne sont plus en vente" });
+    return;
+  }
 
   if (manualSeatSelection) {
     const [chosen] = await db.select({ tripId: seatsTable.tripId }).from(seatsTable).where(eq(seatsTable.id, seatId)).limit(1);
@@ -193,6 +200,14 @@ async function applyPaymentOutcome(ticketId: number, invoice: ConfirmedInvoice):
 
     if (Math.round(invoice.totalAmount) !== Math.round(parseFloat(ticket.price))) {
       logger.error({ ticketId, paid: invoice.totalAmount, expected: ticket.price }, "PayDunya amount does not match the ticket price");
+      await tx.update(ticketsTable).set({ paymentStatus: "refund_required" }).where(eq(ticketsTable.id, ticket.id));
+      return "refund_required";
+    }
+
+    // Trip cancelled meanwhile (e.g. company suspended): the money must go back, no ticket is issued
+    const [trip] = await tx.select({ status: tripsTable.status }).from(tripsTable).where(eq(tripsTable.id, ticket.tripId)).limit(1);
+    if (!trip || trip.status !== "active") {
+      logger.error({ ticketId, tripId: ticket.tripId }, "Payment completed for a cancelled trip: refund required");
       await tx.update(ticketsTable).set({ paymentStatus: "refund_required" }).where(eq(ticketsTable.id, ticket.id));
       return "refund_required";
     }

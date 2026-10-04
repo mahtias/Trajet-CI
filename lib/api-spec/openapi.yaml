@@ -119,6 +119,12 @@ paths:
                 $ref: "#/components/schemas/AuthUser"
         "401":
           description: Wrong, expired or missing code
+        "403":
+          description: Account suspended, or company of a company admin / clerk suspended (code ACCOUNT_SUSPENDED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpError"
         "429":
           description: Too many wrong codes, a new one must be requested
 
@@ -889,6 +895,138 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/companies/{companyId}/suspension-preview:
+    get:
+      operationId: getCompanySuspensionPreview
+      tags: [admin]
+      summary: What suspending the company would do now (future trips, tickets to refund in full…), changes nothing
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanySuspensionPreview"
+        "404":
+          description: Company not found
+
+  /admin/companies/{companyId}/suspend:
+    put:
+      operationId: suspendCompany
+      tags: [admin]
+      summary: >-
+        Suspend a company (super admin only). Hidden from search, its company admins and clerks can't log in,
+        every future trip is cancelled, every paid unused ticket on them refunded in full (service fee included)
+        and shares already transferred to the company taken back in full. Past trips are never touched.
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuspendInput"
+      responses:
+        "200":
+          description: Suspended, with what the cascade did
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanySuspensionResult"
+        "400":
+          description: Missing reason
+        "404":
+          description: Company not found
+        "409":
+          description: Already suspended
+
+  /admin/companies/{companyId}/reactivate:
+    put:
+      operationId: reactivateCompany
+      tags: [admin]
+      summary: Reactivate a suspended company. Cancelled trips and refunds are not restored.
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "404":
+          description: Company not found
+        "409":
+          description: Not suspended
+
+  /admin/users/{userId}/suspend:
+    put:
+      operationId: suspendUser
+      tags: [admin]
+      summary: Suspend one account (passenger, clerk or company admin; never a super admin). Login blocked, nothing else changes.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuspendInput"
+      responses:
+        "200":
+          description: Suspended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Missing reason, or super admin account
+        "404":
+          description: User not found
+        "409":
+          description: Already suspended
+
+  /admin/users/{userId}/reactivate:
+    put:
+      operationId: reactivateUser
+      tags: [admin]
+      summary: Reactivate a suspended account
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+        "409":
+          description: Not suspended
 
   /admin/companies/{companyId}/payout-account:
     put:
@@ -2406,8 +2544,15 @@ components:
           type: string
         code:
           type: string
-          enum: [EMAIL_REQUIRED, DELIVERY_FAILED, IDENTITY_VERIFICATION_REQUIRED]
+          enum: [EMAIL_REQUIRED, DELIVERY_FAILED, IDENTITY_VERIFICATION_REQUIRED, ACCOUNT_SUSPENDED]
           description: Machine-readable reason, for the cases the login screen handles specially
+        reason:
+          type: ["string", "null"]
+          description: ACCOUNT_SUSPENDED only, the reason given by the super admin
+        scope:
+          type: string
+          enum: [user, company]
+          description: ACCOUNT_SUSPENDED only, whether the account itself or its company is suspended
 
     OtpVerify:
       type: object
@@ -2467,9 +2612,105 @@ components:
           type: integer
         name:
           type: string
+        status:
+          type: string
+          enum: [active, suspended]
+        suspendedReason:
+          type: ["string", "null"]
+        suspendedAt:
+          type: ["string", "null"]
+          format: date-time
         createdAt:
           type: string
           format: date-time
+
+    SuspendInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Shown to the suspended people when they try to log in
+
+    CompanySuspensionPreview:
+      type: object
+      required: [futureTrips, ticketsToRefund, refundTotal, clawbackTotal, pendingPurchases, validatedTicketsKept]
+      properties:
+        futureTrips:
+          type: integer
+        ticketsToRefund:
+          type: integer
+          description: Paid, unused tickets on those trips (refunded in full)
+        refundTotal:
+          type: number
+        clawbackTotal:
+          type: number
+          description: Shares already transferred to the company on those tickets, taken back in full
+        pendingPurchases:
+          type: integer
+          description: Purchases still being paid on those trips (stopped)
+        validatedTicketsKept:
+          type: integer
+          description: Tickets already used at boarding (never touched)
+
+    CompanySuspensionTicket:
+      type: object
+      required: [ticketId, tripId, refundAmount, refundStatus, clawback]
+      properties:
+        ticketId:
+          type: integer
+        tripId:
+          type: integer
+        refundAmount:
+          type: number
+        refundStatus:
+          type: string
+        clawback:
+          type: number
+
+    CompanySuspensionSummary:
+      type: object
+      required: [tripsCancelled, ticketsRefunded, refundTotal, clawbackTotal, pendingPurchasesCancelled, validatedTicketsKept, refundsByStatus, tickets]
+      properties:
+        tripsCancelled:
+          type: integer
+        ticketsRefunded:
+          type: integer
+        refundTotal:
+          type: number
+        clawbackTotal:
+          type: number
+        pendingPurchasesCancelled:
+          type: integer
+        validatedTicketsKept:
+          type: integer
+        refundsByStatus:
+          type: object
+          required: [success, pending, failed, manualRequired]
+          properties:
+            success:
+              type: integer
+            pending:
+              type: integer
+            failed:
+              type: integer
+            manualRequired:
+              type: integer
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanySuspensionTicket"
+
+    CompanySuspensionResult:
+      type: object
+      required: [company, summary]
+      properties:
+        company:
+          $ref: "#/components/schemas/Company"
+        summary:
+          $ref: "#/components/schemas/CompanySuspensionSummary"
 
     CompanyInput:
       type: object
@@ -2594,6 +2835,14 @@ components:
         agencyType:
           type: ["string", "null"]
           enum: [hotel, tourism, vehicle_rental, null]
+        status:
+          type: string
+          enum: [active, suspended]
+        suspendedReason:
+          type: ["string", "null"]
+        suspendedAt:
+          type: ["string", "null"]
+          format: date-time
         createdAt:
           type: string
           format: date-time

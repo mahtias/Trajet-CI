@@ -10,6 +10,7 @@ import {
 import { sendSms } from "../lib/orange-sms";
 import { sendOtpEmail } from "../lib/email";
 import { EMAIL_TAKEN, emailTaken, hasAccountActivity, isUniqueViolation, parseEmail } from "../lib/user-email";
+import { getAccountSuspension, sendAccountSuspended } from "../lib/account-status";
 import {
   OTP_MAX_ATTEMPTS,
   OTP_TTL_MINUTES,
@@ -227,6 +228,15 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
   }
 
   let user = attempt;
+
+  // Checked once the code is proven, so the suspension and its reason are only told to the number's owner
+  const suspension = await getAccountSuspension(user);
+  if (suspension) {
+    await db.update(usersTable).set({ otpCode: null, otpExpiresAt: null, otpAttempts: 0 }).where(eq(usersTable.id, user.id));
+    req.log.warn({ userId: user.id, scope: suspension.scope }, "Login refused: account suspended");
+    sendAccountSuspended(res, suspension);
+    return;
+  }
 
   // Saved only once the phone is proven; an e-mail already on another account keeps the code valid to retry
   if (email.email && email.email !== user.email) {

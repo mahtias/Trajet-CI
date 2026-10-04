@@ -26,6 +26,13 @@ import {
   UpdateUserRoleBody,
   UpdateUserEmailParams,
   UpdateUserEmailBody,
+  GetCompanySuspensionPreviewParams,
+  SuspendCompanyParams,
+  SuspendCompanyBody,
+  ReactivateCompanyParams,
+  SuspendUserParams,
+  SuspendUserBody,
+  ReactivateUserParams,
   GetAdminCompaniesQueryParams,
   GetAdminRoutesQueryParams,
   GetAdminUsersQueryParams,
@@ -69,6 +76,8 @@ import {
 } from "../lib/trip-queries";
 import { getPlatformSettings, formatSettings, COMMISSION_NOTICE_DAYS } from "../lib/pricing";
 import { notifyCompanyAdmins } from "../lib/commission-notice";
+import { previewCompanySuspension, runSuspensionCascade } from "../lib/company-suspension";
+import { formatCompany } from "../lib/companies";
 
 const router: IRouter = Router();
 // Super admin only. Scoped to /admin: a router-wide use() would also run on requests meant for
@@ -81,7 +90,7 @@ router.post("/admin/companies", async (req, res): Promise<void> => {
   const body = CreateCompanyBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
   const [c] = await db.insert(companiesTable).values({ name: body.data.name }).returning();
-  res.status(201).json({ id: c.id, name: c.name, createdAt: c.createdAt.toISOString() });
+  res.status(201).json(formatCompany(c));
 });
 
 router.put("/admin/companies/:companyId", async (req, res): Promise<void> => {
@@ -91,14 +100,85 @@ router.put("/admin/companies/:companyId", async (req, res): Promise<void> => {
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
   const [c] = await db.update(companiesTable).set({ name: body.data.name }).where(eq(companiesTable.id, params.data.companyId)).returning();
   if (!c) { res.status(404).json({ error: "Compagnie non trouvée" }); return; }
-  res.json({ id: c.id, name: c.name, createdAt: c.createdAt.toISOString() });
+  res.json(formatCompany(c));
 });
 
 router.delete("/admin/companies/:companyId", async (req, res): Promise<void> => {
   const params = DeleteCompanyParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  await db.delete(companiesTable).where(eq(companiesTable.id, params.data.companyId));
+  // Never delete a company with any history (lines, so trips / tickets, staff, ratings): suspend it instead
+  const companyId = params.data.companyId;
+  const { rows: [usage] } = await db.execute<{ used: boolean }>(sql`select
+    exists (select 1 from ${routesTable} where ${routesTable.companyId} = ${companyId})
+    or exists (select 1 from ${usersTable} where ${usersTable.companyId} = ${companyId})
+    or exists (select 1 from ${companyRatingsTable} where ${companyRatingsTable.companyId} = ${companyId}) as used`);
+  if (usage?.used) {
+    res.status(409).json({ error: "Cette compagnie a des lignes, du personnel ou des avis : elle ne peut pas être supprimée. Suspendez-la plutôt." });
+    return;
+  }
+  await db.delete(companiesTable).where(eq(companiesTable.id, companyId));
   res.json({ success: true });
+});
+
+// ── Suspension (super admin only) ──────────────────────────────────────────────
+// Never a deletion: only a status. See lib/company-suspension.ts for what a company suspension does.
+
+/** Reason given by the super admin: required, trimmed, 3 to 500 characters. */
+function parseReason(raw: unknown): string | null {
+  const reason = typeof raw === "string" ? raw.trim() : "";
+  return reason.length >= 3 && reason.length <= 500 ? reason : null;
+}
+
+router.get("/admin/companies/:companyId/suspension-preview", async (req, res): Promise<void> => {
+  const params = GetCompanySuspensionPreviewParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const [company] = await db.select({ id: companiesTable.id }).from(companiesTable).where(eq(companiesTable.id, params.data.companyId)).limit(1);
+  if (!company) { res.status(404).json({ error: "Compagnie non trouvée" }); return; }
+  res.json(await previewCompanySuspension(company.id));
+});
+
+router.put("/admin/companies/:companyId/suspend", async (req, res): Promise<void> => {
+  const params = SuspendCompanyParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = SuspendCompanyBody.safeParse(req.body);
+  const reason = body.success ? parseReason(body.data.reason) : null;
+  if (!reason) { res.status(400).json({ error: "Indiquez la raison de la suspension (3 à 500 caractères)" }); return; }
+  const adminId = getSession(req).userId!;
+
+  // Marked suspended first (one request only): its staff is locked out and no new sale can start
+  // while the cascade runs
+  const [company] = await db.update(companiesTable)
+    .set({ status: "suspended", suspendedReason: reason, suspendedAt: new Date(), suspendedBy: adminId })
+    .where(and(eq(companiesTable.id, params.data.companyId), eq(companiesTable.status, "active")))
+    .returning();
+  if (!company) {
+    const [exists] = await db.select({ id: companiesTable.id }).from(companiesTable).where(eq(companiesTable.id, params.data.companyId)).limit(1);
+    res.status(exists ? 409 : 404).json({ error: exists ? "Cette compagnie est déjà suspendue" : "Compagnie non trouvée" });
+    return;
+  }
+  const logContext = { operation: "company_suspension", companyId: company.id, adminId };
+  req.log.warn({ ...logContext, reason }, "Company suspended");
+
+  const summary = await runSuspensionCascade(company.id, logContext);
+  req.log.warn({ ...logContext, ...summary, tickets: undefined }, "Company suspension cascade done");
+  res.json({ company: formatCompany(company), summary });
+});
+
+// Cancelled trips and refunds stay as they are: the company creates new trips once reactivated
+router.put("/admin/companies/:companyId/reactivate", async (req, res): Promise<void> => {
+  const params = ReactivateCompanyParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const [company] = await db.update(companiesTable)
+    .set({ status: "active", suspendedReason: null, suspendedAt: null, suspendedBy: null })
+    .where(and(eq(companiesTable.id, params.data.companyId), eq(companiesTable.status, "suspended")))
+    .returning();
+  if (!company) {
+    const [exists] = await db.select({ id: companiesTable.id }).from(companiesTable).where(eq(companiesTable.id, params.data.companyId)).limit(1);
+    res.status(exists ? 409 : 404).json({ error: exists ? "Cette compagnie n'est pas suspendue" : "Compagnie non trouvée" });
+    return;
+  }
+  req.log.warn({ operation: "company_reactivation", companyId: company.id, adminId: getSession(req).userId }, "Company reactivated");
+  res.json(formatCompany(company));
 });
 
 // ── Company payouts (automatic transfer of the company share to its PayDunya account) ──────
@@ -217,6 +297,7 @@ function formatUser(
     id: u.id, phone: u.phone, name: u.name, email: u.email, role: u.role,
     companyId: u.companyId, companyName: company?.name ?? null,
     agencyId: u.agencyId, agencyName: agency?.name ?? null, agencyType: agency?.type ?? null,
+    status: u.status, suspendedReason: u.suspendedReason, suspendedAt: u.suspendedAt ? u.suspendedAt.toISOString() : null,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -295,6 +376,52 @@ router.put("/admin/users/:userId/role", async (req, res): Promise<void> => {
 
 // Sets (or removes) a user's e-mail by hand, after the administrator checked the person's identity outside the app.
 // The way in for accounts that can't attach one at login (existing tickets or bookings, staff accounts).
+/** formatUser with the user's company and agency looked up. */
+async function formatUserWithRelations(u: typeof usersTable.$inferSelect) {
+  const [company] = u.companyId ? await db.select().from(companiesTable).where(eq(companiesTable.id, u.companyId)).limit(1) : [undefined];
+  const [agency] = u.agencyId ? await db.select().from(agenciesTable).where(eq(agenciesTable.id, u.agencyId)).limit(1) : [undefined];
+  return formatUser(u, company, agency);
+}
+
+// One account only (abuse, departure…): login blocked at once, nothing else changes (its company,
+// trips and tickets stay as they are). Never a super admin.
+router.put("/admin/users/:userId/suspend", async (req, res): Promise<void> => {
+  const params = SuspendUserParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = SuspendUserBody.safeParse(req.body);
+  const reason = body.success ? parseReason(body.data.reason) : null;
+  if (!reason) { res.status(400).json({ error: "Indiquez la raison de la suspension (3 à 500 caractères)" }); return; }
+  const adminId = getSession(req).userId!;
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.userId)).limit(1);
+  if (!target) { res.status(404).json({ error: "Utilisateur non trouvé" }); return; }
+  if (target.role === "admin") { res.status(400).json({ error: "Un compte super administrateur ne peut pas être suspendu" }); return; }
+
+  const [u] = await db.update(usersTable)
+    .set({ status: "suspended", suspendedReason: reason, suspendedAt: new Date(), suspendedBy: adminId })
+    .where(and(eq(usersTable.id, target.id), eq(usersTable.status, "active")))
+    .returning();
+  if (!u) { res.status(409).json({ error: "Ce compte est déjà suspendu" }); return; }
+  req.log.warn({ operation: "user_suspension", userId: u.id, role: u.role, adminId, reason }, "User suspended");
+  res.json(await formatUserWithRelations(u));
+});
+
+router.put("/admin/users/:userId/reactivate", async (req, res): Promise<void> => {
+  const params = ReactivateUserParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const [u] = await db.update(usersTable)
+    .set({ status: "active", suspendedReason: null, suspendedAt: null, suspendedBy: null })
+    .where(and(eq(usersTable.id, params.data.userId), eq(usersTable.status, "suspended")))
+    .returning();
+  if (!u) {
+    const [exists] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, params.data.userId)).limit(1);
+    res.status(exists ? 409 : 404).json({ error: exists ? "Ce compte n'est pas suspendu" : "Utilisateur non trouvé" });
+    return;
+  }
+  req.log.warn({ operation: "user_reactivation", userId: u.id, adminId: getSession(req).userId }, "User reactivated");
+  res.json(await formatUserWithRelations(u));
+});
+
 router.put("/admin/users/:userId/email", async (req, res): Promise<void> => {
   const params = UpdateUserEmailParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }

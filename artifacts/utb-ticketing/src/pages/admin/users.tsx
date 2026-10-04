@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useGetAdminUsers, useUpdateUserRole, useGetMe, getGetMeQueryKey, useGetAdminAgencies } from "@workspace/api-client-react";
+import { useGetAdminUsers, useUpdateUserRole, useGetMe, getGetMeQueryKey, useGetAdminAgencies, useReactivateUser } from "@workspace/api-client-react";
+import { Ban, RotateCcw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -22,6 +23,9 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { useCompanyOptions } from "@/components/company-select";
 import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
+import { UserSuspensionDialog } from "@/components/user-suspension-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const ROLES = [
   { value: "passenger", label: "Passager" },
@@ -46,6 +50,22 @@ export default function AdminUsers() {
   const { data: agencies } = useGetAdminAgencies();
   const agencyOptions = (agencies ?? []).map((a) => ({ value: `agency:${a.id}`, label: `${a.name} · ${AGENCY_TYPE_LABELS[a.type]}`, group: "Agences" }));
   const updateUserRole = useUpdateUserRole();
+  const reactivateUser = useReactivateUser();
+  const [suspendingUser, setSuspendingUser] = useState<{ id: number; phone: string; name?: string | null } | null>(null);
+
+  const handleReactivate = (user: { id: number; phone: string; name?: string | null }) => {
+    if (!confirm(`Réactiver le compte ${user.name || user.phone} ? Il pourra de nouveau se connecter.`)) return;
+    reactivateUser.mutate(
+      { userId: user.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+          toast({ title: "Compte réactivé" });
+        },
+        onError: (err: any) => toast({ title: "Erreur", description: err?.data?.error ?? err?.message, variant: "destructive" }),
+      }
+    );
+  };
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -127,16 +147,17 @@ export default function AdminUsers() {
               <TableHead>Date création</TableHead>
               <TableHead className="w-48">Rôle</TableHead>
               <TableHead className="w-64">Rattachement</TableHead>
+              <TableHead className="w-48">Statut</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
               </TableRow>
             ) : users?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Aucun utilisateur.</TableCell>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Aucun utilisateur.</TableCell>
               </TableRow>
             ) : (
               users?.map((user) => {
@@ -184,6 +205,27 @@ export default function AdminUsers() {
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      {/* A super admin is never suspended (the server refuses it too) */}
+                      {user.role === "admin" ? (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      ) : user.status === "suspended" ? (
+                        <div className="space-y-1">
+                          <Badge variant="destructive">Suspendu</Badge>
+                          {user.suspendedReason && <p className="text-xs text-muted-foreground">Motif : {user.suspendedReason}</p>}
+                          <Button variant="outline" size="sm" className="h-8" disabled={reactivateUser.isPending} onClick={() => handleReactivate(user)}>
+                            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Réactiver
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">Actif</Badge>
+                          <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-destructive" onClick={() => setSuspendingUser(user)}>
+                            <Ban className="w-3.5 h-3.5 mr-1" /> Suspendre
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })
@@ -192,6 +234,8 @@ export default function AdminUsers() {
         </Table>
         <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
+
+      <UserSuspensionDialog user={suspendingUser} onClose={() => setSuspendingUser(null)} />
     </div>
   );
 }

@@ -33,6 +33,10 @@ import { parsePagination } from "../lib/pagination";
 import { matchesSearch, routeIdsMatching } from "../lib/search";
 import { formatStation } from "../lib/stations";
 import { getPlatformSettings } from "../lib/pricing";
+import { formatCompany } from "../lib/companies";
+import { isCompanySuspended, TRIP_CANCELLED_BY_SUSPENSION } from "../lib/company-suspension";
+
+const COMPANY_SUSPENDED_ERROR = "Cette compagnie est suspendue : aucun voyage ne peut être programmé ou réactivé";
 import { managedCompanyId, canManageCompany, OTHER_COMPANY_ERROR } from "../lib/company-scope";
 import {
   selectRoutes,
@@ -104,7 +108,7 @@ router.get("/admin/companies", async (req, res): Promise<void> => {
   const companies = await db.select().from(companiesTable).where(where).orderBy(companiesTable.name, companiesTable.id).limit(pageSize).offset(offset);
 
   res.json({
-    items: companies.map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt.toISOString() })),
+    items: companies.map(formatCompany),
     total: count, page, pageSize,
   });
 });
@@ -403,6 +407,7 @@ router.post("/admin/trips", async (req, res): Promise<void> => {
   const [route] = await db.select().from(routesTable).where(eq(routesTable.id, body.data.routeId)).limit(1);
   if (!route) { res.status(404).json({ error: "Route non trouvée" }); return; }
   if (!canManageCompany(currentUser(req), route.companyId)) { res.status(403).json({ error: OTHER_COMPANY_ERROR }); return; }
+  if (await isCompanySuspended(route.companyId)) { res.status(409).json({ error: COMPANY_SUSPENDED_ERROR }); return; }
 
   const [bus] = await db.select().from(busesTable).where(eq(busesTable.id, body.data.busId)).limit(1);
   const busError = checkBusForRoute(bus, route);
@@ -451,6 +456,16 @@ router.put("/admin/trips/:tripId", async (req, res): Promise<void> => {
   if (body.data.departureTime !== undefined) updateData.departureTime = body.data.departureTime;
   if (body.data.price !== undefined) updateData.price = String(body.data.price);
   if (body.data.status !== undefined) updateData.status = body.data.status;
+  // Its passengers were refunded in full when the company was suspended: never active again, even
+  // after the company is reactivated, and even for the super admin
+  if (updateData.status === "active" && existing.trip.status !== "active" && existing.trip.cancelledReason === TRIP_CANCELLED_BY_SUSPENSION) {
+    res.status(409).json({ error: "Ce voyage a été annulé suite à la suspension de la compagnie et ne peut pas être réactivé. Créez un nouveau voyage." });
+    return;
+  }
+  if (updateData.status === "active" && existing.trip.status !== "active" && await isCompanySuspended(existing.route.companyId)) {
+    res.status(409).json({ error: COMPANY_SUSPENDED_ERROR });
+    return;
+  }
 
   let newBus: typeof busesTable.$inferSelect | undefined;
   if (body.data.busId !== undefined && body.data.busId !== existing.trip.busId) {

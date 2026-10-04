@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, ticketsTable, tripsTable, seatsTable, companyRatingsTable } from "@workspace/db";
 import {
   GetTicketParams,
@@ -11,7 +11,8 @@ import {
 import { releaseExpiredReservations } from "../lib/seat-reservations";
 import { getTripDetails, getTripCompanyId, routeLabels } from "../lib/trip-queries";
 import { refundableBase, cancellationFeePercent, afterCancellationFee } from "../lib/pricing";
-import { initialRefundState, startRefund } from "../lib/refunds";
+import { startRefund } from "../lib/refunds";
+import { cancelPaidTicket } from "../lib/ticket-cancellation";
 
 const router: IRouter = Router();
 
@@ -216,40 +217,15 @@ router.post("/tickets/:ticketId/cancel", async (req, res): Promise<void> => {
   // The percentage applies to fare + seat selection fee only: the service fee is never refunded.
   const feePercent = cancellationFeePercent(hoursUntilDeparture);
   const refundAmount = afterCancellationFee(refundableBase(ticket), feePercent);
-  const refund = await initialRefundState(ticket, refundAmount);
-
-  const cancelled = await db.transaction(async (tx) => {
-    // Only the first cancellation goes through (two clicks at once can't refund twice)
-    const [row] = await tx
-      .update(ticketsTable)
-      .set({ cancelledAt: new Date(), cancellationFeePercent: String(feePercent), refundAmount: String(refundAmount), refundStatus: refund.status, refundError: refund.error })
-      .where(and(eq(ticketsTable.id, ticket.id), isNull(ticketsTable.cancelledAt)))
-      .returning();
-    if (!row) return null;
-
-    // The company was already paid its share for this ticket: take it back from its next transfers,
-    // minus the same cancellation fee percentage as the passenger (the company keeps that part)
-    if (row.companyPayoutStatus === "success") {
-      const takenBack = afterCancellationFee(parseFloat(row.companyPayoutAmount ?? "0"), feePercent);
-      await tx.execute(sql`
-        UPDATE companies SET pending_clawback = pending_clawback + ${takenBack}
-        WHERE id = (SELECT r.company_id FROM trips tr JOIN routes r ON r.id = tr.route_id WHERE tr.id = ${row.tripId})
-      `);
-    }
-
-    await tx
-      .update(seatsTable)
-      .set({ status: "available", reservedAt: null, passengerName: null, passengerPhone: null })
-      .where(eq(seatsTable.id, row.seatId));
-    return row;
-  });
+  // Only the first cancellation goes through (two clicks at once can't refund twice)
+  const cancelled = await cancelPaidTicket(ticket, { feePercent, refundAmount });
   if (!cancelled) {
     res.status(400).json({ error: "Ce billet est déjà annulé" });
     return;
   }
 
   // The ticket is cancelled whatever happens next; the answer tells the real state of the refund
-  const refundStatus = refund.status === "created" ? await startRefund(ticket.id) : refund.status;
+  const refundStatus = cancelled.refundStatus === "created" ? await startRefund(ticket.id) : cancelled.refundStatus;
   res.json({ success: true, refundAmount, feePercent, refundStatus });
 });
 

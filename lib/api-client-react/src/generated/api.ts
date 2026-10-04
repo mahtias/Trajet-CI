@@ -41,6 +41,8 @@ import type {
   CompanyRatingsOverview,
   CompanyRatingsPage,
   CompanyStationInput,
+  CompanySuspensionPreview,
+  CompanySuspensionResult,
   DashboardStats,
   ExchangeRate,
   ExchangeRateInput,
@@ -96,6 +98,7 @@ import type {
   Station,
   StationInput,
   SuccessResponse,
+  SuspendInput,
   Ticket,
   TicketCancellation,
   TicketRating,
@@ -322,7 +325,7 @@ export const verifyOtp = async (otpVerify: OtpVerify, options?: RequestInit): Pr
 
 
 
-export const getVerifyOtpMutationOptions = <TError = ErrorType<void>,
+export const getVerifyOtpMutationOptions = <TError = ErrorType<void | OtpError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: BodyType<OtpVerify>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: BodyType<OtpVerify>}, TContext> => {
 
@@ -351,12 +354,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type VerifyOtpMutationResult = NonNullable<Awaited<ReturnType<typeof verifyOtp>>>
     export type VerifyOtpMutationBody = BodyType<OtpVerify>
-    export type VerifyOtpMutationError = ErrorType<void>
+    export type VerifyOtpMutationError = ErrorType<void | OtpError>
 
     /**
  * @summary Verify OTP and create session
  */
-export const useVerifyOtp = <TError = ErrorType<void>,
+export const useVerifyOtp = <TError = ErrorType<void | OtpError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyOtp>>, TError,{data: BodyType<OtpVerify>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof verifyOtp>>,
@@ -3003,6 +3006,369 @@ export const useDeleteCompany = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteCompanyMutationOptions(options));
+    }
+
+export const getGetCompanySuspensionPreviewUrl = (companyId: number,) => {
+
+
+
+
+  return `/api/admin/companies/${companyId}/suspension-preview`
+}
+
+/**
+ * @summary What suspending the company would do now (future trips, tickets to refund in full…), changes nothing
+ */
+export const getCompanySuspensionPreview = async (companyId: number, options?: RequestInit): Promise<CompanySuspensionPreview> => {
+
+  return customFetch<CompanySuspensionPreview>(getGetCompanySuspensionPreviewUrl(companyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCompanySuspensionPreviewQueryKey = (companyId: number,) => {
+    return [
+    `/api/admin/companies/${companyId}/suspension-preview`
+    ] as const;
+    }
+
+
+export const getGetCompanySuspensionPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getCompanySuspensionPreview>>, TError = ErrorType<void>>(companyId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanySuspensionPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCompanySuspensionPreviewQueryKey(companyId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCompanySuspensionPreview>>> = ({ signal }) => getCompanySuspensionPreview(companyId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: companyId !== null && companyId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCompanySuspensionPreview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCompanySuspensionPreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getCompanySuspensionPreview>>>
+export type GetCompanySuspensionPreviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary What suspending the company would do now (future trips, tickets to refund in full…), changes nothing
+ */
+
+export function useGetCompanySuspensionPreview<TData = Awaited<ReturnType<typeof getCompanySuspensionPreview>>, TError = ErrorType<void>>(
+ companyId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanySuspensionPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCompanySuspensionPreviewQueryOptions(companyId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSuspendCompanyUrl = (companyId: number,) => {
+
+
+
+
+  return `/api/admin/companies/${companyId}/suspend`
+}
+
+/**
+ * @summary Suspend a company (super admin only). Hidden from search, its company admins and clerks can't log in, every future trip is cancelled, every paid unused ticket on them refunded in full (service fee included) and shares already transferred to the company taken back in full. Past trips are never touched.
+ */
+export const suspendCompany = async (companyId: number,
+    suspendInput: SuspendInput, options?: RequestInit): Promise<CompanySuspensionResult> => {
+
+  return customFetch<CompanySuspensionResult>(getSuspendCompanyUrl(companyId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(suspendInput)
+  }
+);}
+
+
+
+
+
+export const getSuspendCompanyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendCompany>>, TError,{companyId: number;data: BodyType<SuspendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof suspendCompany>>, TError,{companyId: number;data: BodyType<SuspendInput>}, TContext> => {
+
+const mutationKey = ['suspendCompany'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspendCompany>>, {companyId: number;data: BodyType<SuspendInput>}> = (props) => {
+          const {companyId,data} = props ?? {};
+
+          return  suspendCompany(companyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SuspendCompanyMutationResult = NonNullable<Awaited<ReturnType<typeof suspendCompany>>>
+    export type SuspendCompanyMutationBody = BodyType<SuspendInput>
+    export type SuspendCompanyMutationError = ErrorType<void>
+
+    /**
+ * @summary Suspend a company (super admin only). Hidden from search, its company admins and clerks can't log in, every future trip is cancelled, every paid unused ticket on them refunded in full (service fee included) and shares already transferred to the company taken back in full. Past trips are never touched.
+ */
+export const useSuspendCompany = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendCompany>>, TError,{companyId: number;data: BodyType<SuspendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof suspendCompany>>,
+        TError,
+        {companyId: number;data: BodyType<SuspendInput>},
+        TContext
+      > => {
+      return useMutation(getSuspendCompanyMutationOptions(options));
+    }
+
+export const getReactivateCompanyUrl = (companyId: number,) => {
+
+
+
+
+  return `/api/admin/companies/${companyId}/reactivate`
+}
+
+/**
+ * @summary Reactivate a suspended company. Cancelled trips and refunds are not restored.
+ */
+export const reactivateCompany = async (companyId: number, options?: RequestInit): Promise<Company> => {
+
+  return customFetch<Company>(getReactivateCompanyUrl(companyId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateCompanyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateCompany>>, TError,{companyId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateCompany>>, TError,{companyId: number}, TContext> => {
+
+const mutationKey = ['reactivateCompany'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateCompany>>, {companyId: number}> = (props) => {
+          const {companyId} = props ?? {};
+
+          return  reactivateCompany(companyId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateCompanyMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateCompany>>>
+
+    export type ReactivateCompanyMutationError = ErrorType<void>
+
+    /**
+ * @summary Reactivate a suspended company. Cancelled trips and refunds are not restored.
+ */
+export const useReactivateCompany = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateCompany>>, TError,{companyId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateCompany>>,
+        TError,
+        {companyId: number},
+        TContext
+      > => {
+      return useMutation(getReactivateCompanyMutationOptions(options));
+    }
+
+export const getSuspendUserUrl = (userId: number,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/suspend`
+}
+
+/**
+ * @summary Suspend one account (passenger, clerk or company admin; never a super admin). Login blocked, nothing else changes.
+ */
+export const suspendUser = async (userId: number,
+    suspendInput: SuspendInput, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getSuspendUserUrl(userId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(suspendInput)
+  }
+);}
+
+
+
+
+
+export const getSuspendUserMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendUser>>, TError,{userId: number;data: BodyType<SuspendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof suspendUser>>, TError,{userId: number;data: BodyType<SuspendInput>}, TContext> => {
+
+const mutationKey = ['suspendUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspendUser>>, {userId: number;data: BodyType<SuspendInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  suspendUser(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SuspendUserMutationResult = NonNullable<Awaited<ReturnType<typeof suspendUser>>>
+    export type SuspendUserMutationBody = BodyType<SuspendInput>
+    export type SuspendUserMutationError = ErrorType<void>
+
+    /**
+ * @summary Suspend one account (passenger, clerk or company admin; never a super admin). Login blocked, nothing else changes.
+ */
+export const useSuspendUser = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendUser>>, TError,{userId: number;data: BodyType<SuspendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof suspendUser>>,
+        TError,
+        {userId: number;data: BodyType<SuspendInput>},
+        TContext
+      > => {
+      return useMutation(getSuspendUserMutationOptions(options));
+    }
+
+export const getReactivateUserUrl = (userId: number,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/reactivate`
+}
+
+/**
+ * @summary Reactivate a suspended account
+ */
+export const reactivateUser = async (userId: number, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getReactivateUserUrl(userId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getReactivateUserMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateUser>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reactivateUser>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['reactivateUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateUser>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  reactivateUser(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReactivateUserMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateUser>>>
+
+    export type ReactivateUserMutationError = ErrorType<void>
+
+    /**
+ * @summary Reactivate a suspended account
+ */
+export const useReactivateUser = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateUser>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reactivateUser>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+      return useMutation(getReactivateUserMutationOptions(options));
     }
 
 export const getUpdateCompanyPayoutAccountUrl = (companyId: number,) => {

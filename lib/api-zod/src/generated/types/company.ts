@@ -5,9 +5,15 @@
  * UTB Bus Ticketing API
  * OpenAPI spec version: 0.1.0
  */
+import type { CompanyStatus } from './companyStatus';
 
 export interface Company {
   id: number;
   name: string;
+  status?: CompanyStatus;
+  /** @nullable */
+  suspendedReason?: string | null;
+  /** @nullable */
+  suspendedAt?: Date | null;
   createdAt?: Date;
 }

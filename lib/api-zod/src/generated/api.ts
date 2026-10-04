@@ -744,6 +744,9 @@ export const GetAdminCompaniesResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional()
 })),
   "total": zod.number(),
@@ -762,6 +765,9 @@ export const CreateCompanyBody = zod.object({
 export const CreateCompanyResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional()
 })
 
@@ -780,6 +786,9 @@ export const UpdateCompanyBody = zod.object({
 export const UpdateCompanyResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional()
 })
 
@@ -793,6 +802,148 @@ export const DeleteCompanyParams = zod.object({
 
 export const DeleteCompanyResponse = zod.object({
   "success": zod.boolean()
+})
+
+
+/**
+ * @summary What suspending the company would do now (future trips, tickets to refund in full…), changes nothing
+ */
+export const GetCompanySuspensionPreviewParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const GetCompanySuspensionPreviewResponse = zod.object({
+  "futureTrips": zod.number(),
+  "ticketsToRefund": zod.number().describe('Paid, unused tickets on those trips (refunded in full)'),
+  "refundTotal": zod.number(),
+  "clawbackTotal": zod.number().describe('Shares already transferred to the company on those tickets, taken back in full'),
+  "pendingPurchases": zod.number().describe('Purchases still being paid on those trips (stopped)'),
+  "validatedTicketsKept": zod.number().describe('Tickets already used at boarding (never touched)')
+})
+
+
+/**
+ * @summary Suspend a company (super admin only). Hidden from search, its company admins and clerks can't log in, every future trip is cancelled, every paid unused ticket on them refunded in full (service fee included) and shares already transferred to the company taken back in full. Past trips are never touched.
+ */
+export const SuspendCompanyParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const suspendCompanyBodyReasonMin = 3;
+export const suspendCompanyBodyReasonMax = 500;
+
+
+
+export const SuspendCompanyBody = zod.object({
+  "reason": zod.string().min(suspendCompanyBodyReasonMin).max(suspendCompanyBodyReasonMax).describe('Shown to the suspended people when they try to log in')
+})
+
+export const SuspendCompanyResponse = zod.object({
+  "company": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}),
+  "summary": zod.object({
+  "tripsCancelled": zod.number(),
+  "ticketsRefunded": zod.number(),
+  "refundTotal": zod.number(),
+  "clawbackTotal": zod.number(),
+  "pendingPurchasesCancelled": zod.number(),
+  "validatedTicketsKept": zod.number(),
+  "refundsByStatus": zod.object({
+  "success": zod.number(),
+  "pending": zod.number(),
+  "failed": zod.number(),
+  "manualRequired": zod.number()
+}),
+  "tickets": zod.array(zod.object({
+  "ticketId": zod.number(),
+  "tripId": zod.number(),
+  "refundAmount": zod.number(),
+  "refundStatus": zod.string(),
+  "clawback": zod.number()
+}))
+})
+})
+
+
+/**
+ * @summary Reactivate a suspended company. Cancelled trips and refunds are not restored.
+ */
+export const ReactivateCompanyParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const ReactivateCompanyResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Suspend one account (passenger, clerk or company admin; never a super admin). Login blocked, nothing else changes.
+ */
+export const SuspendUserParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const suspendUserBodyReasonMin = 3;
+export const suspendUserBodyReasonMax = 500;
+
+
+
+export const SuspendUserBody = zod.object({
+  "reason": zod.string().min(suspendUserBodyReasonMin).max(suspendUserBodyReasonMax).describe('Shown to the suspended people when they try to log in')
+})
+
+export const SuspendUserResponse = zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
+  "companyId": zod.number().nullish(),
+  "companyName": zod.string().nullish(),
+  "agencyId": zod.number().nullish(),
+  "agencyName": zod.string().nullish(),
+  "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reactivate a suspended account
+ */
+export const ReactivateUserParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const ReactivateUserResponse = zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.enum(['passenger', 'clerk', 'company_admin', 'admin']),
+  "companyId": zod.number().nullish(),
+  "companyName": zod.string().nullish(),
+  "agencyId": zod.number().nullish(),
+  "agencyName": zod.string().nullish(),
+  "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
 })
 
 
@@ -895,6 +1046,9 @@ export const GetAdminUsersResponse = zod.object({
   "agencyId": zod.number().nullish(),
   "agencyName": zod.string().nullish(),
   "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })),
   "total": zod.number(),
@@ -927,6 +1081,9 @@ export const UpdateUserRoleResponse = zod.object({
   "agencyId": zod.number().nullish(),
   "agencyName": zod.string().nullish(),
   "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -958,6 +1115,9 @@ export const UpdateUserEmailResponse = zod.object({
   "agencyId": zod.number().nullish(),
   "agencyName": zod.string().nullish(),
   "agencyType": zod.union([zod.literal('hotel'),zod.literal('tourism'),zod.literal('vehicle_rental'),zod.literal(null)]).nullish(),
+  "status": zod.enum(['active', 'suspended']).optional(),
+  "suspendedReason": zod.string().nullish(),
+  "suspendedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
 

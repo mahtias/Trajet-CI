@@ -7,6 +7,7 @@
  */
 import type { UserAgencyType } from './userAgencyType';
 import type { UserRole } from './userRole';
+import type { UserStatus } from './userStatus';
 
 export interface User {
   id: number;
@@ -26,5 +27,10 @@ export interface User {
   agencyName?: string | null;
   /** @nullable */
   agencyType?: UserAgencyType;
+  status?: UserStatus;
+  /** @nullable */
+  suspendedReason?: string | null;
+  /** @nullable */
+  suspendedAt?: Date | null;
   createdAt: Date;
 }

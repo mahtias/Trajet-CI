@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, tripsTable, citiesTable, seatsTable } from "@workspace/db";
+import { db, tripsTable, citiesTable, seatsTable, companiesTable } from "@workspace/db";
 import {
   GetTripParams,
   GetTripSeatsParams,
@@ -51,6 +51,8 @@ router.get("/trips/search", async (req, res): Promise<void> => {
         eq(destinationStation.cityId, destinationCityId),
         eq(tripsTable.departureDate, date),
         eq(tripsTable.status, "active"),
+        // A suspended company never shows up in the search, whatever the state of its trips
+        eq(companiesTable.status, "active"),
       )
     )
     .orderBy(tripsTable.departureTime, tripsTable.id);

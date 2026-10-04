@@ -3,9 +3,10 @@ import {
   useGetAdminCompanies, 
   useCreateCompany, 
   useUpdateCompany, 
-  useDeleteCompany 
+  useDeleteCompany,
+  useReactivateCompany,
 } from "@workspace/api-client-react";
-import { Plus, Edit2, Trash2, Wallet } from "lucide-react";
+import { Plus, Edit2, Trash2, Wallet, Ban, RotateCcw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,8 @@ import { useToast } from "@/hooks/use-toast";
 import { ListPagination } from "@/components/list-pagination";
 import { ListSearch, useDebouncedValue } from "@/components/list-search";
 import { CompanyPayoutDialog } from "@/components/company-payout-dialog";
+import { CompanySuspensionDialog } from "@/components/company-suspension-dialog";
+import { Badge } from "@/components/ui/badge";
 
 const PAGE_SIZE = 20;
 
@@ -42,6 +45,7 @@ export default function AdminCompanies() {
   const createCompany = useCreateCompany();
   const updateCompany = useUpdateCompany();
   const deleteCompany = useDeleteCompany();
+  const reactivateCompany = useReactivateCompany();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -49,6 +53,7 @@ export default function AdminCompanies() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [payoutCompany, setPayoutCompany] = useState<{ id: number; name: string } | null>(null);
+  const [suspendingCompany, setSuspendingCompany] = useState<{ id: number; name: string } | null>(null);
 
   const resetForm = () => {
     setName("");
@@ -100,10 +105,27 @@ export default function AdminCompanies() {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/admin/companies"] });
             toast({ title: "Compagnie supprimée" });
-          }
+          },
+          // A company with any history can't be deleted: the server says to suspend it instead
+          onError: (err: any) => toast({ title: "Suppression impossible", description: err?.data?.error ?? err?.message, variant: "destructive" }),
         }
       );
     }
+  };
+
+  // Cancelled trips and refunds stay as they are: the company schedules new trips afterwards
+  const handleReactivate = (company: { id: number; name: string }) => {
+    if (!confirm(`Réactiver ${company.name} ? Ses comptes pourront se reconnecter et elle réapparaîtra dans la recherche. Les voyages annulés lors de la suspension resteront annulés.`)) return;
+    reactivateCompany.mutate(
+      { companyId: company.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["/api/admin/companies"] });
+          toast({ title: "Compagnie réactivée", description: "Elle peut programmer de nouveaux voyages." });
+        },
+        onError: (err: any) => toast({ title: "Erreur", description: err?.data?.error ?? err?.message, variant: "destructive" }),
+      }
+    );
   };
 
   return (
@@ -165,7 +187,15 @@ export default function AdminCompanies() {
               companies?.map((company) => (
                 <TableRow key={company.id}>
                   <TableCell className="font-mono">{company.id}</TableCell>
-                  <TableCell className="font-bold">{company.name}</TableCell>
+                  <TableCell>
+                    <span className="font-bold">{company.name}</span>
+                    {company.status === "suspended" && (
+                      <div className="mt-1">
+                        <Badge variant="destructive">Suspendue{company.suspendedAt ? ` le ${new Date(company.suspendedAt).toLocaleDateString("fr-CI")}` : ""}</Badge>
+                        {company.suspendedReason && <p className="text-xs text-muted-foreground mt-1">Motif : {company.suspendedReason}</p>}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {company.createdAt ? new Date(company.createdAt).toLocaleDateString("fr-CI") : "-"}
                   </TableCell>
@@ -176,6 +206,15 @@ export default function AdminCompanies() {
                     <Button variant="ghost" size="icon" onClick={() => openEdit(company)} className="text-muted-foreground hover:text-primary">
                       <Edit2 className="w-4 h-4" />
                     </Button>
+                    {company.status === "suspended" ? (
+                      <Button variant="ghost" size="icon" onClick={() => handleReactivate(company)} disabled={reactivateCompany.isPending} className="text-muted-foreground hover:text-primary" title="Réactiver" aria-label="Réactiver">
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="icon" onClick={() => setSuspendingCompany(company)} className="text-muted-foreground hover:text-destructive" title="Suspendre" aria-label="Suspendre">
+                        <Ban className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(company.id)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -189,6 +228,7 @@ export default function AdminCompanies() {
       </div>
 
       <CompanyPayoutDialog company={payoutCompany} onClose={() => setPayoutCompany(null)} />
+      <CompanySuspensionDialog company={suspendingCompany} onClose={() => setSuspendingCompany(null)} />
     </div>
   );
 }

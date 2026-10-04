@@ -6,9 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { OtpErrorCode } from './otpErrorCode';
+import type { OtpErrorScope } from './otpErrorScope';
 
 export interface OtpError {
   error: string;
   /** Machine-readable reason, for the cases the login screen handles specially */
   code?: OtpErrorCode;
+  /**
+     * ACCOUNT_SUSPENDED only, the reason given by the super admin
+     * @nullable
+     */
+  reason?: string | null;
+  /** ACCOUNT_SUSPENDED only, whether the account itself or its company is suspended */
+  scope?: OtpErrorScope;
 }

@@ -60,12 +60,31 @@ export const OtpErrorCode = {
   EMAIL_REQUIRED: 'EMAIL_REQUIRED',
   DELIVERY_FAILED: 'DELIVERY_FAILED',
   IDENTITY_VERIFICATION_REQUIRED: 'IDENTITY_VERIFICATION_REQUIRED',
+  ACCOUNT_SUSPENDED: 'ACCOUNT_SUSPENDED',
+} as const;
+
+/**
+ * ACCOUNT_SUSPENDED only, whether the account itself or its company is suspended
+ */
+export type OtpErrorScope = typeof OtpErrorScope[keyof typeof OtpErrorScope];
+
+
+export const OtpErrorScope = {
+  user: 'user',
+  company: 'company',
 } as const;
 
 export interface OtpError {
   error: string;
   /** Machine-readable reason, for the cases the login screen handles specially */
   code?: OtpErrorCode;
+  /**
+     * ACCOUNT_SUSPENDED only, the reason given by the super admin
+     * @nullable
+     */
+  reason?: string | null;
+  /** ACCOUNT_SUSPENDED only, whether the account itself or its company is suspended */
+  scope?: OtpErrorScope;
 }
 
 export interface OtpVerify {
@@ -130,10 +149,76 @@ export interface AuthUser {
   agencyType?: AuthUserAgencyType;
 }
 
+export type CompanyStatus = typeof CompanyStatus[keyof typeof CompanyStatus];
+
+
+export const CompanyStatus = {
+  active: 'active',
+  suspended: 'suspended',
+} as const;
+
 export interface Company {
   id: number;
   name: string;
+  status?: CompanyStatus;
+  /** @nullable */
+  suspendedReason?: string | null;
+  /** @nullable */
+  suspendedAt?: string | null;
   createdAt?: string;
+}
+
+export interface SuspendInput {
+  /**
+     * Shown to the suspended people when they try to log in
+     * @minLength 3
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export interface CompanySuspensionPreview {
+  futureTrips: number;
+  /** Paid, unused tickets on those trips (refunded in full) */
+  ticketsToRefund: number;
+  refundTotal: number;
+  /** Shares already transferred to the company on those tickets, taken back in full */
+  clawbackTotal: number;
+  /** Purchases still being paid on those trips (stopped) */
+  pendingPurchases: number;
+  /** Tickets already used at boarding (never touched) */
+  validatedTicketsKept: number;
+}
+
+export interface CompanySuspensionTicket {
+  ticketId: number;
+  tripId: number;
+  refundAmount: number;
+  refundStatus: string;
+  clawback: number;
+}
+
+export type CompanySuspensionSummaryRefundsByStatus = {
+  success: number;
+  pending: number;
+  failed: number;
+  manualRequired: number;
+};
+
+export interface CompanySuspensionSummary {
+  tripsCancelled: number;
+  ticketsRefunded: number;
+  refundTotal: number;
+  clawbackTotal: number;
+  pendingPurchasesCancelled: number;
+  validatedTicketsKept: number;
+  refundsByStatus: CompanySuspensionSummaryRefundsByStatus;
+  tickets: CompanySuspensionTicket[];
+}
+
+export interface CompanySuspensionResult {
+  company: Company;
+  summary: CompanySuspensionSummary;
 }
 
 export interface CompanyInput {
@@ -236,6 +321,14 @@ export const UserAgencyType = {
   vehicle_rental: 'vehicle_rental',
 } as const;
 
+export type UserStatus = typeof UserStatus[keyof typeof UserStatus];
+
+
+export const UserStatus = {
+  active: 'active',
+  suspended: 'suspended',
+} as const;
+
 export interface User {
   id: number;
   phone: string;
@@ -254,6 +347,11 @@ export interface User {
   agencyName?: string | null;
   /** @nullable */
   agencyType?: UserAgencyType;
+  status?: UserStatus;
+  /** @nullable */
+  suspendedReason?: string | null;
+  /** @nullable */
+  suspendedAt?: string | null;
   createdAt: string;
 }
 
