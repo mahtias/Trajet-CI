@@ -8,6 +8,7 @@
 import type { RefundStatus } from './refundStatus';
 import type { TicketPaymentMethod } from './ticketPaymentMethod';
 import type { TicketPaymentStatus } from './ticketPaymentStatus';
+import type { TicketRating } from './ticketRating';
 
 export interface Ticket {
   id: number;
@@ -45,5 +46,9 @@ export interface Ticket {
   /** @nullable */
   refundAmount?: number | null;
   refundStatus?: RefundStatus;
+  /** The passenger's rating of this trip (passenger routes only) */
+  rating?: TicketRating | null;
+  /** True when the trip can be rated now (paid, not cancelled, departure passed, not rated yet) */
+  canRate?: boolean;
   createdAt: Date;
 }

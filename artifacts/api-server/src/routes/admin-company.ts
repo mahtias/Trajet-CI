@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, or, ne, gt, inArray, sql } from "drizzle-orm";
 import {
   db, companiesTable, routesTable, tripsTable, seatsTable,
-  citiesTable, stationsTable, companyStationsTable, busesTable, type User,
+  citiesTable, stationsTable, companyStationsTable, busesTable, usersTable, ticketsTable, companyRatingsTable, type User,
 } from "@workspace/db";
 import { z } from "zod";
 import {
@@ -26,11 +26,13 @@ import {
   UpdateBusParams,
   UpdateBusBody,
   DeleteBusParams,
+  GetCompanyRatingsQueryParams,
 } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/require-role";
 import { parsePagination } from "../lib/pagination";
 import { matchesSearch, routeIdsMatching } from "../lib/search";
 import { formatStation } from "../lib/stations";
+import { getPlatformSettings } from "../lib/pricing";
 import { managedCompanyId, canManageCompany, OTHER_COMPANY_ERROR } from "../lib/company-scope";
 import {
   selectRoutes,
@@ -711,6 +713,99 @@ router.get("/admin/reports/revenue-split", async (req, res): Promise<void> => {
     totals: formatAmounts(totals),
     rows: rows.map((r: any) => ({ companyId: r.company_id, companyName: r.company_name, ...formatAmounts(r) })),
     total: countRow?.count ?? 0,
+    page, pageSize,
+  });
+});
+
+// ── Commission change banner (company admins) ───────────────────────────────────
+
+// The announced change, until it applies or the company admin dismisses it (shown again for a newer one)
+router.get("/admin/commission-notice", async (req, res): Promise<void> => {
+  const user = currentUser(req);
+  const settings = await getPlatformSettings(); // a change that came due is applied here, so no banner for it
+  const { commissionPercentPending: pending, commissionEffectiveAt: effectiveAt, commissionAnnouncedAt: announcedAt } = settings;
+  const dismissed = !!user.commissionNoticeSeenAt && !!announcedAt && user.commissionNoticeSeenAt >= announcedAt;
+  if (user.role !== "company_admin" || pending === null || !effectiveAt || !announcedAt || effectiveAt.getTime() <= Date.now() || dismissed) {
+    res.json({ notice: null });
+    return;
+  }
+  res.json({
+    notice: {
+      currentPercent: parseFloat(settings.commissionPercent),
+      newPercent: parseFloat(pending),
+      effectiveAt: effectiveAt.toISOString(),
+      announcedAt: announcedAt.toISOString(),
+    },
+  });
+});
+
+router.post("/admin/commission-notice/acknowledge", async (req, res): Promise<void> => {
+  await db.update(usersTable).set({ commissionNoticeSeenAt: new Date() }).where(eq(usersTable.id, currentUser(req).id));
+  res.json({ success: true });
+});
+
+// ── Ratings received (company admin: its own company; super admin: the company asked for) ──
+
+/** "Awa Kouassi Marie" → "Awa M.": enough to tell reviews apart, not to identify the passenger. */
+function authorName(passengerName: string): string {
+  const parts = passengerName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "Passager";
+  return parts.length === 1 ? parts[0] : `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
+}
+
+router.get("/admin/ratings", async (req, res): Promise<void> => {
+  const query = GetCompanyRatingsQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const user = currentUser(req);
+
+  const scope = managedCompanyId(user);
+  // A company admin asking explicitly for another company: refused, like the sales report
+  if (scope !== null && query.data.companyId !== undefined && query.data.companyId !== scope) {
+    res.status(403).json({ error: OTHER_COMPANY_ERROR });
+    return;
+  }
+  const companyId = scope ?? query.data.companyId;
+  if (!companyId) { res.status(400).json({ error: "Précisez la compagnie (companyId)" }); return; }
+  if (!canManageCompany(user, companyId)) { res.status(403).json({ error: OTHER_COMPANY_ERROR }); return; }
+  const [company] = await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, companyId)).limit(1);
+  if (!company) { res.status(404).json({ error: "Compagnie non trouvée" }); return; }
+
+  const { page, pageSize, offset } = parsePagination(query.data.page, query.data.pageSize);
+  const [stats] = await db
+    .select({ average: sql<string | null>`round(avg(${companyRatingsTable.rating}), 1)`, count: sql<number>`count(*)::int` })
+    .from(companyRatingsTable)
+    .where(eq(companyRatingsTable.companyId, companyId));
+  const rows = await db
+    .select({ rating: companyRatingsTable, passengerName: ticketsTable.passengerName, tripId: ticketsTable.tripId })
+    .from(companyRatingsTable)
+    .innerJoin(ticketsTable, eq(companyRatingsTable.ticketId, ticketsTable.id))
+    .where(eq(companyRatingsTable.companyId, companyId))
+    .orderBy(sql`${companyRatingsTable.createdAt} desc`, sql`${companyRatingsTable.id} desc`)
+    .limit(pageSize).offset(offset);
+
+  const items = await Promise.all(rows.map(async ({ rating, passengerName, tripId }) => {
+    const trip = await getTripDetails(tripId);
+    const labels = trip ? routeLabels(trip) : { origin: "", destination: "" };
+    return {
+      id: rating.id,
+      ticketId: rating.ticketId,
+      rating: rating.rating,
+      comment: rating.comment,
+      authorName: authorName(passengerName),
+      origin: labels.origin,
+      destination: labels.destination,
+      departureDate: trip?.trip.departureDate ?? "",
+      createdAt: rating.createdAt.toISOString(),
+    };
+  }));
+
+  res.json({
+    companyId: company.id,
+    companyName: company.name,
+    averageRating: stats.average !== null ? parseFloat(stats.average) : null,
+    ratingsCount: stats.count,
+    items,
+    total: stats.count,
     page, pageSize,
   });
 });

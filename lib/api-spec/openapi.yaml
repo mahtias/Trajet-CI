@@ -462,6 +462,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/TicketCancellation"
 
+  /tickets/{ticketId}/rate:
+    post:
+      operationId: rateTicket
+      tags: [tickets]
+      summary: Rate the bus company of a trip actually taken (paid ticket, departure passed), once per ticket
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyRatingInput"
+      responses:
+        "201":
+          description: Rating saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketRating"
+        "400":
+          description: Invalid rating, ticket not paid / cancelled, or trip not taken yet
+        "401":
+          description: Not logged in
+        "403":
+          description: Someone else's ticket
+        "404":
+          description: Ticket not found
+        "409":
+          description: This ticket was already rated
+
   # Hotels
   /hotels/search:
     get:
@@ -1507,6 +1542,11 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CommissionSettingsInput"
+      description: >-
+        Seat selection settings apply at once. A different commissionPercent is not applied at once: it is
+        announced to every company admin (e-mail + dashboard banner) and applies after a 7-day notice
+        (pendingCommissionPercent / effectiveAt), replacing any change already pending. Sending the current
+        rate cancels a pending change.
       responses:
         "200":
           description: Updated
@@ -1514,6 +1554,93 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CommissionSettings"
+
+  /admin/settings/commission/pending:
+    delete:
+      operationId: cancelPendingCommission
+      tags: [admin]
+      summary: Cancel the announced commission change before it applies (company admins are told by e-mail)
+      responses:
+        "200":
+          description: Cancelled, the current rate stays
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionSettings"
+        "404":
+          description: No pending change
+
+  /admin/commission-notice:
+    get:
+      operationId: getCommissionNotice
+      tags: [admin]
+      summary: Announced commission change the logged-in company admin hasn't dismissed yet (dashboard banner)
+      responses:
+        "200":
+          description: The notice to show, or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionNoticeResponse"
+
+  /admin/commission-notice/acknowledge:
+    post:
+      operationId: acknowledgeCommissionNotice
+      tags: [admin]
+      summary: Dismiss the commission change banner (comes back only for a change announced later)
+      responses:
+        "200":
+          description: Dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/ratings:
+    get:
+      operationId: getCompanyRatings
+      tags: [admin]
+      summary: Ratings received by a company (company admin = its own company; super admin passes companyId)
+      parameters:
+        - name: companyId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ratings, newest first, with the company's average
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyRatingsPage"
+        "400":
+          description: companyId missing (super admin)
+        "404":
+          description: Company not found
+
+  /admin/companies/ratings-overview:
+    get:
+      operationId: getCompanyRatingsOverview
+      tags: [admin]
+      summary: Every company with its average rating and number of ratings, best rated first (super admin only)
+      responses:
+        "200":
+          description: Ranking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyRatingsOverview"
 
   /admin/reports/revenue-split:
     get:
@@ -2866,6 +2993,14 @@ components:
           type: ["number", "null"]
         refundStatus:
           $ref: "#/components/schemas/RefundStatus"
+        rating:
+          oneOf:
+            - $ref: "#/components/schemas/TicketRating"
+            - type: "null"
+          description: The passenger's rating of this trip (passenger routes only)
+        canRate:
+          type: boolean
+          description: True when the trip can be rated now (paid, not cancelled, departure passed, not rated yet)
         createdAt:
           type: string
           format: date-time
@@ -3625,9 +3760,151 @@ components:
         seatSelectionPlatformPercent:
           type: number
           description: Platform share of the seat selection fee; the company gets 100 minus this
+        pendingCommissionPercent:
+          type: ["number", "null"]
+          description: Announced commission rate, in force from effectiveAt (null = no change pending)
+        effectiveAt:
+          type: ["string", "null"]
+          format: date-time
+        notification:
+          oneOf:
+            - $ref: "#/components/schemas/CommissionNotificationSummary"
+            - type: "null"
+          description: Only in the answer to a change or a cancellation, how the company admins were e-mailed
         updatedAt:
           type: string
           format: date-time
+
+    CommissionNotificationSummary:
+      type: object
+      required: [sent, failed, withoutEmail]
+      properties:
+        sent:
+          type: integer
+        failed:
+          type: integer
+        withoutEmail:
+          type: integer
+          description: Company admins without an e-mail (they only get the dashboard banner)
+
+    CommissionNotice:
+      type: object
+      required: [currentPercent, newPercent, effectiveAt, announcedAt]
+      properties:
+        currentPercent:
+          type: number
+        newPercent:
+          type: number
+        effectiveAt:
+          type: string
+          format: date-time
+        announcedAt:
+          type: string
+          format: date-time
+
+    CommissionNoticeResponse:
+      type: object
+      required: [notice]
+      properties:
+        notice:
+          oneOf:
+            - $ref: "#/components/schemas/CommissionNotice"
+            - type: "null"
+
+    CompanyRatingInput:
+      type: object
+      required: [rating]
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: ["string", "null"]
+          maxLength: 500
+
+    TicketRating:
+      type: object
+      required: [rating, comment, createdAt]
+      properties:
+        rating:
+          type: integer
+        comment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CompanyRating:
+      type: object
+      required: [id, ticketId, rating, comment, authorName, origin, destination, departureDate, createdAt]
+      properties:
+        id:
+          type: integer
+        ticketId:
+          type: integer
+        rating:
+          type: integer
+        comment:
+          type: ["string", "null"]
+        authorName:
+          type: string
+          description: Passenger's first name and initial only (e.g. "Awa K.")
+        origin:
+          type: string
+        destination:
+          type: string
+        departureDate:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CompanyRatingsPage:
+      type: object
+      required: [companyId, companyName, averageRating, ratingsCount, items, total, page, pageSize]
+      properties:
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        averageRating:
+          type: ["number", "null"]
+          description: Average over all the company's ratings, one decimal (null = no rating yet)
+        ratingsCount:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyRating"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    CompanyRatingSummary:
+      type: object
+      required: [companyId, companyName, averageRating, ratingsCount]
+      properties:
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        averageRating:
+          type: ["number", "null"]
+        ratingsCount:
+          type: integer
+
+    CompanyRatingsOverview:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyRatingSummary"
 
     CommissionSettingsInput:
       type: object

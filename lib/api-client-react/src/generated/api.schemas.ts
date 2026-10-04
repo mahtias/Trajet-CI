@@ -535,6 +535,13 @@ export const RefundStatus = {
   manual_required: 'manual_required',
 } as const;
 
+export interface TicketRating {
+  rating: number;
+  /** @nullable */
+  comment: string | null;
+  createdAt: string;
+}
+
 export interface Ticket {
   id: number;
   tripId: number;
@@ -571,6 +578,10 @@ export interface Ticket {
   /** @nullable */
   refundAmount?: number | null;
   refundStatus?: RefundStatus;
+  /** The passenger's rating of this trip (passenger routes only) */
+  rating?: TicketRating | null;
+  /** True when the trip can be rated now (paid, not cancelled, departure passed, not rated yet) */
+  canRate?: boolean;
   createdAt: string;
 }
 
@@ -1052,12 +1063,93 @@ export interface TripPricing {
   totalPrice: number;
 }
 
+export interface CommissionNotificationSummary {
+  sent: number;
+  failed: number;
+  /** Company admins without an e-mail (they only get the dashboard banner) */
+  withoutEmail: number;
+}
+
 export interface CommissionSettings {
   commissionPercent: number;
   seatSelectionFee: number;
   /** Platform share of the seat selection fee; the company gets 100 minus this */
   seatSelectionPlatformPercent: number;
+  /**
+     * Announced commission rate, in force from effectiveAt (null = no change pending)
+     * @nullable
+     */
+  pendingCommissionPercent?: number | null;
+  /** @nullable */
+  effectiveAt?: string | null;
+  /** Only in the answer to a change or a cancellation, how the company admins were e-mailed */
+  notification?: CommissionNotificationSummary | null;
   updatedAt: string;
+}
+
+export interface CommissionNotice {
+  currentPercent: number;
+  newPercent: number;
+  effectiveAt: string;
+  announcedAt: string;
+}
+
+export interface CommissionNoticeResponse {
+  notice: CommissionNotice | null;
+}
+
+export interface CompanyRatingInput {
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  comment?: string | null;
+}
+
+export interface CompanyRating {
+  id: number;
+  ticketId: number;
+  rating: number;
+  /** @nullable */
+  comment: string | null;
+  /** Passenger's first name and initial only (e.g. "Awa K.") */
+  authorName: string;
+  origin: string;
+  destination: string;
+  departureDate: string;
+  createdAt: string;
+}
+
+export interface CompanyRatingsPage {
+  companyId: number;
+  companyName: string;
+  /**
+     * Average over all the company's ratings, one decimal (null = no rating yet)
+     * @nullable
+     */
+  averageRating: number | null;
+  ratingsCount: number;
+  items: CompanyRating[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CompanyRatingSummary {
+  companyId: number;
+  companyName: string;
+  /** @nullable */
+  averageRating: number | null;
+  ratingsCount: number;
+}
+
+export interface CompanyRatingsOverview {
+  items: CompanyRatingSummary[];
 }
 
 export interface CommissionSettingsInput {
@@ -1172,6 +1264,12 @@ pageSize?: number;
  * Filter on the route (company, stations, cities) or the bus name (case and accent insensitive)
  */
 search?: string;
+};
+
+export type GetCompanyRatingsParams = {
+companyId?: number;
+page?: number;
+pageSize?: number;
 };
 
 export type GetRevenueSplitReportParams = {

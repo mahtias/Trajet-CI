@@ -51,6 +51,7 @@ import AdminExchangeRates from '@/pages/admin/exchange-rates';
 import AdminRevenue from '@/pages/admin/revenue';
 import AdminRefunds from '@/pages/admin/refunds';
 import AdminCommission from '@/pages/admin/commission';
+import AdminRatings from '@/pages/admin/ratings';
 
 const queryClient = new QueryClient();
 
@@ -126,6 +127,9 @@ function Router() {
         </Route>
         <Route path="/admin/settings">
           <RequireRole roles={['admin']}><AdminCommission /></RequireRole>
+        </Route>
+        <Route path="/admin/ratings">
+          <RequireRole roles={['admin', 'company_admin']}><AdminRatings /></RequireRole>
         </Route>
         <Route path="/admin/exchange-rates">
           <RequireRole roles={['admin']}><AdminExchangeRates /></RequireRole>

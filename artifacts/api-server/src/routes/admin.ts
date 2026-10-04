@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, or, ne, gt, inArray, isNull, sql } from "drizzle-orm";
 import {
   db, companiesTable, routesTable, tripsTable, seatsTable, usersTable, hotelsTable,
-  citiesTable, stationsTable, companyStationsTable, busesTable, agenciesTable, platformSettingsTable, ticketsTable,
+  citiesTable, stationsTable, companyStationsTable, busesTable, agenciesTable, platformSettingsTable, ticketsTable, companyRatingsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import {
@@ -67,7 +67,8 @@ import {
   originCity,
   type RouteRow,
 } from "../lib/trip-queries";
-import { getPlatformSettings, formatSettings } from "../lib/pricing";
+import { getPlatformSettings, formatSettings, COMMISSION_NOTICE_DAYS } from "../lib/pricing";
+import { notifyCompanyAdmins } from "../lib/commission-notice";
 
 const router: IRouter = Router();
 // Super admin only. Scoped to /admin: a router-wide use() would also run on requests meant for
@@ -404,15 +405,75 @@ router.put("/admin/settings/commission", async (req, res): Promise<void> => {
     return;
   }
 
-  await getPlatformSettings(); // make sure the row exists
-  // Only tickets created from now on use the new values: existing tickets keep their frozen split
-  const [row] = await db.update(platformSettingsTable).set({
-    commissionPercent: commissionPercent.toFixed(2),
+  const current = await getPlatformSettings(); // creates the row if needed, applies a change that came due
+  const activePercent = parseFloat(current.commissionPercent);
+  const pendingPercent = current.commissionPercentPending !== null ? parseFloat(current.commissionPercentPending) : null;
+  const requested = Number(commissionPercent.toFixed(2));
+
+  // Seat selection settings: at once, as before. Only tickets created from now on use the new values.
+  const changes: Partial<typeof platformSettingsTable.$inferInsert> = {
     seatSelectionFee: seatSelectionFee.toFixed(2),
     seatSelectionPlatformPercent: seatSelectionPlatformPercent.toFixed(2),
     updatedAt: new Date(),
-  }).where(eq(platformSettingsTable.id, 1)).returning();
-  res.json(formatSettings(row));
+  };
+  // Commission: announced, then in force after the notice period (a new change replaces the pending one;
+  // the current rate cancels it; the rate already pending changes nothing and isn't announced twice)
+  let announcement: Parameters<typeof notifyCompanyAdmins>[0] | null = null;
+  if (requested !== activePercent && requested !== pendingPercent) {
+    const effectiveAt = new Date(Date.now() + COMMISSION_NOTICE_DAYS * 24 * 60 * 60 * 1000);
+    Object.assign(changes, { commissionPercentPending: requested.toFixed(2), commissionEffectiveAt: effectiveAt, commissionAnnouncedAt: new Date() });
+    announcement = { kind: "change", oldPercent: activePercent, newPercent: requested, effectiveAt };
+  } else if (requested === activePercent && pendingPercent !== null) {
+    Object.assign(changes, { commissionPercentPending: null, commissionEffectiveAt: null });
+    announcement = { kind: "cancelled", currentPercent: activePercent, cancelledPercent: pendingPercent };
+  }
+
+  const [row] = await db.update(platformSettingsTable).set(changes).where(eq(platformSettingsTable.id, 1)).returning();
+  req.log.info({ adminId: getSession(req).userId, commissionPercent: requested, announcement: announcement?.kind ?? null }, "Commission settings updated");
+  // The new settings are saved whatever happens to the e-mails
+  const notification = announcement ? await notifyCompanyAdmins(announcement) : null;
+  res.json({ ...formatSettings(row), notification });
+});
+
+// Cancels the announced change before it applies: the current rate stays, company admins are told
+router.delete("/admin/settings/commission/pending", async (req, res): Promise<void> => {
+  const current = await getPlatformSettings(); // a change that already came due is applied, not cancelled
+  if (current.commissionPercentPending === null) {
+    res.status(404).json({ error: "Aucun changement de commission en attente" });
+    return;
+  }
+  const [row] = await db.update(platformSettingsTable)
+    .set({ commissionPercentPending: null, commissionEffectiveAt: null, updatedAt: new Date() })
+    .where(eq(platformSettingsTable.id, 1))
+    .returning();
+  req.log.info({ adminId: getSession(req).userId, cancelledPercent: current.commissionPercentPending }, "Pending commission change cancelled");
+  const notification = await notifyCompanyAdmins({
+    kind: "cancelled",
+    currentPercent: parseFloat(current.commissionPercent),
+    cancelledPercent: parseFloat(current.commissionPercentPending),
+  });
+  res.json({ ...formatSettings(row), notification });
+});
+
+// ── Company ratings overview (super admin) ──────────────────────────────────────
+
+// Every company, best average first; companies without any rating come last
+router.get("/admin/companies/ratings-overview", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      companyId: companiesTable.id,
+      companyName: companiesTable.name,
+      averageRating: sql<string | null>`round(avg(${companyRatingsTable.rating}), 1)`,
+      ratingsCount: sql<number>`count(${companyRatingsTable.id})::int`,
+    })
+    .from(companiesTable)
+    .leftJoin(companyRatingsTable, eq(companyRatingsTable.companyId, companiesTable.id))
+    .groupBy(companiesTable.id, companiesTable.name)
+    .orderBy(sql`avg(${companyRatingsTable.rating}) desc nulls last`, sql`count(${companyRatingsTable.id}) desc`, companiesTable.name);
+
+  res.json({
+    items: rows.map((r) => ({ ...r, averageRating: r.averageRating !== null ? parseFloat(r.averageRating) : null })),
+  });
 });
 
 // ── Hotels ─────────────────────────────────────────────────────────────────────

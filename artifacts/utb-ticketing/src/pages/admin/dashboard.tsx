@@ -6,6 +6,7 @@ import {
 import { Ticket, DollarSign, TrendingUp, Calendar as CalendarIcon } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommissionNoticeBanner } from "@/components/commission-notice-banner";
 
 export default function AdminDashboard() {
   const { data: stats, isLoading } = useGetAdminStats();
@@ -14,6 +15,7 @@ export default function AdminDashboard() {
     return (
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Tableau de bord</h1>
+        <CommissionNoticeBanner />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[1,2,3,4].map(i => <div key={i} className="h-32 bg-muted animate-pulse rounded-xl"></div>)}
         </div>
@@ -27,6 +29,8 @@ export default function AdminDashboard() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-foreground mb-8">Tableau de bord</h1>
+      {/* Company admins: announced commission change, until dismissed */}
+      <CommissionNoticeBanner />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card className="border-border">

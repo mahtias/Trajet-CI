@@ -5,11 +5,21 @@
  * UTB Bus Ticketing API
  * OpenAPI spec version: 0.1.0
  */
+import type { CommissionNotificationSummary } from './commissionNotificationSummary';
 
 export interface CommissionSettings {
   commissionPercent: number;
   seatSelectionFee: number;
   /** Platform share of the seat selection fee; the company gets 100 minus this */
   seatSelectionPlatformPercent: number;
+  /**
+     * Announced commission rate, in force from effectiveAt (null = no change pending)
+     * @nullable
+     */
+  pendingCommissionPercent?: number | null;
+  /** @nullable */
+  effectiveAt?: Date | null;
+  /** Only in the answer to a change or a cancellation, how the company admins were e-mailed */
+  notification?: CommissionNotificationSummary | null;
   updatedAt: Date;
 }

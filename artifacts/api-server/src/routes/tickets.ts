@@ -1,13 +1,15 @@
 import { Router, type IRouter } from "express";
 import { eq, and, isNull, sql } from "drizzle-orm";
-import { db, ticketsTable, tripsTable, seatsTable } from "@workspace/db";
+import { db, ticketsTable, tripsTable, seatsTable, companyRatingsTable } from "@workspace/db";
 import {
   GetTicketParams,
   CancelTicketParams,
   GetTicketPaymentStatusParams,
+  RateTicketParams,
+  RateTicketBody,
 } from "@workspace/api-zod";
 import { releaseExpiredReservations } from "../lib/seat-reservations";
-import { getTripDetails, routeLabels } from "../lib/trip-queries";
+import { getTripDetails, getTripCompanyId, routeLabels } from "../lib/trip-queries";
 import { refundableBase, cancellationFeePercent, afterCancellationFee } from "../lib/pricing";
 import { initialRefundState, startRefund } from "../lib/refunds";
 
@@ -17,10 +19,32 @@ function getSession(req: any) {
   return req.session as { userId?: number };
 }
 
+/** Departure time as the rest of the app reads it (date + time, server time). */
+function departureTime(trip: { departureDate: string; departureTime: string }): Date {
+  return new Date(`${trip.departureDate}T${trip.departureTime}`);
+}
+
+/**
+ * Why this trip can't be rated, or null if it can: only a trip actually taken, i.e. a paid ticket,
+ * not cancelled, on a trip that wasn't cancelled and whose departure has passed.
+ */
+function ratingRefusal(ticket: { paymentStatus: string; cancelledAt: Date | null }, trip: { status: string; departureDate: string; departureTime: string } | undefined): string | null {
+  if (ticket.paymentStatus !== "paid") return "Seul un billet payé peut être noté";
+  if (ticket.cancelledAt) return "Ce billet a été annulé : ce voyage ne peut pas être noté";
+  if (!trip || trip.status === "cancelled") return "Ce voyage a été annulé : il ne peut pas être noté";
+  if (departureTime(trip).getTime() > Date.now()) return "Vous pourrez noter ce voyage une fois qu'il aura eu lieu";
+  return null;
+}
+
+function formatTicketRating(r: typeof companyRatingsTable.$inferSelect) {
+  return { rating: r.rating, comment: r.comment, createdAt: r.createdAt.toISOString() };
+}
+
 async function buildTicket(ticket: any) {
   const tripData = await getTripDetails(ticket.tripId);
 
   const [seat] = await db.select().from(seatsTable).where(eq(seatsTable.id, ticket.seatId)).limit(1);
+  const [rating] = await db.select().from(companyRatingsTable).where(eq(companyRatingsTable.ticketId, ticket.id)).limit(1);
 
   return {
     id: ticket.id,
@@ -47,6 +71,8 @@ async function buildTicket(ticket: any) {
     cancelledAt: ticket.cancelledAt ? ticket.cancelledAt.toISOString() : null,
     refundAmount: ticket.refundAmount !== null && ticket.refundAmount !== undefined ? parseFloat(ticket.refundAmount) : null,
     refundStatus: ticket.refundStatus,
+    rating: rating ? formatTicketRating(rating) : null,
+    canRate: !rating && ratingRefusal(ticket, tripData?.trip) === null,
     createdAt: ticket.createdAt.toISOString(),
   };
 }
@@ -106,6 +132,40 @@ router.get("/tickets/:ticketId/payment-status", async (req, res): Promise<void> 
   const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, found.id)).limit(1);
 
   res.json({ ticketId: ticket.id, paymentStatus: ticket.paymentStatus });
+});
+
+// One rating per ticket, by its owner, for a trip actually taken. The company is the trip's company at rating time.
+router.post("/tickets/:ticketId/rate", async (req, res): Promise<void> => {
+  const params = RateTicketParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = RateTicketBody.safeParse(req.body);
+  // Whole stars only (the generated schema checks the range, not that it's an integer)
+  if (!body.success || !Number.isInteger(body.data.rating)) {
+    res.status(400).json({ error: "Note entre 1 et 5 étoiles, commentaire de 500 caractères au plus" });
+    return;
+  }
+
+  const { userId } = getSession(req);
+  if (!userId) { res.status(401).json({ error: "Authentification requise" }); return; }
+  const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, params.data.ticketId)).limit(1);
+  if (!ticket) { res.status(404).json({ error: "Billet non trouvé" }); return; }
+  if (ticket.userId !== userId) { res.status(403).json({ error: "Ce billet ne vous appartient pas" }); return; }
+
+  const [trip] = await db.select().from(tripsTable).where(eq(tripsTable.id, ticket.tripId)).limit(1);
+  const refusal = ratingRefusal(ticket, trip);
+  if (refusal) { res.status(400).json({ error: refusal }); return; }
+  const companyId = await getTripCompanyId(ticket.tripId);
+  if (!companyId) { res.status(400).json({ error: "Compagnie du voyage introuvable" }); return; }
+
+  const comment = body.data.comment?.trim() || null;
+  // The unique ticket_id settles two submissions at once: only the first is saved
+  const [created] = await db.insert(companyRatingsTable)
+    .values({ ticketId: ticket.id, companyId, userId, rating: body.data.rating, comment })
+    .onConflictDoNothing({ target: companyRatingsTable.ticketId })
+    .returning();
+  if (!created) { res.status(409).json({ error: "Vous avez déjà noté ce voyage" }); return; }
+
+  res.status(201).json(formatTicketRating(created));
 });
 
 router.post("/tickets/:ticketId/cancel", async (req, res): Promise<void> => {

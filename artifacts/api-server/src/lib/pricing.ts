@@ -1,14 +1,10 @@
+import { and, eq, isNotNull, lte } from "drizzle-orm";
 import { db, platformSettingsTable, type PlatformSettings } from "@workspace/db";
+import { logger } from "./logger";
 
-/**
- * Ticket price and revenue split. Everything is computed here, on the server, from the trip price
- * in the database and the platform settings in force; nothing is ever taken from the client.
- * FCFA has no subunit: every amount is an integer.
- *
- * One rule for every sale made through the app (online or by a clerk at the counter):
- * the platform commission is ADDED to the fare, never taken out of it. The customer pays
- * fare + commission (+ seat selection fee, online only) and the company always gets its full fare.
- */
+/** Notice given to the companies before a new commission rate applies. */
+export const COMMISSION_NOTICE_DAYS = 7;
+
 export interface PricingSettings {
   commissionPercent: number;
   seatSelectionFee: number;
@@ -59,11 +55,6 @@ export function cancellationFeePercent(hoursUntilDeparture: number): number {
   return hoursUntilDeparture >= 24 ? ADVANCE_FEE_PERCENT : SAME_DAY_FEE_PERCENT;
 }
 
-/**
- * What remains of an amount once the cancellation fee is kept, in whole FCFA. The single formula for
- * both sides of a cancellation, with the same percentage: the passenger's refund (on fare + seat fee)
- * and the company's share taken back (so the company keeps the same percentage as the platform).
- */
 export function afterCancellationFee(amount: number, feePercent: number): number {
   return Math.round(amount * (1 - feePercent / 100));
 }
@@ -86,17 +77,43 @@ export function formatSettings(row: PlatformSettings) {
     commissionPercent: parseFloat(row.commissionPercent),
     seatSelectionFee: parseFloat(row.seatSelectionFee),
     seatSelectionPlatformPercent: parseFloat(row.seatSelectionPlatformPercent),
+    // Announced change not in force yet (null when none)
+    pendingCommissionPercent: row.commissionPercentPending !== null ? parseFloat(row.commissionPercentPending) : null,
+    effectiveAt: row.commissionEffectiveAt ? row.commissionEffectiveAt.toISOString() : null,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
 
-/** The single settings row (id = 1), created with the defaults (5 %, 400 FCFA, 60 %) if missing. */
+/**
+ * The single settings row (id = 1), created with the defaults (5 %, 400 FCFA, 60 %) if missing.
+ * An announced commission change whose date has passed is applied here, on the fly: every price
+ * computation goes through this, so no scheduled job is needed.
+ */
 export async function getPlatformSettings(): Promise<PlatformSettings> {
-  const [row] = await db.select().from(platformSettingsTable).limit(1);
-  if (row) return row;
-  await db.insert(platformSettingsTable).values({ id: 1 }).onConflictDoNothing();
-  const [created] = await db.select().from(platformSettingsTable).limit(1);
-  return created;
+  let [row] = await db.select().from(platformSettingsTable).limit(1);
+  if (!row) {
+    await db.insert(platformSettingsTable).values({ id: 1 }).onConflictDoNothing();
+    [row] = await db.select().from(platformSettingsTable).limit(1);
+  }
+  if (row.commissionPercentPending !== null && row.commissionEffectiveAt && row.commissionEffectiveAt.getTime() <= Date.now()) {
+    // Conditional update: only one concurrent request applies it, the others just read the result
+    const [applied] = await db.update(platformSettingsTable).set({
+      commissionPercent: row.commissionPercentPending,
+      commissionPercentPending: null,
+      commissionEffectiveAt: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(platformSettingsTable.id, 1),
+      isNotNull(platformSettingsTable.commissionPercentPending),
+      lte(platformSettingsTable.commissionEffectiveAt, new Date()),
+    )).returning();
+    if (applied) {
+      logger.info({ from: row.commissionPercent, to: applied.commissionPercent }, "Announced commission rate now in force");
+      return applied;
+    }
+    [row] = await db.select().from(platformSettingsTable).limit(1);
+  }
+  return row;
 }
 
 export async function getPricingSettings(): Promise<PricingSettings> {

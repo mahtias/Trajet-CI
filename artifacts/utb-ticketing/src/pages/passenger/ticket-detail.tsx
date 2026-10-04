@@ -24,6 +24,7 @@ import { getPaymentMethod } from "@/lib/payment-methods";
 import { formatShortDate } from "@/lib/dates";
 import { Price } from "@/components/price";
 import { PriceBreakdown } from "@/components/price-breakdown";
+import { TripRating } from "@/components/trip-rating";
 
 /** What the passenger is told about the refund: its real state, never more than what is guaranteed. */
 function refundMessageKey(status: string | undefined) {
@@ -223,6 +224,9 @@ export default function TicketDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Trip taken: rate the company (or see the rating given) */}
+      <TripRating ticketId={ticket.id} companyName={ticket.companyName} rating={ticket.rating} canRate={ticket.canRate} />
 
       <Button className="w-full mt-6 h-12" variant="outline" onClick={() => window.print()}>
         <Download className="w-4 h-4 mr-2" /> {t("ticketDetail.downloadPrint")}

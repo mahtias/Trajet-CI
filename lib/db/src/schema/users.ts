@@ -20,6 +20,8 @@ export const usersTable = pgTable("users", {
   otpExpiresAt: timestamp("otp_expires_at", { withTimezone: true }),
   // Wrong tries against the current code (max 5, then a new code must be requested)
   otpAttempts: integer("otp_attempts").notNull().default(0),
+  // Company admin closed the commission change banner at this time (shown again for a change announced later)
+  commissionNoticeSeenAt: timestamp("commission_notice_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -293,6 +293,12 @@ export const GetMyTicketsResponseItem = zod.object({
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
   "refundStatus": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).optional().describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)'),
+  "rating": zod.union([zod.object({
+  "rating": zod.number(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional().describe('The passenger\'s rating of this trip (passenger routes only)'),
+  "canRate": zod.boolean().optional().describe('True when the trip can be rated now (paid, not cancelled, departure passed, not rated yet)'),
   "createdAt": zod.coerce.date()
 })
 export const GetMyTicketsResponse = zod.array(GetMyTicketsResponseItem)
@@ -327,6 +333,12 @@ export const GetTicketResponse = zod.object({
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
   "refundStatus": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).optional().describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)'),
+  "rating": zod.union([zod.object({
+  "rating": zod.number(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional().describe('The passenger\'s rating of this trip (passenger routes only)'),
+  "canRate": zod.boolean().optional().describe('True when the trip can be rated now (paid, not cancelled, departure passed, not rated yet)'),
   "createdAt": zod.coerce.date()
 })
 
@@ -356,6 +368,31 @@ export const CancelTicketResponse = zod.object({
   "refundAmount": zod.number(),
   "feePercent": zod.number(),
   "refundStatus": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)')
+})
+
+
+/**
+ * @summary Rate the bus company of a trip actually taken (paid ticket, departure passed), once per ticket
+ */
+export const RateTicketParams = zod.object({
+  "ticketId": zod.coerce.number()
+})
+
+export const rateTicketBodyRatingMax = 5;
+
+export const rateTicketBodyCommentMax = 500;
+
+
+
+export const RateTicketBody = zod.object({
+  "rating": zod.number().min(1).max(rateTicketBodyRatingMax),
+  "comment": zod.string().max(rateTicketBodyCommentMax).nullish()
+})
+
+export const RateTicketResponse = zod.object({
+  "rating": zod.number(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
 })
 
 
@@ -682,6 +719,12 @@ export const ValidateTicketResponse = zod.object({
   "cancelledAt": zod.coerce.date().nullish(),
   "refundAmount": zod.number().nullish(),
   "refundStatus": zod.enum(['not_applicable', 'created', 'pending', 'success', 'failed', 'manual_required']).optional().describe('not_applicable (nothing to refund) | created (refund requested, not executed yet) | pending (operator processing) | success | failed (PayDunya refused or unreachable, handled by hand) | manual_required (card payment or non-Ivorian number, handled by hand)'),
+  "rating": zod.union([zod.object({
+  "rating": zod.number(),
+  "comment": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional().describe('The passenger\'s rating of this trip (passenger routes only)'),
+  "canRate": zod.boolean().optional().describe('True when the trip can be rated now (paid, not cancelled, departure passed, not rated yet)'),
   "createdAt": zod.coerce.date()
 }),
   "message": zod.string().nullish()
@@ -1340,11 +1383,19 @@ export const GetCommissionSettingsResponse = zod.object({
   "commissionPercent": zod.number(),
   "seatSelectionFee": zod.number(),
   "seatSelectionPlatformPercent": zod.number().describe('Platform share of the seat selection fee; the company gets 100 minus this'),
+  "pendingCommissionPercent": zod.number().nullish().describe('Announced commission rate, in force from effectiveAt (null = no change pending)'),
+  "effectiveAt": zod.coerce.date().nullish(),
+  "notification": zod.union([zod.object({
+  "sent": zod.number(),
+  "failed": zod.number(),
+  "withoutEmail": zod.number().describe('Company admins without an e-mail (they only get the dashboard banner)')
+}),zod.null()]).optional().describe('Only in the answer to a change or a cancellation, how the company admins were e-mailed'),
   "updatedAt": zod.coerce.date()
 })
 
 
 /**
+ * Seat selection settings apply at once. A different commissionPercent is not applied at once: it is announced to every company admin (e-mail + dashboard banner) and applies after a 7-day notice (pendingCommissionPercent / effectiveAt), replacing any change already pending. Sending the current rate cancels a pending change.
  * @summary Update commission settings (super admin only). Only affects tickets created afterwards.
  */
 export const updateCommissionSettingsBodyCommissionPercentMin = 0;
@@ -1367,7 +1418,97 @@ export const UpdateCommissionSettingsResponse = zod.object({
   "commissionPercent": zod.number(),
   "seatSelectionFee": zod.number(),
   "seatSelectionPlatformPercent": zod.number().describe('Platform share of the seat selection fee; the company gets 100 minus this'),
+  "pendingCommissionPercent": zod.number().nullish().describe('Announced commission rate, in force from effectiveAt (null = no change pending)'),
+  "effectiveAt": zod.coerce.date().nullish(),
+  "notification": zod.union([zod.object({
+  "sent": zod.number(),
+  "failed": zod.number(),
+  "withoutEmail": zod.number().describe('Company admins without an e-mail (they only get the dashboard banner)')
+}),zod.null()]).optional().describe('Only in the answer to a change or a cancellation, how the company admins were e-mailed'),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Cancel the announced commission change before it applies (company admins are told by e-mail)
+ */
+export const CancelPendingCommissionResponse = zod.object({
+  "commissionPercent": zod.number(),
+  "seatSelectionFee": zod.number(),
+  "seatSelectionPlatformPercent": zod.number().describe('Platform share of the seat selection fee; the company gets 100 minus this'),
+  "pendingCommissionPercent": zod.number().nullish().describe('Announced commission rate, in force from effectiveAt (null = no change pending)'),
+  "effectiveAt": zod.coerce.date().nullish(),
+  "notification": zod.union([zod.object({
+  "sent": zod.number(),
+  "failed": zod.number(),
+  "withoutEmail": zod.number().describe('Company admins without an e-mail (they only get the dashboard banner)')
+}),zod.null()]).optional().describe('Only in the answer to a change or a cancellation, how the company admins were e-mailed'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Announced commission change the logged-in company admin hasn't dismissed yet (dashboard banner)
+ */
+export const GetCommissionNoticeResponse = zod.object({
+  "notice": zod.union([zod.object({
+  "currentPercent": zod.number(),
+  "newPercent": zod.number(),
+  "effectiveAt": zod.coerce.date(),
+  "announcedAt": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Dismiss the commission change banner (comes back only for a change announced later)
+ */
+export const AcknowledgeCommissionNoticeResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Ratings received by a company (company admin = its own company; super admin passes companyId)
+ */
+export const GetCompanyRatingsQueryParams = zod.object({
+  "companyId": zod.coerce.number().optional(),
+  "page": zod.coerce.number().optional(),
+  "pageSize": zod.coerce.number().optional()
+})
+
+export const GetCompanyRatingsResponse = zod.object({
+  "companyId": zod.number(),
+  "companyName": zod.string(),
+  "averageRating": zod.number().nullable().describe('Average over all the company\'s ratings, one decimal (null = no rating yet)'),
+  "ratingsCount": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "ticketId": zod.number(),
+  "rating": zod.number(),
+  "comment": zod.string().nullable(),
+  "authorName": zod.string().describe('Passenger\'s first name and initial only (e.g. \"Awa K.\")'),
+  "origin": zod.string(),
+  "destination": zod.string(),
+  "departureDate": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number()
+})
+
+
+/**
+ * @summary Every company with its average rating and number of ratings, best rated first (super admin only)
+ */
+export const GetCompanyRatingsOverviewResponse = zod.object({
+  "items": zod.array(zod.object({
+  "companyId": zod.number(),
+  "companyName": zod.string(),
+  "averageRating": zod.number().nullable(),
+  "ratingsCount": zod.number()
+}))
 })
 
 

@@ -115,6 +115,9 @@ export function Navbar() {
           <Link href="/admin/revenue" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
             {t("nav.adminRevenue")}
           </Link>
+          <Link href="/admin/ratings" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+            {t("nav.adminRatings")}
+          </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
             <LogOut className="h-4 w-4 mr-2" /> {t("nav.logout")}
           </Button>
@@ -156,6 +159,7 @@ export function Navbar() {
               <DropdownMenuItem onSelect={() => setLocation("/admin/refunds")}>{t("nav.adminRefunds")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setLocation("/admin/settings")}>{t("nav.adminCommission")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setLocation("/admin/exchange-rates")}>{t("nav.adminExchangeRates")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setLocation("/admin/ratings")}>{t("nav.adminQuality")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>

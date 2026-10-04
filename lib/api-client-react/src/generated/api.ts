@@ -29,6 +29,7 @@ import type {
   BusInput,
   City,
   CityInput,
+  CommissionNoticeResponse,
   CommissionSettings,
   CommissionSettingsInput,
   Company,
@@ -36,6 +37,9 @@ import type {
   CompanyPayoutAccount,
   CompanyPayoutAccountInput,
   CompanyPayoutStatusReport,
+  CompanyRatingInput,
+  CompanyRatingsOverview,
+  CompanyRatingsPage,
   CompanyStationInput,
   DashboardStats,
   ExchangeRate,
@@ -50,6 +54,7 @@ import type {
   GetAdminUsersParams,
   GetAdminVehiclesParams,
   GetCompanyPayoutStatusParams,
+  GetCompanyRatingsParams,
   GetRevenueSplitReportParams,
   GetSalesReportParams,
   GetVehicleAvailabilityParams,
@@ -93,6 +98,7 @@ import type {
   SuccessResponse,
   Ticket,
   TicketCancellation,
+  TicketRating,
   TicketValidation,
   TourismBooking,
   TourismBookingInput,
@@ -1564,6 +1570,78 @@ export const useCancelTicket = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCancelTicketMutationOptions(options));
+    }
+
+export const getRateTicketUrl = (ticketId: number,) => {
+
+
+
+
+  return `/api/tickets/${ticketId}/rate`
+}
+
+/**
+ * @summary Rate the bus company of a trip actually taken (paid ticket, departure passed), once per ticket
+ */
+export const rateTicket = async (ticketId: number,
+    companyRatingInput: CompanyRatingInput, options?: RequestInit): Promise<TicketRating> => {
+
+  return customFetch<TicketRating>(getRateTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(companyRatingInput)
+  }
+);}
+
+
+
+
+
+export const getRateTicketMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateTicket>>, TError,{ticketId: number;data: BodyType<CompanyRatingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rateTicket>>, TError,{ticketId: number;data: BodyType<CompanyRatingInput>}, TContext> => {
+
+const mutationKey = ['rateTicket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rateTicket>>, {ticketId: number;data: BodyType<CompanyRatingInput>}> = (props) => {
+          const {ticketId,data} = props ?? {};
+
+          return  rateTicket(ticketId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RateTicketMutationResult = NonNullable<Awaited<ReturnType<typeof rateTicket>>>
+    export type RateTicketMutationBody = BodyType<CompanyRatingInput>
+    export type RateTicketMutationError = ErrorType<void>
+
+    /**
+ * @summary Rate the bus company of a trip actually taken (paid ticket, departure passed), once per ticket
+ */
+export const useRateTicket = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateTicket>>, TError,{ticketId: number;data: BodyType<CompanyRatingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rateTicket>>,
+        TError,
+        {ticketId: number;data: BodyType<CompanyRatingInput>},
+        TContext
+      > => {
+      return useMutation(getRateTicketMutationOptions(options));
     }
 
 export const getSearchHotelsUrl = (params: SearchHotelsParams,) => {
@@ -5107,6 +5185,7 @@ export const getUpdateCommissionSettingsUrl = () => {
 }
 
 /**
+ * Seat selection settings apply at once. A different commissionPercent is not applied at once: it is announced to every company admin (e-mail + dashboard banner) and applies after a 7-day notice (pendingCommissionPercent / effectiveAt), replacing any change already pending. Sending the current rate cancels a pending change.
  * @summary Update commission settings (super admin only). Only affects tickets created afterwards.
  */
 export const updateCommissionSettings = async (commissionSettingsInput: CommissionSettingsInput, options?: RequestInit): Promise<CommissionSettings> => {
@@ -5168,6 +5247,386 @@ export const useUpdateCommissionSettings = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getUpdateCommissionSettingsMutationOptions(options));
     }
+
+export const getCancelPendingCommissionUrl = () => {
+
+
+
+
+  return `/api/admin/settings/commission/pending`
+}
+
+/**
+ * @summary Cancel the announced commission change before it applies (company admins are told by e-mail)
+ */
+export const cancelPendingCommission = async ( options?: RequestInit): Promise<CommissionSettings> => {
+
+  return customFetch<CommissionSettings>(getCancelPendingCommissionUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelPendingCommissionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelPendingCommission>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelPendingCommission>>, TError,void, TContext> => {
+
+const mutationKey = ['cancelPendingCommission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelPendingCommission>>, void> = () => {
+
+
+          return  cancelPendingCommission(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelPendingCommissionMutationResult = NonNullable<Awaited<ReturnType<typeof cancelPendingCommission>>>
+
+    export type CancelPendingCommissionMutationError = ErrorType<void>
+
+    /**
+ * @summary Cancel the announced commission change before it applies (company admins are told by e-mail)
+ */
+export const useCancelPendingCommission = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelPendingCommission>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelPendingCommission>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCancelPendingCommissionMutationOptions(options));
+    }
+
+export const getGetCommissionNoticeUrl = () => {
+
+
+
+
+  return `/api/admin/commission-notice`
+}
+
+/**
+ * @summary Announced commission change the logged-in company admin hasn't dismissed yet (dashboard banner)
+ */
+export const getCommissionNotice = async ( options?: RequestInit): Promise<CommissionNoticeResponse> => {
+
+  return customFetch<CommissionNoticeResponse>(getGetCommissionNoticeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommissionNoticeQueryKey = () => {
+    return [
+    `/api/admin/commission-notice`
+    ] as const;
+    }
+
+
+export const getGetCommissionNoticeQueryOptions = <TData = Awaited<ReturnType<typeof getCommissionNotice>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionNotice>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommissionNoticeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommissionNotice>>> = ({ signal }) => getCommissionNotice({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommissionNotice>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommissionNoticeQueryResult = NonNullable<Awaited<ReturnType<typeof getCommissionNotice>>>
+export type GetCommissionNoticeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Announced commission change the logged-in company admin hasn't dismissed yet (dashboard banner)
+ */
+
+export function useGetCommissionNotice<TData = Awaited<ReturnType<typeof getCommissionNotice>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionNotice>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommissionNoticeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcknowledgeCommissionNoticeUrl = () => {
+
+
+
+
+  return `/api/admin/commission-notice/acknowledge`
+}
+
+/**
+ * @summary Dismiss the commission change banner (comes back only for a change announced later)
+ */
+export const acknowledgeCommissionNotice = async ( options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getAcknowledgeCommissionNoticeUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeCommissionNoticeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeCommissionNotice>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeCommissionNotice>>, TError,void, TContext> => {
+
+const mutationKey = ['acknowledgeCommissionNotice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeCommissionNotice>>, void> = () => {
+
+
+          return  acknowledgeCommissionNotice(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeCommissionNoticeMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeCommissionNotice>>>
+
+    export type AcknowledgeCommissionNoticeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Dismiss the commission change banner (comes back only for a change announced later)
+ */
+export const useAcknowledgeCommissionNotice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeCommissionNotice>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeCommissionNotice>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAcknowledgeCommissionNoticeMutationOptions(options));
+    }
+
+export const getGetCompanyRatingsUrl = (params?: GetCompanyRatingsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/ratings?${stringifiedParams}` : `/api/admin/ratings`
+}
+
+/**
+ * @summary Ratings received by a company (company admin = its own company; super admin passes companyId)
+ */
+export const getCompanyRatings = async (params?: GetCompanyRatingsParams, options?: RequestInit): Promise<CompanyRatingsPage> => {
+
+  return customFetch<CompanyRatingsPage>(getGetCompanyRatingsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCompanyRatingsQueryKey = (params?: GetCompanyRatingsParams,) => {
+    return [
+    `/api/admin/ratings`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCompanyRatingsQueryOptions = <TData = Awaited<ReturnType<typeof getCompanyRatings>>, TError = ErrorType<void>>(params?: GetCompanyRatingsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyRatings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCompanyRatingsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCompanyRatings>>> = ({ signal }) => getCompanyRatings(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCompanyRatings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCompanyRatingsQueryResult = NonNullable<Awaited<ReturnType<typeof getCompanyRatings>>>
+export type GetCompanyRatingsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Ratings received by a company (company admin = its own company; super admin passes companyId)
+ */
+
+export function useGetCompanyRatings<TData = Awaited<ReturnType<typeof getCompanyRatings>>, TError = ErrorType<void>>(
+ params?: GetCompanyRatingsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyRatings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCompanyRatingsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCompanyRatingsOverviewUrl = () => {
+
+
+
+
+  return `/api/admin/companies/ratings-overview`
+}
+
+/**
+ * @summary Every company with its average rating and number of ratings, best rated first (super admin only)
+ */
+export const getCompanyRatingsOverview = async ( options?: RequestInit): Promise<CompanyRatingsOverview> => {
+
+  return customFetch<CompanyRatingsOverview>(getGetCompanyRatingsOverviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCompanyRatingsOverviewQueryKey = () => {
+    return [
+    `/api/admin/companies/ratings-overview`
+    ] as const;
+    }
+
+
+export const getGetCompanyRatingsOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getCompanyRatingsOverview>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyRatingsOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCompanyRatingsOverviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCompanyRatingsOverview>>> = ({ signal }) => getCompanyRatingsOverview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCompanyRatingsOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCompanyRatingsOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getCompanyRatingsOverview>>>
+export type GetCompanyRatingsOverviewQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every company with its average rating and number of ratings, best rated first (super admin only)
+ */
+
+export function useGetCompanyRatingsOverview<TData = Awaited<ReturnType<typeof getCompanyRatingsOverview>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCompanyRatingsOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCompanyRatingsOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetRevenueSplitReportUrl = (params?: GetRevenueSplitReportParams,) => {
   const normalizedParams = new URLSearchParams();
