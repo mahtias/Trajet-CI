@@ -34,6 +34,7 @@ import { matchesSearch, routeIdsMatching } from "../lib/search";
 import { formatStation } from "../lib/stations";
 import { getPlatformSettings } from "../lib/pricing";
 import { formatCompany } from "../lib/companies";
+import { checkOnlineSeatsCapacity, newTripSeats, resizeTripSeats, SeatResizeError } from "../lib/trip-seats";
 import { isCompanySuspended, TRIP_CANCELLED_BY_SUSPENSION } from "../lib/company-suspension";
 
 const COMPANY_SUSPENDED_ERROR = "Cette compagnie est suspendue : aucun voyage ne peut être programmé ou réactivé";
@@ -398,9 +399,16 @@ router.get("/admin/trips", async (req, res): Promise<void> => {
   res.json({ items: trips, total: count, page, pageSize });
 });
 
+/** A readable message when the generated schema rejects onlineSeatsCapacity (e.g. 0 or negative). */
+function onlineSeatsIssue(error: z.ZodError): string | null {
+  return error.issues.some((i) => i.path[0] === "onlineSeatsCapacity")
+    ? "Les places vendables en ligne doivent être un nombre entier d'au moins 1, sans dépasser la capacité du bus"
+    : null;
+}
+
 router.post("/admin/trips", async (req, res): Promise<void> => {
   const body = CreateTripBody.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  if (!body.success) { res.status(400).json({ error: onlineSeatsIssue(body.error) ?? body.error.message }); return; }
 
   const departureDate = body.data.departureDate.toISOString().split("T")[0];
 
@@ -412,6 +420,11 @@ router.post("/admin/trips", async (req, res): Promise<void> => {
   const [bus] = await db.select().from(busesTable).where(eq(busesTable.id, body.data.busId)).limit(1);
   const busError = checkBusForRoute(bus, route);
   if (busError) { res.status(400).json({ error: busError }); return; }
+
+  // Places sold online: the whole bus unless the company keeps some for its own counter (outside the app)
+  const onlineSeats = body.data.onlineSeatsCapacity ?? bus.capacity;
+  const capacityError = checkOnlineSeatsCapacity(onlineSeats, bus.capacity);
+  if (capacityError) { res.status(400).json({ error: capacityError }); return; }
 
   if (await isBusBusy(bus.id, departureDate, body.data.departureTime)) {
     res.status(409).json({ error: "Ce bus est déjà affecté à un autre voyage sur ce créneau" });
@@ -425,27 +438,24 @@ router.post("/admin/trips", async (req, res): Promise<void> => {
       departureDate,
       departureTime: body.data.departureTime,
       price: String(body.data.price),
+      onlineSeatsCapacity: onlineSeats,
     }).returning();
 
-    // One seat per place in the bus
-    await tx.insert(seatsTable).values(Array.from({ length: bus.capacity }, (_, i) => ({
-      tripId: trip.id,
-      seatNumber: i + 1,
-      status: "available" as const,
-    })));
+    // One seat per place sold online
+    await tx.insert(seatsTable).values(newTripSeats(trip.id, onlineSeats));
 
     return trip;
   });
 
   const row = await getTripDetails(trip.id);
-  res.status(201).json(formatTripDetail(row!, bus.capacity, bus.capacity));
+  res.status(201).json(formatTripDetail(row!, onlineSeats, onlineSeats));
 });
 
 router.put("/admin/trips/:tripId", async (req, res): Promise<void> => {
   const params = UpdateTripParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const body = UpdateTripBody.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  if (!body.success) { res.status(400).json({ error: onlineSeatsIssue(body.error) ?? body.error.message }); return; }
 
   const existing = await getTripDetails(params.data.tripId);
   if (!existing) { res.status(404).json({ error: "Trajet non trouvé" }); return; }
@@ -472,17 +482,23 @@ router.put("/admin/trips/:tripId", async (req, res): Promise<void> => {
     [newBus] = await db.select().from(busesTable).where(eq(busesTable.id, body.data.busId)).limit(1);
     const busError = checkBusForRoute(newBus, existing.route);
     if (busError) { res.status(400).json({ error: busError }); return; }
-
-    // Seats above the new capacity can only be dropped if nobody holds them.
-    const [taken] = await db
-      .select({ id: seatsTable.id })
-      .from(seatsTable)
-      .where(and(eq(seatsTable.tripId, existing.trip.id), gt(seatsTable.seatNumber, newBus!.capacity), ne(seatsTable.status, "available")))
-      .limit(1);
-    if (taken) { res.status(409).json({ error: "Des sièges au-delà de la capacité du nouveau bus sont déjà réservés ou vendus" }); return; }
-
     updateData.busId = newBus!.id;
   }
+
+  // Places sold online. Not given: unchanged, except with another bus (whole bus stays whole bus,
+  // a partial number is kept if it still fits)
+  const bus = newBus ?? existing.bus;
+  const { totalSeats: currentSeats } = await getSeatCounts(existing.trip.id);
+  const currentOnline = existing.trip.onlineSeatsCapacity ?? currentSeats;
+  let targetOnline = currentOnline;
+  if (body.data.onlineSeatsCapacity !== undefined) {
+    const capacityError = checkOnlineSeatsCapacity(body.data.onlineSeatsCapacity, bus.capacity);
+    if (capacityError) { res.status(400).json({ error: capacityError }); return; }
+    targetOnline = body.data.onlineSeatsCapacity;
+  } else if (newBus) {
+    targetOnline = currentOnline >= existing.bus.capacity ? newBus.capacity : Math.min(currentOnline, newBus.capacity);
+  }
+  if (targetOnline !== existing.trip.onlineSeatsCapacity) updateData.onlineSeatsCapacity = targetOnline;
 
   const busId = updateData.busId ?? existing.trip.busId;
   const departureDate = updateData.departureDate ?? existing.trip.departureDate;
@@ -493,23 +509,18 @@ router.put("/admin/trips/:tripId", async (req, res): Promise<void> => {
     return;
   }
 
-  const { totalSeats: currentSeats } = await getSeatCounts(existing.trip.id);
-  await db.transaction(async (tx) => {
-    if (Object.keys(updateData).length > 0) {
-      await tx.update(tripsTable).set(updateData).where(eq(tripsTable.id, existing.trip.id));
-    }
-
-    // Resize the seat map to the new bus
-    if (newBus && newBus.capacity < currentSeats) {
-      await tx.delete(seatsTable).where(and(eq(seatsTable.tripId, existing.trip.id), gt(seatsTable.seatNumber, newBus.capacity)));
-    } else if (newBus && newBus.capacity > currentSeats) {
-      await tx.insert(seatsTable).values(Array.from({ length: newBus.capacity - currentSeats }, (_, i) => ({
-        tripId: existing.trip.id,
-        seatNumber: currentSeats + i + 1,
-        status: "available" as const,
-      })));
-    }
-  });
+  try {
+    await db.transaction(async (tx) => {
+      // Seats first: if they can't follow (sold seats, history), nothing at all is saved
+      if (newBus || targetOnline !== currentSeats) await resizeTripSeats(tx, existing.trip.id, targetOnline, bus.capacity);
+      if (Object.keys(updateData).length > 0) {
+        await tx.update(tripsTable).set(updateData).where(eq(tripsTable.id, existing.trip.id));
+      }
+    });
+  } catch (err) {
+    if (err instanceof SeatResizeError) { res.status(409).json({ error: err.message }); return; }
+    throw err;
+  }
 
   const row = await getTripDetails(existing.trip.id);
   const { totalSeats, availableSeats } = await getSeatCounts(existing.trip.id);

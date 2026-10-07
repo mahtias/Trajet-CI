@@ -60,6 +60,11 @@ export default function AdminTrips() {
   const [departureTime, setDepartureTime] = useState("");
   const [price, setPrice] = useState("");
   const [busId, setBusId] = useState("");
+  // Places sold online (the rest of the bus is sold at the company's counter, outside the app)
+  const [onlineSeats, setOnlineSeats] = useState("");
+  const [onlineSeatsTouched, setOnlineSeatsTouched] = useState(false);
+  // Edit only: the trip as it was, to keep its rules (seats already sold, current bus)
+  const [editedTrip, setEditedTrip] = useState<{ heldSeats: number; onlineSeats: number; busCapacity: number; busId: string } | null>(null);
 
   // Buses available for the selected route's company
   const routeCompanyId = routes?.find(r => r.id.toString() === routeId)?.companyId ?? 0;
@@ -67,6 +72,25 @@ export default function AdminTrips() {
     query: { queryKey: getGetCompanyBusesQueryKey(routeCompanyId), enabled: !!routeCompanyId },
   });
   const activeBuses = companyBuses?.filter(b => b.isActive || b.id.toString() === busId);
+  const selectedBus = companyBuses?.find(b => b.id.toString() === busId);
+  const busCapacity = selectedBus?.capacity ?? (editedTrip && editedTrip.busId === busId ? editedTrip.busCapacity : 0);
+
+  /** Default for the selected bus, same rule as the server: whole bus, or the trip's number if it still fits. */
+  const defaultOnlineSeats = (capacity: number) => {
+    if (!editedTrip) return capacity;
+    if (editedTrip.busId === busId) return editedTrip.onlineSeats;
+    return editedTrip.onlineSeats >= editedTrip.busCapacity ? capacity : Math.min(editedTrip.onlineSeats, capacity);
+  };
+  // Follow the bus until the user sets the number themselves
+  const onlineSeatsValue = onlineSeatsTouched || !busCapacity ? onlineSeats : String(defaultOnlineSeats(busCapacity));
+  const onlineSeatsNumber = Number(onlineSeatsValue);
+  const minOnlineSeats = Math.max(1, editedTrip?.heldSeats ?? 0);
+  const onlineSeatsError = !busCapacity ? null
+    : !Number.isInteger(onlineSeatsNumber) || onlineSeatsValue.trim() === "" ? "Indiquez un nombre entier de places"
+    : onlineSeatsNumber > busCapacity ? `Au maximum ${busCapacity} : le bus n'a que ${busCapacity} places`
+    : editedTrip && onlineSeatsNumber < editedTrip.heldSeats ? `${editedTrip.heldSeats} place(s) déjà vendue(s) ou réservée(s) en ligne : impossible de descendre en dessous de ${editedTrip.heldSeats}`
+    : onlineSeatsNumber < 1 ? "Au moins 1 place doit être vendue en ligne"
+    : null;
 
   const onErrorToast = (err: any) => {
     toast({ title: "Erreur", description: err?.data?.error ?? err?.message, variant: "destructive" });
@@ -78,6 +102,9 @@ export default function AdminTrips() {
     setDepartureTime("08:00");
     setPrice("5000");
     setBusId("");
+    setOnlineSeats("");
+    setOnlineSeatsTouched(false);
+    setEditedTrip(null);
     setEditingId(null);
   };
 
@@ -87,17 +114,22 @@ export default function AdminTrips() {
     setDepartureTime(trip.departureTime.slice(0, 5));
     setPrice(trip.price.toString());
     setBusId(trip.busId?.toString() ?? "");
+    const tripOnline = trip.onlineSeatsCapacity ?? trip.totalSeats;
+    setEditedTrip({ heldSeats: trip.totalSeats - trip.availableSeats, onlineSeats: tripOnline, busCapacity: trip.busCapacity ?? trip.totalSeats, busId: trip.busId?.toString() ?? "" });
+    setOnlineSeats(String(tripOnline));
+    setOnlineSeatsTouched(false);
     setEditingId(trip.id);
     setIsDialogOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!routeId || !busId || !departureDate || !departureTime || !price) return;
+    if (!routeId || !busId || !departureDate || !departureTime || !price || onlineSeatsError) return;
+    const onlineSeatsCapacity = onlineSeatsNumber;
 
     if (editingId) {
       updateTrip.mutate(
-        { tripId: editingId, data: { busId: parseInt(busId), departureDate, departureTime, price: parseInt(price) } },
+        { tripId: editingId, data: { busId: parseInt(busId), departureDate, departureTime, price: parseInt(price), onlineSeatsCapacity } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/admin/trips"] });
@@ -110,7 +142,7 @@ export default function AdminTrips() {
       );
     } else {
       createTrip.mutate(
-        { data: { routeId: parseInt(routeId), busId: parseInt(busId), departureDate, departureTime, price: parseInt(price) } },
+        { data: { routeId: parseInt(routeId), busId: parseInt(busId), departureDate, departureTime, price: parseInt(price), onlineSeatsCapacity } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/admin/trips"] });
@@ -219,7 +251,28 @@ export default function AdminTrips() {
                   <Input type="number" value={price} onChange={e => setPrice(e.target.value)} required min={100} />
                 </div>
 
-                <Button type="submit" className="w-full" disabled={createTrip.isPending || updateTrip.isPending}>
+                <div>
+                  <label htmlFor="online-seats" className="text-sm font-medium mb-1 block">Places vendables en ligne</label>
+                  <Input
+                    id="online-seats"
+                    type="number"
+                    inputMode="numeric"
+                    min={minOnlineSeats}
+                    max={busCapacity || undefined}
+                    value={onlineSeatsValue}
+                    disabled={!busCapacity}
+                    aria-invalid={!!onlineSeatsError}
+                    aria-describedby="online-seats-hint"
+                    onChange={e => { setOnlineSeats(e.target.value); setOnlineSeatsTouched(true); }}
+                  />
+                  <p id="online-seats-hint" className={onlineSeatsError ? "text-sm text-destructive mt-1" : "text-xs text-muted-foreground mt-1"}>
+                    {onlineSeatsError ?? (busCapacity
+                      ? `Bus de ${busCapacity} places — combien sont vendables en ligne ? Les autres restent pour votre comptoir, hors de l'application.${editedTrip && editedTrip.heldSeats > 0 ? ` Déjà vendues ou réservées en ligne : ${editedTrip.heldSeats}.` : ""}`
+                      : "Choisissez d'abord un bus.")}
+                  </p>
+                </div>
+
+                <Button type="submit" className="w-full" disabled={createTrip.isPending || updateTrip.isPending || !!onlineSeatsError}>
                   Enregistrer
                 </Button>
               </form>
@@ -266,6 +319,9 @@ export default function AdminTrips() {
                   <TableCell>
                     <span className="text-green-600 font-bold">{trip.availableSeats}</span>
                     <span className="text-muted-foreground text-xs"> / {trip.totalSeats}</span>
+                    {trip.busCapacity !== undefined && trip.totalSeats < trip.busCapacity && (
+                      <div className="text-muted-foreground text-xs">en ligne, bus de {trip.busCapacity}</div>
+                    )}
                   </TableCell>
                   <TableCell>
                     {trip.status === "active" ? (

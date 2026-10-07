@@ -164,5 +164,8 @@ export function formatTripDetail(row: TripRow, availableSeats: number, totalSeat
     status: row.trip.status,
     busId: row.bus.id,
     busName: row.bus.name,
+    busCapacity: row.bus.capacity,
+    // Seats put on sale online; older trips (NULL) sell the whole bus, i.e. all their seats
+    onlineSeatsCapacity: row.trip.onlineSeatsCapacity ?? totalSeats,
   };
 }

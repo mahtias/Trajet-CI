@@ -11,6 +11,9 @@ export const tripsTable = pgTable("trips", {
   departureDate: date("departure_date", { mode: "string" }).notNull(),
   departureTime: text("departure_time").notNull(),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+  // Seats sold online for this trip (= seats rows); the rest of the bus is sold by the company at its own
+  // counter, outside the app. 1 to the bus capacity. NULL = trips created before this existed: the whole bus.
+  onlineSeatsCapacity: integer("online_seats_capacity"),
   status: text("status").notNull().default("active"), // active | cancelled
   // Why it was cancelled: "company_suspension" = cancelled by the suspension of its company, every paid
   // ticket refunded in full; such a trip can never be made active again. NULL = cancelled by hand (or active).

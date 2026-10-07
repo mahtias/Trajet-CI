@@ -3058,6 +3058,14 @@ components:
           type: integer
         busName:
           type: string
+        busCapacity:
+          type: integer
+          description: Real number of places in the bus
+        onlineSeatsCapacity:
+          type: ["integer", "null"]
+          description: >-
+            Places sold online on this trip (= totalSeats); the rest of the bus is sold by the company at its own
+            counter, outside the app. Trips created before this setting existed sell the whole bus.
 
     PaginatedTrips:
       type: object
@@ -3089,6 +3097,10 @@ components:
           type: string
         price:
           type: number
+        onlineSeatsCapacity:
+          type: ["integer", "null"]
+          minimum: 1
+          description: Places sold online, 1 to the bus capacity. Omitted / null = the whole bus.
 
     TripUpdate:
       type: object
@@ -3105,6 +3117,13 @@ components:
         status:
           type: string
           enum: [active, cancelled]
+        onlineSeatsCapacity:
+          type: integer
+          minimum: 1
+          description: >-
+            New number of places sold online, 1 to the bus capacity, never below the seats already sold or
+            reserved online. Changing the bus without it keeps the current number (the whole new bus if the whole
+            old one was on sale).
 
     # Seat
     Seat:

@@ -13,4 +13,9 @@ export interface TripUpdate {
   departureTime?: string;
   price?: number;
   status?: TripUpdateStatus;
+  /**
+     * New number of places sold online, 1 to the bus capacity, never below the seats already sold or reserved online. Changing the bus without it keeps the current number (the whole new bus if the whole old one was on sale).
+     * @minimum 1
+     */
+  onlineSeatsCapacity?: number;
 }

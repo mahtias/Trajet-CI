@@ -480,6 +480,13 @@ export interface TripDetail {
   status: TripDetailStatus;
   busId?: number;
   busName?: string;
+  /** Real number of places in the bus */
+  busCapacity?: number;
+  /**
+     * Places sold online on this trip (= totalSeats); the rest of the bus is sold by the company at its own counter, outside the app. Trips created before this setting existed sell the whole bus.
+     * @nullable
+     */
+  onlineSeatsCapacity?: number | null;
 }
 
 export interface PaginatedTrips {
@@ -495,6 +502,12 @@ export interface TripInput {
   departureDate: string;
   departureTime: string;
   price: number;
+  /**
+     * Places sold online, 1 to the bus capacity. Omitted / null = the whole bus.
+     * @minimum 1
+     * @nullable
+     */
+  onlineSeatsCapacity?: number | null;
 }
 
 export type TripUpdateStatus = typeof TripUpdateStatus[keyof typeof TripUpdateStatus];
@@ -511,6 +524,11 @@ export interface TripUpdate {
   departureTime?: string;
   price?: number;
   status?: TripUpdateStatus;
+  /**
+     * New number of places sold online, 1 to the bus capacity, never below the seats already sold or reserved online. Changing the bus without it keeps the current number (the whole new bus if the whole old one was on sale).
+     * @minimum 1
+     */
+  onlineSeatsCapacity?: number;
 }
 
 export type SeatStatus = typeof SeatStatus[keyof typeof SeatStatus];

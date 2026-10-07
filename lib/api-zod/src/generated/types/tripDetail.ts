@@ -23,4 +23,11 @@ export interface TripDetail {
   status: TripDetailStatus;
   busId?: number;
   busName?: string;
+  /** Real number of places in the bus */
+  busCapacity?: number;
+  /**
+     * Places sold online on this trip (= totalSeats); the rest of the bus is sold by the company at its own counter, outside the app. Trips created before this setting existed sell the whole bus.
+     * @nullable
+     */
+  onlineSeatsCapacity?: number | null;
 }

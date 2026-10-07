@@ -12,4 +12,10 @@ export interface TripInput {
   departureDate: Date;
   departureTime: string;
   price: number;
+  /**
+     * Places sold online, 1 to the bus capacity. Omitted / null = the whole bus.
+     * @minimum 1
+     * @nullable
+     */
+  onlineSeatsCapacity?: number | null;
 }

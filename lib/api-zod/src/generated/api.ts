@@ -170,7 +170,9 @@ export const GetTripResponse = zod.object({
   "availableSeats": zod.number(),
   "status": zod.enum(['active', 'cancelled']),
   "busId": zod.number().optional(),
-  "busName": zod.string().optional()
+  "busName": zod.string().optional(),
+  "busCapacity": zod.number().optional().describe('Real number of places in the bus'),
+  "onlineSeatsCapacity": zod.number().nullish().describe('Places sold online on this trip (= totalSeats); the rest of the bus is sold by the company at its own counter, outside the app. Trips created before this setting existed sell the whole bus.')
 })
 
 
@@ -1431,7 +1433,9 @@ export const GetAdminTripsResponse = zod.object({
   "availableSeats": zod.number(),
   "status": zod.enum(['active', 'cancelled']),
   "busId": zod.number().optional(),
-  "busName": zod.string().optional()
+  "busName": zod.string().optional(),
+  "busCapacity": zod.number().optional().describe('Real number of places in the bus'),
+  "onlineSeatsCapacity": zod.number().nullish().describe('Places sold online on this trip (= totalSeats); the rest of the bus is sold by the company at its own counter, outside the app. Trips created before this setting existed sell the whole bus.')
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -1442,12 +1446,16 @@ export const GetAdminTripsResponse = zod.object({
 /**
  * @summary Create a trip — admin, or company_admin scoped to its own company
  */
+
+
+
 export const CreateTripBody = zod.object({
   "routeId": zod.number(),
   "busId": zod.number(),
   "departureDate": zod.coerce.date(),
   "departureTime": zod.string(),
-  "price": zod.number()
+  "price": zod.number(),
+  "onlineSeatsCapacity": zod.number().min(1).nullish().describe('Places sold online, 1 to the bus capacity. Omitted \/ null = the whole bus.')
 })
 
 export const CreateTripResponse = zod.object({
@@ -1465,7 +1473,9 @@ export const CreateTripResponse = zod.object({
   "availableSeats": zod.number(),
   "status": zod.enum(['active', 'cancelled']),
   "busId": zod.number().optional(),
-  "busName": zod.string().optional()
+  "busName": zod.string().optional(),
+  "busCapacity": zod.number().optional().describe('Real number of places in the bus'),
+  "onlineSeatsCapacity": zod.number().nullish().describe('Places sold online on this trip (= totalSeats); the rest of the bus is sold by the company at its own counter, outside the app. Trips created before this setting existed sell the whole bus.')
 })
 
 
@@ -1476,12 +1486,16 @@ export const UpdateTripParams = zod.object({
   "tripId": zod.coerce.number()
 })
 
+
+
+
 export const UpdateTripBody = zod.object({
   "busId": zod.number().optional(),
   "departureDate": zod.coerce.date().optional(),
   "departureTime": zod.string().optional(),
   "price": zod.number().optional(),
-  "status": zod.enum(['active', 'cancelled']).optional()
+  "status": zod.enum(['active', 'cancelled']).optional(),
+  "onlineSeatsCapacity": zod.number().min(1).optional().describe('New number of places sold online, 1 to the bus capacity, never below the seats already sold or reserved online. Changing the bus without it keeps the current number (the whole new bus if the whole old one was on sale).')
 })
 
 export const UpdateTripResponse = zod.object({
@@ -1499,7 +1513,9 @@ export const UpdateTripResponse = zod.object({
   "availableSeats": zod.number(),
   "status": zod.enum(['active', 'cancelled']),
   "busId": zod.number().optional(),
-  "busName": zod.string().optional()
+  "busName": zod.string().optional(),
+  "busCapacity": zod.number().optional().describe('Real number of places in the bus'),
+  "onlineSeatsCapacity": zod.number().nullish().describe('Places sold online on this trip (= totalSeats); the rest of the bus is sold by the company at its own counter, outside the app. Trips created before this setting existed sell the whole bus.')
 })
 
 
