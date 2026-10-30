@@ -77,12 +77,12 @@ export default function AdminRevenue() {
             <TableRow>
               <TableHead>Compagnie</TableHead>
               <TableHead className="text-right">Billets</TableHead>
-              <TableHead className="text-right">Total payé par les clients</TableHead>
+              {/* <TableHead className="text-right">Total payé par les clients</TableHead> */}
               <TableHead className="text-right">Tarifs vendus</TableHead>
-              <TableHead className="text-right">Part compagnie (tarifs)</TableHead>
-              <TableHead className="text-right">Frais de service (plateforme)</TableHead>
-              <TableHead className="text-right">Frais choix de siège</TableHead>
-              <TableHead className="text-right">dont plateforme</TableHead>
+              {/* <TableHead className="text-right">Part compagnie (tarifs)</TableHead> */}
+              {/* <TableHead className="text-right">Frais de service (plateforme)</TableHead> */}
+              {/* <TableHead className="text-right">Frais choix de siège</TableHead> */}
+              {/* <TableHead className="text-right">dont plateforme</TableHead> */}
               <TableHead className="text-right">dont compagnie</TableHead>
               <TableHead className="text-right">Total compagnie</TableHead>
               <TableHead className="text-right">Total plateforme</TableHead>

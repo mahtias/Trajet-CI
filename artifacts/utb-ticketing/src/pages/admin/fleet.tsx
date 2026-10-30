@@ -239,18 +239,18 @@ export default function AdminFleet() {
           <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden h-fit">
             <div className="p-4 border-b border-border flex justify-between items-center">
               <h2 className="font-bold text-lg flex items-center gap-2">
-                <BusIcon className="w-5 h-5 text-primary" /> Bus
+                <BusIcon className="w-5 h-5 text-primary" /> auto-bus/car
               </h2>
               <Dialog open={isDialogOpen} onOpenChange={(open) => {
                 setIsDialogOpen(open);
                 if (!open) resetBusForm();
               }}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="gap-2"><Plus className="w-4 h-4" /> Nouveau bus</Button>
+                  <Button size="sm" className="gap-2"><Plus className="w-4 h-4" /> Nouveau car</Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>{editingBus ? "Modifier" : "Ajouter"} un bus</DialogTitle>
+                    <DialogTitle>{editingBus ? "Modifier" : "Ajouter"} un car</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmitBus} className="space-y-4 pt-4">
                     <div>
@@ -276,7 +276,7 @@ export default function AdminFleet() {
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead>Bus</TableHead>
+                  <TableHead>Auto-bus/car</TableHead>
                   <TableHead>Places</TableHead>
                   <TableHead>Actif</TableHead>
                   <TableHead className="text-right">Actions</TableHead>

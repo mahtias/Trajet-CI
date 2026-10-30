@@ -245,3 +245,55 @@
     background-color: var(--elevate-2);
   }
 }
+
+/* ── Admin shell (CoreUI-like back-office) ─────────────────────────────────────
+   Applies to every page rendered inside <AdminLayout>: neutral grey/white palette,
+   smaller radius, full-width content and compact page titles. Brand primary is kept. */
+.admin-shell {
+  --background: 228 14% 96%;
+  --foreground: 222 22% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 22% 16%;
+  --card-border: 220 13% 88%;
+  --popover-border: 220 13% 88%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --border: 220 13% 88%;
+  --input: 220 13% 84%;
+  --radius: 0.375rem;
+}
+
+/* Pages wrap themselves in "container mx-auto px-4 py-8": the shell already pads the content */
+.admin-shell main .container {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+.admin-shell main h1.text-3xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+}
+
+/* Cards and table panels: white, thin border, light shadow */
+.admin-shell main .bg-card {
+  box-shadow: 0 1px 2px rgba(8, 10, 12, 0.06);
+}
+
+/* Table headers like CoreUI: small uppercase labels on a light grey band */
+.admin-shell main thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+  color: hsl(220 9% 40%);
+}
+.admin-shell main thead {
+  background: hsl(220 14% 97%);
+}
+
+.admin-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
