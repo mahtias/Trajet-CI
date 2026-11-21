@@ -5,6 +5,14 @@ export const OTP_TTL_MINUTES = 10;
 /** Wrong codes allowed per issued code; the code is then dropped and a new one must be requested. */
 export const OTP_MAX_ATTEMPTS = 5;
 
+/**
+ * The one login-code SMS text, for every SMS provider (SMSPro, Orange). Its form was approved by the
+ * operators together with the "ChapVoyage" sender name: keep it as is, without accents.
+ */
+export function otpSmsText(code: string): string {
+  return `ChapVoyage : votre code de connexion est ${code}. Valable ${OTP_TTL_MINUTES} minutes.`;
+}
+
 export function generateOtp(): string {
   return randomInt(100000, 1000000).toString();
 }
@@ -38,7 +46,7 @@ export function checkDevOtpAtStartup() {
 }
 
 export type PhoneTarget =
-  | { kind: "ci"; e164: string } // Ivorian number: SMS through Orange
+  | { kind: "ci"; e164: string } // Ivorian number: SMS (SMSPro, then Orange), then e-mail
   | { kind: "ci_invalid" } // +225 but not the 10 national digits
   | { kind: "foreign" }; // anything else: e-mail only
 
@@ -67,4 +75,9 @@ export function phoneRateKey(raw: string): string {
 export function maskEmail(email: string): string {
   const [local, domain] = email.split("@");
   return `${local.slice(0, Math.min(2, Math.max(1, local.length - 1)))}***@${domain}`;
+}
+
+/** "+2250700000001" → "+22507****0001": enough to tell numbers apart in logs, not to harvest them. */
+export function maskPhone(phone: string): string {
+  return phone.length > 10 ? `${phone.slice(0, 6)}****${phone.slice(-4)}` : "****";
 }

@@ -7,7 +7,8 @@ import {
   VerifyOtpBody,
   UpdateMeBody,
 } from "@workspace/api-zod";
-import { sendSms } from "../lib/orange-sms";
+import { sendSms as sendOrangeSms, OrangeSmsConfigError } from "../lib/orange-sms";
+import { sendOtpSms as sendSmsProSms, SmsProApiError, SmsProConfigError } from "../lib/smspro-sms";
 import { sendOtpEmail } from "../lib/email";
 import { EMAIL_TAKEN, emailTaken, hasAccountActivity, isUniqueViolation, parseEmail } from "../lib/user-email";
 import { getAccountSuspension, sendAccountSuspended } from "../lib/account-status";
@@ -19,7 +20,9 @@ import {
   hashOtp,
   isDevOtpEnabled,
   maskEmail,
+  maskPhone,
   otpMatches,
+  otpSmsText,
   phoneRateKey,
 } from "../lib/otp";
 
@@ -43,6 +46,39 @@ const otpPhoneLimiter = rateLimit({
   keyGenerator: (req) => `phone:${phoneRateKey(String(req.body?.phone ?? ""))}`,
   message: { error: "Trop de codes demandés pour ce numéro (3 par heure). Réessayez plus tard." },
 });
+
+/**
+ * SMS providers for Ivorian numbers, tried in this order until one accepts the message.
+ * A provider without configuration is skipped silently (its startup warning already says so).
+ */
+const SMS_PROVIDERS = [
+  { name: "smspro", send: sendSmsProSms, isConfigError: (err: unknown) => err instanceof SmsProConfigError },
+  { name: "orange", send: sendOrangeSms, isConfigError: (err: unknown) => err instanceof OrangeSmsConfigError },
+] as const;
+
+type SmsLog = { info: (o: object, m: string) => void; warn: (o: object, m: string) => void; error: (o: object, m: string) => void };
+
+/** Name of the provider that sent the SMS, or null when none could (not configured or failed). */
+async function sendOtpBySms(e164: string, code: string, log: SmsLog): Promise<string | null> {
+  const message = otpSmsText(code);
+  const phone = maskPhone(e164);
+  for (const provider of SMS_PROVIDERS) {
+    try {
+      await provider.send(e164, message);
+      log.info({ phone, provider: provider.name }, "OTP sent by SMS");
+      return provider.name;
+    } catch (err) {
+      if (provider.isConfigError(err)) continue;
+      if (err instanceof SmsProApiError) {
+        // SMSPro's own message tells e.g. an empty balance ("You have exceeded your sending limit.") or a refused sender
+        log.error({ phone, provider: provider.name, httpStatus: err.httpStatus, providerMessage: err.providerMessage, reason: err.message }, "OTP SMS failed");
+      } else {
+        log.warn({ phone, provider: provider.name, reason: (err as Error).message }, "OTP SMS failed");
+      }
+    }
+  }
+  return null;
+}
 
 function getSession(req: any) {
   return req.session as { userId?: number };
@@ -123,7 +159,7 @@ router.post("/auth/request-otp", otpIpLimiter, otpPhoneLimiter, async (req, res)
   await db.insert(usersTable).values({ phone, name: name ?? null, role: "passenger" }).onConflictDoNothing({ target: usersTable.phone });
   let [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
 
-  // No SMS possible for this number (Orange only reaches +225): the code can only go by e-mail, so ask for one first
+  // No SMS possible for this number (the SMS providers are only used for +225): the code can only go by e-mail, so ask for one first
   if (target.kind === "foreign" && !user.email) {
     if (!providedEmail.email) {
       res.status(400).json({ error: "Pour recevoir votre code de connexion, indiquez votre adresse e-mail : l'envoi par SMS n'est pas disponible pour ce numéro.", code: "EMAIL_REQUIRED" });
@@ -159,27 +195,24 @@ router.post("/auth/request-otp", otpIpLimiter, otpPhoneLimiter, async (req, res)
 
   let smsFailed = false;
   if (target.kind === "ci") {
-    try {
-      await sendSms(target.e164, `Votre code ChapVoyage : ${otp}. Valable ${OTP_TTL_MINUTES} minutes. Ne le communiquez a personne.`);
-      req.log.info({ phone }, "OTP sent by SMS");
+    if (await sendOtpBySms(target.e164, otp, req.log)) {
       res.json({ message: "Code envoyé par SMS", deliveryChannel: "sms", smsFailed: false, emailHint: null });
       return;
-    } catch (err) {
-      smsFailed = true;
-      req.log.warn({ phone, reason: (err as Error).message }, "OTP SMS failed");
-      // No e-mail yet but one typed in the form (e.g. first sign-up): it becomes the account's e-mail, under the
-      // same rule as for non-Ivorian numbers, since the code can only go there. With SMS working, it is saved
-      // at verify-otp instead, once the phone is proven.
-      if (!user.email && providedEmail.email) {
-        const attached = await attachFirstEmail(user, providedEmail.email, req.log);
-        if (!attached.ok) { await clearOtp(); res.status(attached.status).json(attached.body); return; }
-        user = attached.user;
-      }
-      if (!user.email) {
-        await clearOtp();
-        res.status(503).json({ error: "Impossible d'envoyer le SMS pour le moment et aucun e-mail n'est enregistré sur ce compte. Réessayez dans quelques minutes.", code: "DELIVERY_FAILED" });
-        return;
-      }
+    }
+    // No SMS provider configured, or all of them failed
+    smsFailed = true;
+    // No e-mail yet but one typed in the form (e.g. first sign-up): it becomes the account's e-mail, under the
+    // same rule as for non-Ivorian numbers, since the code can only go there. With SMS working, it is saved
+    // at verify-otp instead, once the phone is proven.
+    if (!user.email && providedEmail.email) {
+      const attached = await attachFirstEmail(user, providedEmail.email, req.log);
+      if (!attached.ok) { await clearOtp(); res.status(attached.status).json(attached.body); return; }
+      user = attached.user;
+    }
+    if (!user.email) {
+      await clearOtp();
+      res.status(503).json({ error: "Impossible d'envoyer le SMS pour le moment et aucun e-mail n'est enregistré sur ce compte. Réessayez dans quelques minutes.", code: "DELIVERY_FAILED" });
+      return;
     }
   }
 

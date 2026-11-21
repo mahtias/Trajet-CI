@@ -8,6 +8,9 @@ export const logger = pino({
     "req.headers.authorization",
     "req.headers.cookie",
     "res.headers['set-cookie']",
+    // Defence in depth: the SMSPro token travels in a request body, which is never logged anyway
+    "api_token",
+    "*.api_token",
   ],
   ...(isProduction
     ? {}
